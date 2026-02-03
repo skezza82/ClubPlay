@@ -18,6 +18,7 @@ import {
   getActiveSession,
   getUserClubs
 } from "@/lib/firestore-service";
+import { getLibretroBoxartUrl } from "@/lib/libretro-utils";
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -50,7 +51,7 @@ export default function Home() {
                 setGame({
                   title: session.gameTitle,
                   platform: session.platform,
-                  cover_image_url: null
+                  cover_image_url: session.cover_image_url || null
                 });
               }
             } else {
@@ -150,10 +151,10 @@ export default function Home() {
                   <Card className="relative overflow-hidden border-none bg-surface/40 h-full min-h-[400px]">
                     <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-transparent z-10" />
 
-                    {game?.cover_image_url ? (
+                    {game?.cover_image_url || (game?.title && game?.platform) ? (
                       <div className="absolute inset-0 opacity-40">
                         <Image
-                          src={game.cover_image_url}
+                          src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
                           alt={game.title}
                           fill
                           className="object-cover object-center"
@@ -213,6 +214,7 @@ export default function Home() {
                       </div>
                     </div>
                   </Card>
+
                 </div>
 
                 {/* Stats / Countdown */}
@@ -233,6 +235,29 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Arcade Promo Banner */}
+              <section className="mb-12 animate-fade-in-up stagger-4">
+                <Link href="/arcade">
+                  <Card className="border-white/10 bg-gradient-to-r from-purple-900/40 to-black hover:border-purple-500/50 transition-all cursor-pointer group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-repeat opacity-5 pointer-events-none" style={{ backgroundImage: 'url("/images/grid-pattern.png")' }} />
+                    <CardContent className="p-8 flex items-center justify-between relative z-10">
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30 group-hover:scale-110 transition-transform shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+                          <Gamepad2 className="w-8 h-8 text-purple-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter group-hover:text-purple-400 transition-colors mb-2">The Arcade</h3>
+                          <p className="text-muted-foreground text-lg">No Club? No Problem. Play free classic games instantly.</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" className="hidden md:flex items-center gap-2 text-purple-400 group-hover:text-purple-300 font-bold uppercase tracking-wider text-lg">
+                        Enter Arcade <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </section>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in-up stagger-5">
                 <Link href="/clubs" className="contents">
                   <Button variant="ghost" className="h-auto py-6 flex flex-col gap-2 border border-white/5 hover:border-primary/50 bg-surface/50 cursor-pointer transition-transform hover:scale-105 active:scale-95">
@@ -246,13 +271,6 @@ export default function Home() {
                     <Users className="w-8 h-8 text-orange-500" />
                     <span className="font-bold">Create a Club</span>
                     <span className="text-xs text-muted-foreground">Start your own legacy</span>
-                  </Button>
-                </Link>
-                <Link href="/leaderboard" className="contents">
-                  <Button variant="ghost" className="h-auto py-6 flex flex-col gap-2 border border-white/5 hover:border-yellow-500/50 bg-surface/50 cursor-pointer transition-transform hover:scale-105 active:scale-95">
-                    <Trophy className="w-8 h-8 text-yellow-500" />
-                    <span className="font-bold">Global Leaderboards</span>
-                    <span className="text-xs text-muted-foreground">See how you rank</span>
                   </Button>
                 </Link>
               </div>
@@ -285,6 +303,22 @@ export default function Home() {
                     </Link>
                   </div>
                 </div>
+
+                {/* Arcade Teaser for Non-Club Users */}
+                <Link href="/arcade">
+                  <Card className="border-white/10 bg-gradient-to-r from-purple-900/20 to-black hover:bg-purple-900/40 transition-all cursor-pointer group">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Gamepad2 className="w-6 h-6 text-purple-400 group-hover:scale-110 transition-transform" />
+                        <div className="text-left">
+                          <h4 className="font-black text-white italic uppercase">Just looking to play?</h4>
+                          <p className="text-xs text-muted-foreground">Visit The Arcade</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-purple-400 group-hover:translate-x-1 transition-transform" />
+                    </CardContent>
+                  </Card>
+                </Link>
               </div>
             </section>
           )}

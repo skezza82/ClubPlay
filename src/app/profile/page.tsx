@@ -67,8 +67,21 @@ export default function ProfilePage() {
         }
     };
 
-    const handleAvatarSelect = (url: string) => {
+    const handleAvatarSelect = async (url: string) => {
         setAvatarUrl(url);
+        if (!user) return;
+
+        setIsSaving(true);
+        try {
+            await updateUserAvatar(user.uid, url);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (error) {
+            console.error("Error setting avatar:", error);
+            alert("Failed to update avatar.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,8 +92,14 @@ export default function ProfilePage() {
         try {
             const uploadedUrl = await uploadAvatar(user.uid, file);
             setAvatarUrl(uploadedUrl);
+
+            // Auto-save the new URL to profile
+            await updateUserAvatar(user.uid, uploadedUrl);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
         } catch (error) {
             console.error("Error uploading avatar:", error);
+            alert("Upload failed. Make sure the file is an image and under 5MB.");
         } finally {
             setIsUploading(false);
         }
@@ -134,9 +153,11 @@ export default function ProfilePage() {
                             {PRESET_AVATARS.map((preset) => (
                                 <button
                                     key={preset.id}
+                                    type="button"
                                     onClick={() => handleAvatarSelect(preset.url)}
+                                    disabled={isSaving || isUploading}
                                     className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${avatarUrl === preset.url ? "border-primary scale-95" : "border-white/5 hover:border-white/20"
-                                        }`}
+                                        } ${(isSaving || isUploading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
                                 </button>

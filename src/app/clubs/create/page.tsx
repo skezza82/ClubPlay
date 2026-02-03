@@ -9,13 +9,18 @@ import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Camera, Upload } from "lucide-react";
 import Link from "next/link";
+import { uploadClubLogo } from "@/lib/avatar-service";
+import { useRef } from "react";
 
 export default function CreateClubPage() {
     const [name, setName] = useState("");
     const [inviteCode, setInviteCode] = useState("");
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [logoFile, setLogoFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
     const router = useRouter();
 
@@ -37,22 +42,42 @@ export default function CreateClubPage() {
                 return;
             }
 
-            // 2. Create Club via Firestore
+            // 2. Upload Logo if selected
+            let finalLogoUrl = null;
+            if (logoFile) {
+                // We don't have clubId yet, so we'll use a temp path or update it after creation
+                // Since createClub uses a transaction, we should actually fetch a doc ref first
+                // OR just upload to a generic "temp_logos" and move it (complex)
+                // BETTER: Generate a doc ID first
+                const tempId = Math.random().toString(36).substring(7);
+                finalLogoUrl = await uploadClubLogo(tempId, logoFile);
+            }
+
+            // 3. Create Club via Firestore
             const clubId = await createClub(
                 name,
                 inviteCode.toUpperCase(),
                 user.uid,
                 user.displayName || "Club Owner",
-                user.photoURL || undefined
+                user.photoURL || undefined,
+                finalLogoUrl || undefined
             );
 
-            alert("Club created successfully!");
+            alert("Club created successfully! 🎮");
             router.push(`/clubs/${clubId}/admin`);
         } catch (error: any) {
             alert("Error creating club: " + error.message);
         }
 
         setIsLoading(false);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setLogoFile(file);
+            setLogoPreview(URL.createObjectURL(file));
+        }
     };
 
     return (
@@ -74,6 +99,30 @@ export default function CreateClubPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleCreate} className="space-y-6">
+                        <div className="flex flex-col items-center gap-4 mb-4">
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-24 h-24 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group"
+                            >
+                                {logoPreview ? (
+                                    <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <>
+                                        <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                                        <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
+                                    </>
+                                )}
+                            </div>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept="image/*"
+                            />
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Upload Custom Logo (Optional)</p>
+                        </div>
+
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-primary tracking-widest uppercase">Club Name</label>
                             <Input

@@ -12,17 +12,24 @@ import {
     createManualSession,
     getActiveSession,
     updateSession,
+    endSessionEarly,
+    deleteScore,
+    updateScore,
+    getSessionScores,
     type ClubMember
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
-import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home } from "lucide-react";
+import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { uploadClubLogo } from "@/lib/avatar-service";
+import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
+import { useRef } from "react";
 export default function ClubAdminPage() {
     const { id: clubId } = useParams();
     const [club, setClub] = useState<any>(null);
@@ -37,13 +44,19 @@ export default function ClubAdminPage() {
     const [clubName, setClubName] = useState("");
     const [logoUrl, setLogoUrl] = useState("");
 
+    // Game & Score State
+    const [weekScores, setWeekScores] = useState<any[]>([]);
+    const [editingScoreId, setEditingScoreId] = useState<string | null>(null);
+    const [editScoreValue, setEditScoreValue] = useState<string>("");
+
     // Manual Game State
     const [manualGame, setManualGame] = useState({
         title: "",
         platform: "",
         rules: "",
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-        challengeType: 'score' as 'score' | 'speed'
+        challengeType: 'score' as 'score' | 'speed',
+        cover_image_url: ""
     });
     const [activeSession, setActiveSession] = useState<any>(null);
     const [isEditingSession, setIsEditingSession] = useState(false);
@@ -52,9 +65,11 @@ export default function ClubAdminPage() {
         platform: "",
         rules: "",
         endDate: "",
-        challengeType: 'score' as 'score' | 'speed'
+        challengeType: 'score' as 'score' | 'speed',
+        cover_image_url: ""
     });
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
     const router = useRouter();
 
@@ -69,7 +84,8 @@ export default function ClubAdminPage() {
                 platform: editedSession.platform,
                 rules: editedSession.rules,
                 endDate: editedSession.endDate,
-                challengeType: editedSession.challengeType
+                challengeType: editedSession.challengeType,
+                cover_image_url: editedSession.cover_image_url
             });
             alert("Session updated successfully! 🎮");
             setActiveSession({
@@ -78,7 +94,8 @@ export default function ClubAdminPage() {
                 platform: editedSession.platform,
                 rules: editedSession.rules,
                 endDate: editedSession.endDate,
-                challengeType: editedSession.challengeType
+                challengeType: editedSession.challengeType,
+                cover_image_url: editedSession.cover_image_url
             });
             setIsEditingSession(false);
         } catch (error) {
@@ -105,7 +122,8 @@ export default function ClubAdminPage() {
                 platform: "",
                 rules: "",
                 endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-                challengeType: 'score'
+                challengeType: 'score',
+                cover_image_url: ""
             });
 
             // Refresh active session
@@ -117,7 +135,8 @@ export default function ClubAdminPage() {
                     platform: session.platform || "",
                     rules: session.rules || "",
                     endDate: session.endDate || "",
-                    challengeType: session.challengeType || 'score'
+                    challengeType: session.challengeType || 'score',
+                    cover_image_url: session.cover_image_url || ""
                 });
             }
         } catch (error) {
@@ -125,6 +144,38 @@ export default function ClubAdminPage() {
             alert("Failed to start manual challenge.");
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    // Score Management Handlers
+    const handleDeleteScore = async (scoreId: string) => {
+        if (!confirm("Are you sure you want to delete this score? This cannot be undone.")) return;
+        try {
+            await deleteScore(scoreId);
+            setWeekScores(weekScores.filter(s => s.id !== scoreId));
+            alert("Score deleted.");
+        } catch (e) {
+            console.error(e);
+            alert("Failed to delete score.");
+        }
+    };
+
+    const handleEditScore = (score: any) => {
+        setEditingScoreId(score.id);
+        setEditScoreValue(score.scoreValue.toString());
+    };
+
+    const handleSaveScore = async (scoreId: string) => {
+        try {
+            const num = parseFloat(editScoreValue);
+            if (isNaN(num)) return alert("Invalid score value");
+
+            await updateScore(scoreId, num);
+            setWeekScores(weekScores.map(s => s.id === scoreId ? { ...s, scoreValue: num } : s));
+            setEditingScoreId(null);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to update score.");
         }
     };
 
@@ -173,8 +224,13 @@ export default function ClubAdminPage() {
                         platform: session.platform || "",
                         rules: session.rules || "",
                         endDate: session.endDate || "",
-                        challengeType: session.challengeType || 'score'
+                        challengeType: session.challengeType || 'score',
+                        cover_image_url: session.cover_image_url || ""
                     });
+
+                    // Fetch scores for this session
+                    const scores = await getSessionScores(session.id);
+                    setWeekScores(scores);
                 }
 
             } catch (error) {
@@ -236,14 +292,37 @@ export default function ClubAdminPage() {
         setIsUpdating(true);
         try {
             await updateClub(clubId as string, {
-                name: clubName,
-                logoUrl: logoUrl
+                name: clubName
             });
-            alert("Club settings updated!");
-            setClub({ ...club, name: clubName, logoUrl: logoUrl });
+            alert("Club name updated! 🎮");
+            setClub({ ...club, name: clubName });
         } catch (error) {
             console.error("Error updating settings:", error);
             alert("Failed to update settings.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !clubId) return;
+
+        setIsUpdating(true);
+        try {
+            const uploadedUrl = await uploadClubLogo(clubId as string, file);
+            setLogoUrl(uploadedUrl);
+
+            // Auto-save to Firestore
+            await updateClub(clubId as string, {
+                logoUrl: uploadedUrl
+            });
+
+            setClub({ ...club, logoUrl: uploadedUrl });
+            alert("Logo updated successfully! 🎮");
+        } catch (error) {
+            console.error("Error updating logo:", error);
+            alert("Logo upload failed.");
         } finally {
             setIsUpdating(false);
         }
@@ -426,28 +505,62 @@ export default function ClubAdminPage() {
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleUpdateSettings} className="space-y-6 max-w-lg">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-white uppercase tracking-wider">Club Name</label>
-                                    <Input
-                                        value={clubName}
-                                        onChange={(e) => setClubName(e.target.value)}
-                                        className="bg-background/50 border-white/10"
-                                    />
+                                <div className="flex border-b border-white/5 pb-8 mb-8">
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-24 h-24 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group relative"
+                                        >
+                                            {logoUrl ? (
+                                                <>
+                                                    <img src={logoUrl} alt="Club Logo" className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <Camera className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                    <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleLogoUpload}
+                                            className="hidden"
+                                            accept="image/*"
+                                        />
+                                        <div className="text-center">
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black mb-1">Club Identity</p>
+                                            <Button
+                                                type="button"
+                                                variant="link"
+                                                size="sm"
+                                                className="h-auto p-0 text-primary text-[10px] font-bold uppercase tracking-widest"
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                Change Logo
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 pl-8 space-y-4 pt-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Name</label>
+                                            <Input
+                                                value={clubName}
+                                                onChange={(e) => setClubName(e.target.value)}
+                                                className="bg-background/50 border-white/10 h-12 text-white font-bold"
+                                            />
+                                        </div>
+                                        <Button type="submit" size="sm" className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest h-8 px-4" disabled={isUpdating}>
+                                            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                            Update Name
+                                        </Button>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-white uppercase tracking-wider">Logo URL</label>
-                                    <Input
-                                        value={logoUrl}
-                                        onChange={(e) => setLogoUrl(e.target.value)}
-                                        placeholder="https://..."
-                                        className="bg-background/50 border-white/10 font-mono text-sm"
-                                    />
-                                    <p className="text-xs text-muted-foreground">Paste a direct link to an image for now.</p>
-                                </div>
-                                <Button type="submit" className="neon-border w-full" disabled={isUpdating}>
-                                    {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                                    Save Changes
-                                </Button>
                             </form>
 
                             {userRole === 'owner' && (
@@ -491,9 +604,33 @@ export default function ClubAdminPage() {
                                         <CardDescription>Details for the ongoing weekly competition.</CardDescription>
                                     </div>
                                     {!isEditingSession && (
-                                        <Button variant="outline" onClick={() => setIsEditingSession(true)} className="w-full md:w-auto border-primary/20 text-xs font-bold uppercase tracking-widest px-6 h-10 neon-border-static">
-                                            Edit Challenge
-                                        </Button>
+                                        <div className="flex gap-2 w-full md:w-auto">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setIsEditingSession(true)}
+                                                className="border-primary/20 text-xs font-bold uppercase tracking-widest px-6 h-10 neon-border-static flex-1 md:flex-none"
+                                            >
+                                                Edit Challenge
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                onClick={async () => {
+                                                    if (window.confirm("Are you sure you want to end this challenge early? It will be moved to History immediately.")) {
+                                                        try {
+                                                            await endSessionEarly(activeSession.id);
+                                                            setActiveSession(null); // Clear from view immediately
+                                                            alert("Challenge ended successfully! It is now in the History tab.");
+                                                        } catch (e) {
+                                                            console.error("Error ending session:", e);
+                                                            alert("Failed to end session. Please try again.");
+                                                        }
+                                                    }
+                                                }}
+                                                className="text-xs font-bold uppercase tracking-widest px-6 h-10 flex-1 md:flex-none"
+                                            >
+                                                Finish Now
+                                            </Button>
+                                        </div>
                                     )}
                                 </CardHeader>
                                 <CardContent>
@@ -562,6 +699,49 @@ export default function ClubAdminPage() {
                                                     Cancel
                                                 </Button>
                                             </div>
+
+                                            {/* Live Preview of Boxart */}
+                                            {editedSession.title && editedSession.platform && (
+                                                <div className="mt-8 pt-8 border-t border-white/5">
+                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Boxart Preview (via Libretro)</h4>
+                                                    <div className="aspect-video w-full max-w-sm bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
+                                                        <Image
+                                                            src={getLibretroBoxartUrl(editedSession.title, editedSession.platform)}
+                                                            alt="Preview"
+                                                            fill
+                                                            className="object-cover"
+                                                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                                            <Gamepad2 className="w-12 h-12" />
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-[10px] text-muted-foreground mt-2 italic">Artwork fetched dynamically from Libretro Thumbnails repo.</p>
+
+                                                    <div className="mt-4 flex gap-4 items-end">
+                                                        <div className="flex-1 space-y-2">
+                                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Manual Boxart URL</label>
+                                                            <Input
+                                                                value={editedSession.cover_image_url}
+                                                                onChange={(e) => setEditedSession({ ...editedSession, cover_image_url: e.target.value })}
+                                                                placeholder="https://..."
+                                                                className="bg-background/50 border-white/10"
+                                                            />
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="h-10 border-primary/20 text-primary hover:bg-primary/10"
+                                                            onClick={() => {
+                                                                const url = getLibretroBoxartUrl(editedSession.title, editedSession.platform);
+                                                                setEditedSession({ ...editedSession, cover_image_url: url });
+                                                            }}
+                                                        >
+                                                            Use Libretro Art
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </form>
                                     ) : (
                                         <div className="grid md:grid-cols-2 gap-8">
@@ -590,12 +770,104 @@ export default function ClubAdminPage() {
                                                     </p>
                                                 </div>
                                                 <div>
+                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Boxart Preview</h4>
+                                                    <div className="aspect-video bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
+                                                        <Image
+                                                            src={activeSession.cover_image_url || getLibretroBoxartUrl(activeSession.gameTitle, activeSession.platform)}
+                                                            alt={activeSession.gameTitle}
+                                                            fill
+                                                            className="object-cover opacity-80"
+                                                            onError={(e: any) => { e.target.style.display = 'none'; }}
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+                                                            <Gamepad2 className="w-12 h-12" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div>
                                                     <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Rules</h4>
                                                     <div className="text-sm text-white/80 leading-relaxed italic p-4 bg-white/5 border border-white/10 rounded-xl whitespace-pre-wrap">
                                                         {activeSession.rules}
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Scoreboard Management */}
+                        {activeSession && (
+                            <Card className="border-blue-500/20 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Trophy className="w-5 h-5 text-blue-400" />
+                                        Scoreboard Management
+                                    </CardTitle>
+                                    <CardDescription>Edit or remove invalid scores from the leaderboard.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {(weekScores || []).length === 0 ? (
+                                        <div className="text-center py-8 text-muted-foreground italic border border-dashed border-white/10 rounded-lg">
+                                            No scores submitted yet.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {weekScores.map((score, index) => (
+                                                <div key={score.id} className="flex flex-col sm:flex-row items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 gap-4">
+                                                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                                                        <div className="font-mono text-muted-foreground w-6">#{index + 1}</div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-gray-700 overflow-hidden">
+                                                                {score.photoURL ? (
+                                                                    <Image src={score.photoURL} alt={score.displayName} width={32} height={32} className="object-cover w-full h-full" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-xs font-bold">
+                                                                        {score.displayName?.[0]}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="font-bold text-white max-w-[120px] truncate">{score.displayName}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                                                        {editingScoreId === score.id ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Input
+                                                                    value={editScoreValue}
+                                                                    onChange={(e) => setEditScoreValue(e.target.value)}
+                                                                    className="w-24 h-9 bg-black/50 border-white/20 text-right font-mono"
+                                                                    type="number"
+                                                                    step="any"
+                                                                    autoFocus
+                                                                />
+                                                                <Button size="sm" className="h-9 w-9 p-0 bg-green-500/20 text-green-400 hover:bg-green-500/30" onClick={() => handleSaveScore(score.id)}>
+                                                                    <Check className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-muted-foreground hover:text-white" onClick={() => setEditingScoreId(null)}>
+                                                                    <X className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="font-mono font-bold text-primary text-lg mr-4">
+                                                                    {activeSession?.challengeType === 'speed' ? `${score.scoreValue}s` : score.scoreValue.toLocaleString()}
+                                                                </div>
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-400" onClick={() => handleEditScore(score)}>
+                                                                        <Edit className="w-4 h-4" />
+                                                                    </Button>
+                                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => handleDeleteScore(score.id)}>
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </CardContent>
@@ -644,6 +916,71 @@ export default function ClubAdminPage() {
                                                 <option value="score">Points (High Score)</option>
                                                 <option value="speed">Speed (Fastest Time)</option>
                                             </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview & Boxart Selection */}
+                                    <div className="grid md:grid-cols-2 gap-6 p-6 bg-black/20 rounded-xl border border-white/5">
+                                        <div>
+                                            <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Boxart Preview</h4>
+                                            <div className="aspect-video bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center group">
+                                                {(manualGame.cover_image_url || (manualGame.title && manualGame.platform)) ? (
+                                                    <Image
+                                                        src={manualGame.cover_image_url || getLibretroBoxartUrl(manualGame.title, manualGame.platform)}
+                                                        alt="Preview"
+                                                        fill
+                                                        className="object-cover opacity-80"
+                                                        onError={(e: any) => {
+                                                            e.target.srcset = PLACEHOLDER_BOXART_URL;
+                                                            e.target.src = PLACEHOLDER_BOXART_URL;
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <Gamepad2 className="w-12 h-12 text-white/10" />
+                                                )}
+
+                                                {/* Overlay Actions */}
+                                                {!manualGame.cover_image_url && manualGame.title && manualGame.platform && (
+                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            className="neon-border text-[10px]"
+                                                            onClick={() => setManualGame({ ...manualGame, cover_image_url: getLibretroBoxartUrl(manualGame.title, manualGame.platform) })}
+                                                        >
+                                                            Use Libretro Art
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground mt-2 italic text-center">
+                                                {manualGame.cover_image_url ? "Custom artwork selected" : "Previewing Libretro match"}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Manual Boxart URL</label>
+                                                <Input
+                                                    placeholder="https://..."
+                                                    value={manualGame.cover_image_url}
+                                                    onChange={(e) => setManualGame({ ...manualGame, cover_image_url: e.target.value })}
+                                                    className="bg-background/50 border-white/10 text-xs font-mono"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Paste a direct image link here to override the automatic artwork. Be sure to use a high-quality landscape image (16:9).
+                                                </p>
+                                            </div>
+                                            {manualGame.cover_image_url && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 text-[10px] uppercase font-bold"
+                                                    onClick={() => setManualGame({ ...manualGame, cover_image_url: "" })}
+                                                >
+                                                    <Trash2 className="w-3 h-3 mr-2" /> Reset to Automatic
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
 

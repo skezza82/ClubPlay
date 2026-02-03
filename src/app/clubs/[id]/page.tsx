@@ -11,13 +11,15 @@ import {
     leaveClub,
     submitScore,
     requestJoin,
-    checkPendingRequest
+    checkPendingRequest,
+    getPastSessions
 } from "@/lib/firestore-service";
+import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check } from "lucide-react";
+import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
@@ -31,9 +33,10 @@ export default function ClubPage() {
     const [activeSession, setActiveSession] = useState<any>(null);
     const [game, setGame] = useState<any>(null);
     const [weekScores, setWeekScores] = useState<any[]>([]);
+    const [pastSessions, setPastSessions] = useState<any[]>([]);
     const [seasonStandings, setSeasonStandings] = useState<any[]>([]);
     const [members, setMembers] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history">("overview");
     const [scoreInput, setScoreInput] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPending, setIsPending] = useState(false);
@@ -158,7 +161,7 @@ export default function ClubPage() {
                         setGame({
                             title: session.gameTitle,
                             platform: session.platform,
-                            cover_image_url: null
+                            cover_image_url: session.cover_image_url || null
                         });
                     }
 
@@ -176,6 +179,18 @@ export default function ClubPage() {
                 // 6. Season Standings
                 const standings = await getSeasonStandings(clubId as string);
                 setSeasonStandings(standings);
+
+                // 7. Past Challenges (History)
+                const history = await getPastSessions(clubId as string);
+                const historyWithScores = await Promise.all(history.map(async (s) => {
+                    const scores = await getSessionScores(s.id);
+                    const sorted = [...scores].sort((a, b) => {
+                        if (s.challengeType === 'speed') return a.scoreValue - b.scoreValue;
+                        return b.scoreValue - a.scoreValue;
+                    });
+                    return { ...s, topScores: sorted.slice(0, 3) };
+                }));
+                setPastSessions(historyWithScores);
 
             } catch (e) {
                 console.error("Failed to load club data:", e);
@@ -256,6 +271,7 @@ export default function ClubPage() {
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
                     <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Season Leaderboard</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
+                    <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")}>History</TabButton>
                 </div>
             </div>
 
@@ -279,15 +295,23 @@ export default function ClubPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden">
-                                        {game?.cover_image_url ? (
+                                        {game?.cover_image_url || (game?.title && game?.platform) ? (
                                             <Image
-                                                src={game.cover_image_url}
+                                                src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
                                                 alt={game.title}
                                                 fill
                                                 className="object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                                                onError={(e: any) => {
+                                                    // Fallback to a placeholder if image fails to load
+                                                    e.target.srcset = PLACEHOLDER_BOXART_URL;
+                                                    e.target.src = PLACEHOLDER_BOXART_URL;
+                                                }}
                                             />
                                         ) : (
-                                            "Game Banner / Stream Placeholder"
+                                            <div className="flex flex-col items-center gap-2">
+                                                <Gamepad2 className="w-8 h-8 opacity-20" />
+                                                <span className="text-[10px] uppercase font-bold tracking-widest opacity-20">No Banner Available</span>
+                                            </div>
                                         )}
                                     </div>
                                     <p className="text-gray-300 mb-6 font-medium italic">
@@ -348,60 +372,45 @@ export default function ClubPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Weekly Scoreboard */}
-                            <Card className="border-white/5 bg-surface/30">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Trophy className="w-5 h-5 text-yellow-500" />
-                                        Weekly Leaderboard
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {weekScores.length === 0 ? (
-                                        <div className="text-center py-8 text-muted-foreground italic">No scores submitted yet this week. Be the first!</div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {weekScores.map((score, index) => (
-                                                <div key={score.id} className={`flex items-center p-3 rounded-lg border ${index === 0 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-white/5 border-white/5'}`}>
-                                                    <div className={`w-8 h-8 flex items-center justify-center font-black text-lg mr-4 ${index === 0 ? 'text-yellow-500' : 'text-gray-500'}`}>
-                                                        #{index + 1}
-                                                    </div>
-                                                    <div className="w-8 h-8 rounded-full bg-gray-700 mr-3 overflow-hidden">
-                                                        {score.photoURL && <img src={score.photoURL} className="w-full h-full object-cover" />}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="font-bold text-white">{score.displayName}</div>
-                                                    </div>
-                                                    <div className="font-mono font-bold text-primary text-xl">
-                                                        {formatScore(score.scoreValue, activeSession?.challengeType)}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
                         </div>
 
-                        {/* Sidebar: Mini Season Standings */}
+                        {/* Sidebar: Weekly Leaderboard (Members Only) */}
                         <div className="space-y-6">
-                            <Card className="border-white/5 bg-gradient-to-b from-surface to-black">
-                                <CardHeader>
-                                    <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground">Season Top 5</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {seasonStandings.slice(0, 5).map((player, i) => (
-                                        <div key={player.id} className="flex items-center justify-between text-sm">
+                            {isMember ? (
+                                <Card className="border-white/5 bg-gradient-to-b from-surface to-black">
+                                    <CardHeader>
+                                        <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2">
-                                                <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
-                                                <span className="text-white">{player.displayName}</span>
+                                                <Trophy className="w-4 h-4 text-yellow-500" /> Current Challenge
                                             </div>
-                                            <span className="font-mono text-primary">{player.points} pts</span>
-                                        </div>
-                                    ))}
-                                    {(seasonStandings.length === 0) && <div className="text-xs text-muted-foreground">No season data yet.</div>}
-                                </CardContent>
-                            </Card>
+                                            {isAdmin && (
+                                                <Link href={`/clubs/${clubId}/admin?tab=game`}>
+                                                    <Edit className="w-3 h-3 hover:text-white cursor-pointer transition-colors" />
+                                                </Link>
+                                            )}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {weekScores.slice(0, 5).map((score, i) => (
+                                            <div key={score.id} className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
+                                                    <span className="text-white truncate max-w-[120px]">{score.displayName}</span>
+                                                </div>
+                                                <span className="font-mono text-primary font-bold">
+                                                    {formatScore(score.scoreValue, activeSession?.challengeType)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {(weekScores.length === 0) && <div className="text-xs text-muted-foreground italic">No scores yet. Be the first!</div>}
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary/80">
+                                    <p className="font-bold mb-1 flex items-center gap-2"><Trophy className="w-3 h-3" /> Members Only</p>
+                                    Sign in and join the club to see the live leaderboard and submit your scores!
+                                </div>
+                            )}
 
                             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
                                 <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
@@ -481,6 +490,75 @@ export default function ClubPage() {
                         ))}
                     </div>
                 )}
+
+                {/* HISTORY TAB */}
+                {activeTab === "history" && (
+                    <div className="grid md:grid-cols-2 gap-6 pb-20">
+                        {pastSessions.length === 0 ? (
+                            <div className="col-span-full text-center py-20 text-muted-foreground">
+                                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                <p>No completed challenges yet.</p>
+                            </div>
+                        ) : (
+                            pastSessions.map((session) => (
+                                <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
+                                    <div className="h-32 bg-black/50 relative">
+                                        {(session.cover_image_url || session.gameTitle) && (
+                                            <Image
+                                                src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
+                                                alt={session.gameTitle || "Game Art"}
+                                                fill
+                                                className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                                            />
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+                                        <div className="absolute bottom-4 left-4 right-4">
+                                            <div className="flex justify-between items-end">
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
+                                                        {new Date(session.endDate).toLocaleDateString()}
+                                                    </p>
+                                                    <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
+                                                </div>
+                                                <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
+                                                    {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <CardContent className="pt-4">
+                                        <div className="space-y-3">
+                                            {session.topScores?.length > 0 ? (
+                                                session.topScores.map((score: any, index: number) => (
+                                                    <div key={index} className="flex items-center justify-between text-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
+                                                                    index === 1 ? 'bg-gray-400 text-black' :
+                                                                        index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
+                                                            >
+                                                                {index + 1}
+                                                            </div>
+                                                            <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
+                                                                {score.displayName || "Unknown"}
+                                                            </span>
+                                                        </div>
+                                                        <span className="font-mono font-bold text-primary">
+                                                            {formatScore(score.scoreValue, session.challengeType)}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                )}
+
             </div>
         </main>
     );

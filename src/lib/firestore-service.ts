@@ -8,6 +8,7 @@ import {
     doc,
     getDoc,
     setDoc,
+    updateDoc,
     addDoc,
     runTransaction,
     deleteDoc,
@@ -45,6 +46,7 @@ export interface WeeklySession {
     isActive: boolean;
     endDate: string;
     challengeType: 'score' | 'speed';
+    cover_image_url?: string;
 }
 
 export interface Score {
@@ -109,11 +111,34 @@ export const getSessionLeader = async (sessionId: string) => {
     return scoreData;
 };
 
+export const getPastSessions = async (clubId: string, limitCount: number = 3) => {
+    const sessionsRef = collection(db, "weekly_sessions");
+    const q = query(
+        sessionsRef,
+        where("clubId", "==", clubId),
+        where("isActive", "==", false),
+        orderBy("endDate", "desc"),
+        limit(limitCount)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+};
+
 export const checkInviteCodeUnique = async (code: string) => {
     const clubsRef = collection(db, "clubs");
     const q = query(clubsRef, where("inviteCode", "==", code));
     const snapshot = await getDocs(q);
     return snapshot.empty;
+};
+
+
+export const endSessionEarly = async (sessionId: string) => {
+    const docRef = doc(db, "weekly_sessions", sessionId);
+    await updateDoc(docRef, {
+        isActive: false,
+        endDate: new Date().toISOString()
+    });
 };
 
 export const createClub = async (
@@ -426,7 +451,7 @@ export const updateMemberRole = async (clubId: string, userId: string, newRole: 
     await setDoc(membershipRef, { role: newRole }, { merge: true });
 };
 
-export const createManualSession = async (clubId: string, details: { title: string, platform: string, rules: string, endDate: string, challengeType: 'score' | 'speed' }) => {
+export const createManualSession = async (clubId: string, details: { title: string, platform: string, rules: string, endDate: string, challengeType: 'score' | 'speed', cover_image_url?: string }) => {
     // 1. Deactivate current sessions
     const sessionsRef = collection(db, "weekly_sessions");
     const q = query(sessionsRef, where("clubId", "==", clubId), where("isActive", "==", true));
@@ -446,7 +471,8 @@ export const createManualSession = async (clubId: string, details: { title: stri
         isActive: true,
         startDate: Timestamp.now(),
         endDate: details.endDate,
-        challengeType: details.challengeType
+        challengeType: details.challengeType,
+        cover_image_url: details.cover_image_url || null
     });
 
     await batch.commit();
@@ -455,7 +481,7 @@ export const createManualSession = async (clubId: string, details: { title: stri
 
 export const updateSession = async (sessionId: string, details: Partial<WeeklySession>) => {
     const docRef = doc(db, "weekly_sessions", sessionId);
-    await setDoc(docRef, details, { merge: true });
+    await updateDoc(docRef, details);
 };
 
 export const getAllClubs = async () => {
@@ -489,4 +515,15 @@ export const checkPendingRequest = async (userId: string, clubId: string) => {
         return true;
     }
     return false;
+};
+
+// Score Management
+export const deleteScore = async (scoreId: string) => {
+    const scoreRef = doc(db, "scores", scoreId);
+    await deleteDoc(scoreRef);
+};
+
+export const updateScore = async (scoreId: string, newValue: number) => {
+    const scoreRef = doc(db, "scores", scoreId);
+    await updateDoc(scoreRef, { scoreValue: newValue });
 };

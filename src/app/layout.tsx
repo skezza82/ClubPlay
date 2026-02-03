@@ -12,11 +12,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import type { Viewport } from "next";
+
+export const viewport: Viewport = {
+  themeColor: "#66fcf1",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "ClubPlay | Competitive Gaming Clubs",
   description: "Join a club, play the game of the week, and climb the season leaderboard.",
   manifest: "/manifest.json",
-  themeColor: "#66fcf1",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
