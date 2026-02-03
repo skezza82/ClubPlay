@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is the owner of a club
+    function isClubOwner(clubId) {
+      return request.auth != null && get(/databases/$(database)/documents/clubs/$(clubId)).data.ownerId == request.auth.uid;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Clubs
+    match /clubs/{clubId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+      );
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Memberships
+    match /memberships/{membershipId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid || 
+        isClubOwner(request.resource.data.clubId)
+      );
+      allow delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isClubOwner(resource.data.clubId)
+      );
+    }
+
+    // Join Requests
+    match /join_requests/{requestId} {
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isClubOwner(resource.data.clubId)
+      );
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        isClubOwner(resource.data.clubId)
+      );
+    }
+
+    // Weekly Sessions
+    match /weekly_sessions/{sessionId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // For now
+    }
+
+    // Scores
+    match /scores/{scoreId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Users can post scores
+    }
+
+    // Season Standings
+    match /season_standings/{standingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Admin/System logic
+    }
+  }
+}

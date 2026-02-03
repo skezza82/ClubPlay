@@ -1,9 +1,10 @@
 
 import { Gamepad2 } from "lucide-react";
+import Link from "next/link";
 
 export function PremiumLogo() {
     return (
-        <div className="relative inline-flex items-center gap-3 group">
+        <Link href="/" className="relative inline-flex items-center gap-3 group cursor-pointer">
             <div className="relative">
                 <div className="absolute inset-0 bg-primary blur-xl opacity-50 group-hover:opacity-80 transition-opacity duration-500 animate-pulse" />
                 <Gamepad2 className="w-12 h-12 text-white relative z-10 drop-shadow-[0_0_10px_rgba(102,252,241,0.8)]" />
@@ -17,6 +18,6 @@ export function PremiumLogo() {
                     Competitive League
                 </span>
             </div>
-        </div>
+        </Link>
     );
 }

@@ -15,9 +15,22 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ClubPlay | Competitive Gaming Clubs",
   description: "Join a club, play the game of the week, and climb the season leaderboard.",
+  manifest: "/manifest.json",
+  themeColor: "#66fcf1",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ClubPlay",
+  },
+  icons: {
+    apple: "/icon.png",
+  },
 };
 
 import { AuthProvider } from "@/context/AuthContext";
+import { PWARegistrar } from "@/components/PWARegistrar";
+import { InstallPrompt } from "@/components/InstallPrompt";
+import { Navbar } from "@/components/Navbar";
 
 export default function RootLayout({
   children,
@@ -30,6 +43,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
         <AuthProvider>
+          <PWARegistrar />
+          <InstallPrompt />
+          <Navbar />
           {children}
         </AuthProvider>
       </body>

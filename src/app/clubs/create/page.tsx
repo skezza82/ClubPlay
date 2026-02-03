@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { checkInviteCodeUnique, createClub } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -27,30 +27,31 @@ export default function CreateClubPage() {
         }
 
         setIsLoading(true);
-        // Simulate network delay
-        await new Promise(r => setTimeout(r, 1000));
 
-        const { data, error } = await supabase.from('clubs').insert({
-            name,
-            invite_code: inviteCode.toUpperCase(),
-            owner_id: user.id,
-            member_count: 1,
-            created_at: new Date().toISOString()
-        });
+        try {
+            // 1. Check if invite code is unique
+            const isUnique = await checkInviteCodeUnique(inviteCode.toUpperCase());
+            if (!isUnique) {
+                alert("This invite code is already taken. Please try another.");
+                setIsLoading(false);
+                return;
+            }
 
-        if (!error) {
-            // Also join the club as owner
-            await supabase.from('club_members').insert({
-                club_id: (data as any)[0].id,
-                user_id: user.id,
-                role: 'owner'
-            });
+            // 2. Create Club via Firestore
+            const clubId = await createClub(
+                name,
+                inviteCode.toUpperCase(),
+                user.uid,
+                user.displayName || "Club Owner",
+                user.photoURL || undefined
+            );
 
             alert("Club created successfully!");
-            router.push("/clubs");
-        } else {
+            router.push(`/clubs/${clubId}/admin`);
+        } catch (error: any) {
             alert("Error creating club: " + error.message);
         }
+
         setIsLoading(false);
     };
 
