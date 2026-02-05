@@ -17,6 +17,8 @@ import {
   getActiveSession,
   getUserClubs
 } from "@/lib/firestore-service";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { getLibretroBoxartUrl } from "@/lib/libretro-utils";
 
 export default function Home() {
@@ -34,25 +36,35 @@ export default function Home() {
           const clubs = await getUserClubs(user.uid);
           setUserClubs(clubs);
 
-          // 2. Fetch Active Sessions for ALL clubs to find the one ending soonest
+          // 1.5 Fetch User Profile for Last Visited
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const lastVisitedId = userDoc.exists() ? userDoc.data().lastVisitedClubId : null;
+
+          // 2. Fetch Active Sessions for ALL clubs
           const sessionPromises = clubs.map(club => getActiveSession(club.id));
           const sessions = await Promise.all(sessionPromises);
 
-          // Filter valid active sessions and sort by end date (ascending - soonest first)
+          // Filter valid active sessions and sort
           const activeSessions = sessions
             .filter((s): s is any => s !== null && s.isActive)
-            .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+            .sort((a, b) => {
+              // Priority 1: Last Visited Club
+              if (lastVisitedId) {
+                if (a.clubId === lastVisitedId) return -1;
+                if (b.clubId === lastVisitedId) return 1;
+              }
+              // Priority 2: Soonest End Date
+              return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+            });
 
           const soonestSession = activeSessions[0] || null;
           setActiveSession(soonestSession);
 
           if (soonestSession) {
             if (soonestSession.gameId) {
-              // Fetch Game from Supabase
               const { data: gameData } = await supabase.from('games').select('*').eq('id', soonestSession.gameId).single();
               if (gameData) setGame(gameData);
             } else {
-              // Manual Session Details
               setGame({
                 title: soonestSession.gameTitle,
                 platform: soonestSession.platform,

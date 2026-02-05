@@ -676,3 +676,7 @@ export const deleteSession = async (sessionId: string) => {
 
 
 
+export const updateLastVisitedClub = async (userId: string, clubId: string) => {
+    const userRef = doc(db, "users", userId);
+    await setDoc(userRef, { lastVisitedClubId: clubId }, { merge: true });
+};

@@ -16,7 +16,8 @@ import {
     subscribeToClubMessages,
     sendClubMessage,
     type Message,
-    deleteSession
+    deleteSession,
+    updateLastVisitedClub
 } from "@/lib/firestore-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { supabase } from "@/lib/supabase";
@@ -69,6 +70,8 @@ export default function ClubPage() {
     useEffect(() => {
         if (user && clubId) {
             checkPendingRequest(user.uid, clubId as string).then(setIsPending);
+            // Track last visited club
+            updateLastVisitedClub(user.uid, clubId as string).catch(err => console.error("Failed to track visit", err));
         }
     }, [user, clubId]);
 
@@ -623,6 +626,42 @@ export default function ClubPage() {
                                 )}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* MEMBERS TAB */}
+                {activeTab === "members" && (
+                    <div className="grid md:grid-cols-4 gap-6">
+                        {members.length === 0 ? (
+                            <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                <p>No members found.</p>
+                            </div>
+                        ) : (
+                            members.map((member) => (
+                                <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
+                                    <div className="p-6 flex flex-col items-center text-center">
+                                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
+                                            {member.photoURL ? (
+                                                <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
+                                            ) : (
+                                                <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
+                                            )}
+                                        </div>
+                                        <h3 className="font-bold text-white mb-1 flex items-center gap-2">
+                                            {member.displayName}
+                                            {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
+                                        </h3>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
+                                            {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
+                                        </p>
+                                        <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
+                                            Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
                     </div>
                 )}
 

@@ -15,7 +15,7 @@ export function PremiumLogo() {
                     CLUB<span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400 group-hover:to-primary transition-all duration-300">PLAY</span>
                 </h1>
                 <span className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-primary-dim/80 group-hover:text-primary transition-colors">
-                    Competitive League
+                    Competitive Leagues
                 </span>
             </div>
         </Link>

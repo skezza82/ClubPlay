@@ -23,7 +23,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
-import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit } from "lucide-react";
+import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search } from "lucide-react";
+import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -649,6 +650,22 @@ export default function ClubAdminPage() {
                                 <CardContent>
                                     {isEditingSession ? (
                                         <form onSubmit={handleUpdateSession} className="space-y-6">
+                                            <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
+                                                <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                    <Search className="w-3 h-3" /> Auto-Fill from IGDB
+                                                </label>
+                                                <GameSearch
+                                                    onSelect={(game) => {
+                                                        setEditedSession(prev => ({
+                                                            ...prev,
+                                                            title: game.name,
+                                                            cover_image_url: game.coverUrl || ""
+                                                        }));
+                                                    }}
+                                                    className="w-full"
+                                                />
+                                            </div>
+
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
@@ -897,6 +914,22 @@ export default function ClubAdminPage() {
                             </CardHeader>
                             <CardContent>
                                 <form onSubmit={handleManualSession} className="space-y-6">
+                                    <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                            <Search className="w-3 h-3" /> Search Game (Auto-Fill)
+                                        </label>
+                                        <GameSearch
+                                            onSelect={(game) => {
+                                                setManualGame(prev => ({
+                                                    ...prev,
+                                                    title: game.name,
+                                                    cover_image_url: game.coverUrl || ""
+                                                }));
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </div>
+
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
