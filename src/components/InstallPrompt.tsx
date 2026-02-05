@@ -3,31 +3,26 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
 import { Button } from "./ui/Button";
+import { usePWA } from "@/context/PWAContext";
 
 export function InstallPrompt() {
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const { deferredPrompt, install, isIOS: contextIsIOS, dismiss } = usePWA();
     const [isVisible, setIsVisible] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
 
     useEffect(() => {
-        // Check if iOS
-        const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-        setIsIOS(isIOSDevice);
+        setIsIOS(contextIsIOS);
 
-        const handleBeforeInstallPrompt = (e: any) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-
+        if (deferredPrompt) {
             const dismissed = sessionStorage.getItem("pwa-prompt-dismissed");
             if (!dismissed) {
                 setIsVisible(true);
             }
-        };
-
-        window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        }
 
         // For iOS, we check more frequently or show if not standalone
-        if (isIOSDevice && !window.matchMedia('(display-mode: standalone)').matches) {
+        // Note: isIOS from context is static, so we might want to check display-mode here still
+        if (contextIsIOS && !window.matchMedia('(display-mode: standalone)').matches) {
             const dismissed = sessionStorage.getItem("pwa-prompt-dismissed");
             if (!dismissed) {
                 setIsVisible(true);
@@ -39,22 +34,17 @@ export function InstallPrompt() {
             setIsVisible(false);
         }
 
-        return () => {
-            window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-        };
-    }, []);
+    }, [deferredPrompt, contextIsIOS]);
 
     const handleInstallClick = async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        setDeferredPrompt(null);
+        await install();
         setIsVisible(false);
     };
 
     const handleDismiss = () => {
         setIsVisible(false);
         sessionStorage.setItem("pwa-prompt-dismissed", "true");
+        dismiss(); // Optional: clear prompt from context if you want to hide it globally until reload, but mostly we just hide UI
     };
 
     if (!isVisible) return null;

@@ -46,7 +46,15 @@ export const updateUserAvatar = async (userId: string, photoURL: string) => {
 };
 
 export const PRESET_AVATARS = [
-    { id: "viking", url: "/avatars/viking.png", name: "Viking" },
-    { id: "adventurer", url: "/avatars/adventurer.png", name: "Adventurer" },
-    { id: "spaceman", url: "/avatars/spaceman.png", name: "Spaceman" },
+    { id: "pirate", url: "/avatars/avatar_pirate.png", name: "Pirate" },
+    { id: "fairy", url: "/avatars/avatar_fairy.png", name: "Fairy" },
+    { id: "robot", url: "/avatars/avatar_robot.png", name: "Robot" },
+    { id: "adventurer", url: "/avatars/avatar_adventurer.png", name: "Adventurer" },
+    { id: "ninja", url: "/avatars/avatar_ninja.png", name: "Ninja" },
+    { id: "wizard", url: "/avatars/avatar_wizard.png", name: "Wizard" },
+    { id: "knight", url: "/avatars/avatar_knight.png", name: "Knight" },
+    { id: "alien", url: "/avatars/avatar_alien.png", name: "Alien" },
+    { id: "zombie", url: "/avatars/avatar_zombie.png", name: "Zombie" },
+    { id: "cyberpunk", url: "/avatars/avatar_cyberpunk.png", name: "Cyberpunk" },
+    { id: "female_adventurer", url: "/avatars/avatar_female_adventurer.png", name: "Adventurer (F)" },
 ];

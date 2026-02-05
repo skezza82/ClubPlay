@@ -16,6 +16,7 @@ import {
     deleteScore,
     updateScore,
     getSessionScores,
+    processSessionResults,
     type ClubMember
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -618,8 +619,20 @@ export default function ClubAdminPage() {
                                                     if (window.confirm("Are you sure you want to end this challenge early? It will be moved to History immediately.")) {
                                                         try {
                                                             await endSessionEarly(activeSession.id);
+
+
+                                                            // Trigger points processing (Client-side now)
+                                                            try {
+                                                                const processedCount = await processSessionResults(activeSession.id, clubId as string);
+                                                                console.log(`Processed ${processedCount} scores.`);
+                                                                alert("Challenge ended and points distributed successfully! 🏆");
+                                                            } catch (procError) {
+                                                                console.error("Error processing challenge points:", procError);
+                                                                alert(`Warning: Challenge ended but points processing failed: ${(procError as any).message}`);
+                                                            }
+
                                                             setActiveSession(null); // Clear from view immediately
-                                                            alert("Challenge ended successfully! It is now in the History tab.");
+                                                            alert("Challenge ended and points distributed!");
                                                         } catch (e) {
                                                             console.error("Error ending session:", e);
                                                             alert("Failed to end session. Please try again.");

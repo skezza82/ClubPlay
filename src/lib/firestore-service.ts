@@ -13,7 +13,11 @@ import {
     runTransaction,
     deleteDoc,
     writeBatch,
-    Timestamp
+    Timestamp,
+    onSnapshot,
+    QuerySnapshot,
+    increment,
+    serverTimestamp
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -47,6 +51,16 @@ export interface WeeklySession {
     endDate: string;
     challengeType: 'score' | 'speed';
     cover_image_url?: string;
+    isProcessed?: boolean;
+}
+
+export interface ClubStanding {
+    id: string; // userId
+    clubId: string;
+    userId: string;
+    points: number;
+    displayName: string;
+    photoURL?: string | null;
 }
 
 export interface Score {
@@ -257,6 +271,47 @@ export const getSeasonStandings = async (clubId: string) => {
     }));
 
     return standings;
+};
+
+export const updateClubStandings = async (clubId: string, updates: { userId: string, pointsToAdd: number }[]) => {
+    const batch = writeBatch(db);
+
+    for (const update of updates) {
+        // We use a composite key of clubId_userId for unique standings per club
+        const standingId = `${clubId}_${update.userId}`;
+        const standingRef = doc(db, "season_standings", standingId);
+
+        // This is a bit tricky because we need to read current points to add to them.
+        // For atomic updates without reading inside a loop (which is slow/complex in batch),
+        // we might ideally use increment().
+        // Let's use Firestore's increment operator for efficiency.
+
+        // However, we strictly need user details if creating new doc.
+        // Assuming the doc might not exist, set with merge is good, 
+        // but we need to supply basic info if it's new.
+        // For simplicity in this iteration, we trust the increment works on fields even if doc is created?
+        // No, set with merge: true and increment works.
+
+
+
+        // We need to fetch user details if we want to store them in standing doc
+        // BUT, keeping standings lightweight and just storing ID + points is better,
+        // joining with users table on read.
+        // The current `getSeasonStandings` joins on read. So we just store points.
+
+        batch.set(standingRef, {
+            clubId,
+            userId: update.userId,
+            points: increment(update.pointsToAdd)
+        }, { merge: true });
+    }
+
+    await batch.commit();
+};
+
+export const markSessionProcessed = async (sessionId: string) => {
+    const sessionRef = doc(db, "weekly_sessions", sessionId);
+    await updateDoc(sessionRef, { isProcessed: true });
 };
 
 export const getClubMembers = async (clubId: string) => {
@@ -527,3 +582,97 @@ export const updateScore = async (scoreId: string, newValue: number) => {
     const scoreRef = doc(db, "scores", scoreId);
     await updateDoc(scoreRef, { scoreValue: newValue });
 };
+
+// Chat Service
+export interface Message {
+    id: string;
+    text: string;
+    userId: string;
+    displayName: string;
+    photoURL?: string;
+    createdAt: string; // ISO string
+    clubId: string;
+}
+
+export const subscribeToClubMessages = (clubId: string, callback: (messages: Message[]) => void) => {
+    const messagesRef = collection(db, "clubs", clubId, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"), limit(50));
+
+    return onSnapshot(q, (snapshot: QuerySnapshot) => {
+        const messages = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+        } as Message));
+        callback(messages);
+    });
+};
+
+export const sendClubMessage = async (clubId: string, userId: string, text: string, userProfile: { displayName: string, photoURL?: string }) => {
+    const messagesRef = collection(db, "clubs", clubId, "messages");
+    await addDoc(messagesRef, {
+        text,
+        userId,
+        displayName: userProfile.displayName,
+        photoURL: userProfile.photoURL || null,
+        createdAt: new Date().toISOString(),
+        clubId
+    });
+};
+
+export const processSessionResults = async (sessionId: string, clubId: string) => {
+    // 1. Fetch scores for the session
+    const scores = await getSessionScores(sessionId);
+
+    if (scores.length === 0) {
+        // Just mark processed
+        await markSessionProcessed(sessionId);
+        return 0;
+    }
+
+    // 2. Sort scores (current logic: higher is better for 'score', need 'speed' logic later)
+    const sortedScores = [...scores].sort((a, b) => b.scoreValue - a.scoreValue);
+
+    // 3. Calculate points
+    const updates: { userId: string, pointsToAdd: number }[] = [];
+
+    sortedScores.forEach((score, index) => {
+        let points = 25;
+        if (index === 0) points = 100;
+        else if (index === 1) points = 75;
+        else if (index === 2) points = 50;
+
+        updates.push({
+            userId: score.userId,
+            pointsToAdd: points
+        });
+    });
+
+    // 4. Update Standings
+    await updateClubStandings(clubId, updates);
+
+    // 5. Mark Session Processed & Inactive
+    const sessionRef = doc(db, "weekly_sessions", sessionId);
+    await updateDoc(sessionRef, {
+        isProcessed: true,
+        isActive: false,
+        endDate: new Date().toISOString()
+    });
+
+    return updates.length;
+};
+
+export const deleteSession = async (sessionId: string) => {
+    try {
+        await deleteDoc(doc(db, "weekly_sessions", sessionId));
+        // Optional: We could also delete associated scores here if we wanted a "hard" delete
+        // const scoresQuery = query(collection(db, "scores"), where("sessionId", "==", sessionId));
+        // const batch = writeBatch(db); ...
+        return true;
+    } catch (error) {
+        console.error("Error deleting session:", error);
+        throw error;
+    }
+};
+
+
+

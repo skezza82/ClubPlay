@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "ClubPlay | Competitive Gaming Clubs",
-  description: "Join a club, play the game of the week, and climb the season leaderboard.",
+  description: "Join a club, play the game of the week, and climb the club leaderboard.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -32,11 +32,13 @@ export const metadata: Metadata = {
     title: "ClubPlay",
   },
   icons: {
+    icon: "/icon.png",
     apple: "/icon.png",
   },
 };
 
 import { AuthProvider } from "@/context/AuthContext";
+import { PWAProvider } from "@/context/PWAContext";
 import { PWARegistrar } from "@/components/PWARegistrar";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { Navbar } from "@/components/Navbar";
@@ -48,14 +50,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                window.deferredPrompt = e;
+                console.log("Captured PWA prompt early");
+              });
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
         <AuthProvider>
-          <PWARegistrar />
-          <InstallPrompt />
-          <Navbar />
-          {children}
+          <PWAProvider>
+            <PWARegistrar />
+            <InstallPrompt />
+            <Navbar />
+            {children}
+          </PWAProvider>
         </AuthProvider>
       </body>
     </html>

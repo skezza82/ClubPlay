@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
     getClub,
@@ -12,14 +12,19 @@ import {
     submitScore,
     requestJoin,
     checkPendingRequest,
-    getPastSessions
+    getPastSessions,
+    subscribeToClubMessages,
+    sendClubMessage,
+    type Message,
+    deleteSession
 } from "@/lib/firestore-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit } from "lucide-react";
+import { CountdownTimer } from "@/components/CountdownTimer";
+import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
@@ -36,11 +41,16 @@ export default function ClubPage() {
     const [pastSessions, setPastSessions] = useState<any[]>([]);
     const [seasonStandings, setSeasonStandings] = useState<any[]>([]);
     const [members, setMembers] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history" | "chat">("overview");
     const [scoreInput, setScoreInput] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPending, setIsPending] = useState(false);
     const [isRequesting, setIsRequesting] = useState(false);
+
+    // Chat State
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [chatInput, setChatInput] = useState("");
+    const [isSending, setIsSending] = useState(false);
 
     const currentUserMembership = members.find(m => m.userId === user?.uid);
     const isOwner = currentUserMembership?.role === 'owner';
@@ -79,6 +89,40 @@ export default function ClubPage() {
             alert("Failed to send join request.");
         } finally {
             setIsRequesting(false);
+        }
+    };
+
+    // Chat Logic
+    const chatEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (activeTab === "chat" && clubId) {
+            const unsubscribe = subscribeToClubMessages(clubId as string, setMessages);
+            return () => unsubscribe();
+        }
+    }, [activeTab, clubId]);
+
+    useEffect(() => {
+        if (activeTab === "chat" && chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [messages, activeTab]);
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!chatInput.trim() || !user || !clubId) return;
+
+        setIsSending(true);
+        try {
+            await sendClubMessage(clubId as string, user.uid, chatInput.trim(), {
+                displayName: user.displayName || "Unknown",
+                photoURL: user.photoURL || undefined
+            });
+            setChatInput("");
+        } catch (error) {
+            console.error("Failed to send message", error);
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -132,6 +176,28 @@ export default function ClubPage() {
         } catch (error) {
             console.error("Error leaving club:", error);
             alert("Error: " + (error as any).message);
+        }
+    };
+
+    const handleDeleteSession = async (sessionId: string) => {
+        if (!confirm("Are you sure you want to delete this challenge? This cannot be undone.")) return;
+        try {
+            await deleteSession(sessionId);
+            // Refresh past sessions
+            const history = await getPastSessions(clubId as string);
+            const historyWithScores = await Promise.all(history.map(async (s) => {
+                const scores = await getSessionScores(s.id);
+                const sorted = [...scores].sort((a, b) => {
+                    if (s.challengeType === 'speed') return a.scoreValue - b.scoreValue;
+                    return b.scoreValue - a.scoreValue;
+                });
+                return { ...s, topScores: sorted.slice(0, 3) };
+            }));
+            setPastSessions(historyWithScores);
+            alert("Challenge deleted.");
+        } catch (error) {
+            console.error("Error deleting session:", error);
+            alert("Failed to delete challenge.");
         }
     };
 
@@ -267,11 +333,11 @@ export default function ClubPage() {
 
             {/* Navigation */}
             <div className="container mx-auto max-w-5xl px-4 mt-8 mb-8">
-                <div className="flex gap-2 border-b border-white/10 pb-1">
+                <div className="flex gap-2 border-b border-white/10 pb-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
-                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Season Leaderboard</TabButton>
+                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Club Leaderboard</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-                    <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")}>History</TabButton>
+
                 </div>
             </div>
 
@@ -328,6 +394,13 @@ export default function ClubPage() {
                                             <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
                                                 {activeSession.rules}
                                             </p>
+
+                                            <div className="mt-4 pt-4 border-t border-primary/20">
+                                                <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                                    <Timer className="w-3 h-3" /> Time Remaining
+                                                </h4>
+                                                <CountdownTimer targetDate={activeSession.endDate} />
+                                            </div>
                                             {game?.platform && (
                                                 <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
                                                     <span>System:</span>
@@ -414,7 +487,7 @@ export default function ClubPage() {
 
                             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
                                 <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
-                                Finish in the top rank at the end of the week (Sunday Midnight) to earn <span className="text-white font-bold">25 Season Points</span>.
+                                Finish in the top rank at the end of the week (Sunday Midnight) to earn <span className="text-white font-bold">25 Club Points</span>.
                             </div>
                         </div>
                     </div>
@@ -422,145 +495,139 @@ export default function ClubPage() {
 
                 {/* SEASON TAB */}
                 {activeTab === "season" && (
-                    <Card className="border-white/10 bg-surface/40">
-                        <CardHeader>
-                            <CardTitle>Full Season Standings</CardTitle>
-                            <CardDescription>Accumulated points from weekly victories.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="rounded-lg overflow-hidden border border-white/5">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
-                                        <tr>
-                                            <th className="p-4">Rank</th>
-                                            <th className="p-4">Player</th>
-                                            <th className="p-4 text-right">Weekly Wins</th>
-                                            <th className="p-4 text-right">Total Points</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {seasonStandings.map((player, index) => (
-                                            <tr key={player.id} className="hover:bg-white/5 transition-colors">
-                                                <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
-                                                            {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
-                                                        </div>
-                                                        <span className="font-bold text-white">{player.displayName}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
-                                                <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
-                                            </tr>
-                                        ))}
-                                        {(seasonStandings.length === 0) && (
+                    <div className="space-y-12">
+                        <Card className="border-white/10 bg-surface/40">
+                            <CardHeader>
+                                <CardTitle>Club Leaderboard</CardTitle>
+                                <CardDescription>Accumulated points from weekly victories.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="rounded-lg overflow-hidden border border-white/5">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
                                             <tr>
-                                                <td colSpan={4} className="p-8 text-center text-muted-foreground">Season has just begun. No points awarded yet.</td>
+                                                <th className="p-4">Rank</th>
+                                                <th className="p-4">Player</th>
+                                                <th className="p-4 text-right">Weekly Wins</th>
+                                                <th className="p-4 text-right">Total Points</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* MEMBERS TAB */}
-                {activeTab === "members" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {members.map(member => (
-                            <div key={member.id} className="flex items-center p-4 rounded-xl bg-surface/50 border border-white/5 hover:border-white/20 transition-all">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center mr-4 border border-white/10">
-                                    {member.photoURL ? (
-                                        <img src={member.photoURL} alt="" className="w-full h-full rounded-full object-cover" />
-                                    ) : (
-                                        <span className="font-bold text-white">{member.displayName?.[0]}</span>
-                                    )}
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-white">{member.displayName}</h4>
-                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                        <span>Joined {new Date(member.joinedAt).toLocaleDateString()}</span>
-                                        {member.role === 'owner' && <span className="text-yellow-500 font-bold bg-yellow-500/10 px-2 rounded-full text-[10px]">OWNER</span>}
-                                        {member.role === 'admin' && <span className="text-primary font-bold bg-primary/10 px-2 rounded-full text-[10px]">ADMIN</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* HISTORY TAB */}
-                {activeTab === "history" && (
-                    <div className="grid md:grid-cols-2 gap-6 pb-20">
-                        {pastSessions.length === 0 ? (
-                            <div className="col-span-full text-center py-20 text-muted-foreground">
-                                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                                <p>No completed challenges yet.</p>
-                            </div>
-                        ) : (
-                            pastSessions.map((session) => (
-                                <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
-                                    <div className="h-32 bg-black/50 relative">
-                                        {(session.cover_image_url || session.gameTitle) && (
-                                            <Image
-                                                src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
-                                                alt={session.gameTitle || "Game Art"}
-                                                fill
-                                                className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
-                                            />
-                                        )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-                                        <div className="absolute bottom-4 left-4 right-4">
-                                            <div className="flex justify-between items-end">
-                                                <div>
-                                                    <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
-                                                        {new Date(session.endDate).toLocaleDateString()}
-                                                    </p>
-                                                    <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
-                                                </div>
-                                                <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                                                    {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <CardContent className="pt-4">
-                                        <div className="space-y-3">
-                                            {session.topScores?.length > 0 ? (
-                                                session.topScores.map((score: any, index: number) => (
-                                                    <div key={index} className="flex items-center justify-between text-sm">
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {seasonStandings.map((player, index) => (
+                                                <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
+                                                    <td className="p-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
-                                                                    index === 1 ? 'bg-gray-400 text-black' :
-                                                                        index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
-                                                            >
-                                                                {index + 1}
+                                                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
+                                                                {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
                                                             </div>
-                                                            <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
-                                                                {score.displayName || "Unknown"}
-                                                            </span>
+                                                            <span className="font-bold text-white">{player.displayName}</span>
                                                         </div>
-                                                        <span className="font-mono font-bold text-primary">
-                                                            {formatScore(score.scoreValue, session.challengeType)}
+                                                    </td>
+                                                    <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
+                                                    <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
+                                                </tr>
+                                            ))}
+                                            {(seasonStandings.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Past Challenges History */}
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
+                                <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
+                            </h3>
+                            <div className="grid md:grid-cols-2 gap-6 pb-20">
+                                {pastSessions.length === 0 ? (
+                                    <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                        <p>No completed challenges yet.</p>
+                                    </div>
+                                ) : (
+                                    pastSessions.map((session) => (
+                                        <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
+                                            <div className="h-32 bg-black/50 relative">
+                                                {(session.cover_image_url || session.gameTitle) && (
+                                                    <Image
+                                                        src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
+                                                        alt={session.gameTitle || "Game Art"}
+                                                        fill
+                                                        className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                                                    />
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+                                                {isAdmin && (
+                                                    <div className="absolute top-2 right-2 z-10">
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 border border-white/20"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteSession(session.id);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="w-4 h-4 text-white" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                <div className="absolute bottom-4 left-4 right-4">
+                                                    <div className="flex justify-between items-end">
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
+                                                                {new Date(session.endDate).toLocaleDateString()}
+                                                            </p>
+                                                            <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
+                                                        </div>
+                                                        <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
+                                                            {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
                                                         </span>
                                                     </div>
-                                                ))
-                                            ) : (
-                                                <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))
-                        )}
+                                                </div>
+                                            </div>
+                                            <CardContent className="pt-4">
+                                                <div className="space-y-3">
+                                                    {session.topScores?.length > 0 ? (
+                                                        session.topScores.map((score: any, index: number) => (
+                                                            <div key={index} className="flex items-center justify-between text-sm">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
+                                                                            index === 1 ? 'bg-gray-400 text-black' :
+                                                                                index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
+                                                                    >
+                                                                        {index + 1}
+                                                                    </div>
+                                                                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
+                                                                        {score.displayName || "Unknown"}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="font-mono font-bold text-primary">
+                                                                    {formatScore(score.scoreValue, session.challengeType)}
+                                                                </span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
             </div>
-        </main>
+        </main >
     );
 }
 

@@ -7,9 +7,8 @@ import { GameActions } from "@/components/GameActions";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserProfile } from "@/components/UserProfile";
 import { AuthGate } from "@/components/AuthGate";
-import { CountdownTimer } from "@/components/CountdownTimer";
 import { supabase } from "@/lib/supabase";
-import { Trophy, Timer, Gamepad2, Users, Loader2, Shield, Plus, ArrowRight, Info, Search } from "lucide-react";
+import { Trophy, Gamepad2, Users, Loader2, Shield, Plus, ArrowRight, Info, Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -35,28 +34,33 @@ export default function Home() {
           const clubs = await getUserClubs(user.uid);
           setUserClubs(clubs);
 
-          // 2. Fetch Latest Club Membership and its Active Session
-          const membership = await getLatestClubMembership(user.uid);
-          if (membership) {
-            const session = await getActiveSession(membership.clubId);
-            setActiveSession(session);
+          // 2. Fetch Active Sessions for ALL clubs to find the one ending soonest
+          const sessionPromises = clubs.map(club => getActiveSession(club.id));
+          const sessions = await Promise.all(sessionPromises);
 
-            if (session) {
-              if (session.gameId) {
-                // Fetch Game from Supabase
-                const { data: gameData } = await supabase.from('games').select('*').eq('id', session.gameId).single();
-                if (gameData) setGame(gameData);
-              } else {
-                // Manual Session Details
-                setGame({
-                  title: session.gameTitle,
-                  platform: session.platform,
-                  cover_image_url: session.cover_image_url || null
-                });
-              }
+          // Filter valid active sessions and sort by end date (ascending - soonest first)
+          const activeSessions = sessions
+            .filter((s): s is any => s !== null && s.isActive)
+            .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+
+          const soonestSession = activeSessions[0] || null;
+          setActiveSession(soonestSession);
+
+          if (soonestSession) {
+            if (soonestSession.gameId) {
+              // Fetch Game from Supabase
+              const { data: gameData } = await supabase.from('games').select('*').eq('id', soonestSession.gameId).single();
+              if (gameData) setGame(gameData);
             } else {
-              setGame(null);
+              // Manual Session Details
+              setGame({
+                title: soonestSession.gameTitle,
+                platform: soonestSession.platform,
+                cover_image_url: soonestSession.cover_image_url || null
+              });
             }
+          } else {
+            setGame(null);
           }
         } catch (err) {
           console.error("Error fetching homepage data:", err);
@@ -217,22 +221,7 @@ export default function Home() {
 
                 </div>
 
-                {/* Stats / Countdown */}
-                <div className="space-y-6">
-                  <div className="rgb-neon-border animate-fade-in-up stagger-3">
-                    <Card className="bg-primary/5 border-none h-full">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-primary">
-                          <Timer className="w-6 h-6" /> Time Remaining
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <CountdownTimer targetDate={activeSession?.endDate} />
-                        <p className="text-sm text-muted-foreground mt-2">Challenge resets Sunday @ Midnight</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
+                {/* Stats / Countdown removed as per request */}
               </div>
 
               {/* Arcade Promo Banner */}
@@ -282,7 +271,7 @@ export default function Home() {
                   <Shield className="w-16 h-16 text-primary mx-auto mb-6 opacity-50" />
                   <h3 className="text-2xl font-black text-white mb-4 italic uppercase">Your Journey Begins Here</h3>
                   <p className="text-muted-foreground mb-8">
-                    To access the weekly challenges, scoreboards, and season leaderboards, you need to be part of a club community.
+                    To access the weekly challenges, scoreboards, and club leaderboards, you need to be part of a club community.
                   </p>
 
                   <div className="grid grid-cols-1 gap-4">

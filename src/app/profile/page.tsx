@@ -12,6 +12,8 @@ import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-ser
 import { getUserClubs } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { usePWA } from "@/context/PWAContext";
+import { Download } from "lucide-react";
 
 export default function ProfilePage() {
     const { user } = useAuth();
@@ -126,12 +128,16 @@ export default function ProfilePage() {
             <div className="flex flex-col md:flex-row gap-8 items-start">
                 <div className="w-full md:w-1/3 space-y-6">
                     <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden">
-                        <div className="aspect-square relative group">
-                            <img
-                                src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`}
-                                alt="Profile Avatar"
-                                className="w-full h-full object-cover"
-                            />
+                        <div className="aspect-square relative group bg-black/20 flex items-center justify-center">
+                            {avatarUrl ? (
+                                <img
+                                    src={avatarUrl}
+                                    alt="Profile Avatar"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <User className="w-32 h-32 text-white/10" />
+                            )}
                             {isUploading && (
                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
                                     <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -273,8 +279,73 @@ export default function ProfilePage() {
                             </div>
                         </CardContent>
                     </Card>
+
+                    <InstallAppButton />
                 </div>
             </div>
         </main>
     );
+}
+
+function InstallAppButton() {
+    const { isInstallable, install, isIOS, isInstalled } = usePWA();
+    const [showInstructions, setShowInstructions] = useState(false);
+
+    // Hide if already running as PWA
+    if (isInstalled) return null;
+
+    // Determine mode: Native Trigger vs Manual Instructions
+    const hasNativeTrigger = isInstallable;
+
+    // Instructions content based on platform
+    // Default to generic "Browser Menu" instructions if not iOS
+    const isGenericBrowser = !isIOS && !hasNativeTrigger;
+
+    const handleClick = () => {
+        if (hasNativeTrigger) {
+            install();
+        } else {
+            setShowInstructions(!showInstructions);
+        }
+    };
+
+    return (
+        <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up">
+            <CardContent className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <Download className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-white uppercase tracking-wider">Install App</h4>
+                        <p className="text-xs text-muted-foreground">Get the full experience</p>
+                    </div>
+                </div>
+                <Button
+                    onClick={handleClick}
+                    className="neon-border font-bold uppercase tracking-widest"
+                >
+                    {hasNativeTrigger ? "Install Now" : (showInstructions ? "Close Help" : "How to Install")}
+                </Button>
+            </CardContent>
+
+            {/* Instructions Dropdown */}
+            {showInstructions && (
+                <div className="bg-primary/5 p-4 border-t border-white/5 animate-fade-in">
+                    {isIOS ? (
+                        <p className="text-white text-sm leading-relaxed mb-3">
+                            Tap <span className="inline-block px-1 border border-white/20 rounded bg-white/5 mx-1 font-bold italic">Share</span> then select <span className="text-primary font-bold italic">"Add to Home Screen"</span>
+                        </p>
+                    ) : (
+                        <p className="text-white text-sm leading-relaxed mb-3">
+                            Tap your browser's menu (usually <span className="font-bold">⋮</span> or <span className="font-bold">☰</span>) and select <span className="text-primary font-bold italic">"Install App"</span> or <span className="text-primary font-bold italic">"Add to Home Screen"</span>
+                        </p>
+                    )}
+                    <div className="flex justify-center text-primary">
+                        <Download className="w-4 h-4 animate-bounce" />
+                    </div>
+                </div>
+            )}
+        </Card>
+    )
 }
