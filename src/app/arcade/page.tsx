@@ -22,24 +22,8 @@ const GAMES: ArcadeGame[] = [
         title: "Tetris",
         description: "The addictive puzzle game that started it all.",
         url: "https://play.tetris.com/",
-        image: "https://tetris.com/assets/layout/tetris_logo_2017.png",
+        image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Tetris_logo_2019.svg/2560px-Tetris_logo_2019.svg.png",
         publisher: "Tetris.com"
-    },
-    {
-        id: "2048",
-        title: "2048",
-        description: "Join the numbers and get to the 2048 tile!",
-        url: "https://play2048.co/",
-        image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/2048_logo.svg/1200px-2048_logo.svg.png",
-        publisher: "Soleil"
-    },
-    {
-        id: "snake",
-        title: "Snake",
-        description: "Eat the apples, don't hit the wall.",
-        url: "https://playsnake.org/",
-        image: "https://playsnake.org/assets/images/snake_og.png",
-        publisher: "PlaySnake"
     }
 ];
 
