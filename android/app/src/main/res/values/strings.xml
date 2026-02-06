@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ClubPlay</string>
+    <string name="title_activity_main">ClubPlay</string>
+    <string name="package_name">com.clubplay.app</string>
+    <string name="custom_url_scheme">com.clubplay.app</string>
+</resources>

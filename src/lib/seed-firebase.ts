@@ -23,7 +23,18 @@ export const seedFirebaseData = async () => {
         name: "The Porckchop Xpress",
         ownerId: "user-1",
         createdAt: Timestamp.now(),
-        inviteCode: "PORK"
+        inviteCode: "PORK",
+        memberCount: 1
+    });
+
+    // 2.5 Seed Membership (CRITICAL for security rules)
+    const membershipRef = doc(db, "memberships", "user-1_club-1");
+    await setDoc(membershipRef, {
+        clubId: "club-1",
+        userId: "user-1",
+        displayName: "skezz_gamer",
+        role: "owner",
+        joinedAt: new Date().toISOString()
     });
 
     // 3. Seed Weekly Session

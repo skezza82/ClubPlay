@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="256" cy="256" r="240" fill="#151515" stroke="#333" stroke-width="10"/>
+
+  <!-- Icon Group -->
+  <g filter="url(#glow)" transform="translate(106, 106) scale(0.6)">
+    <!-- Sword 1 (Pink) -->
+    <g transform="rotate(45, 250, 250)">
+        <rect x="235" y="50" width="30" height="300" fill="#ff00ff"/>
+        <rect x="200" y="350" width="100" height="20" fill="#ff00ff"/> <!-- Guard -->
+        <rect x="240" y="370" width="20" height="80" fill="#cc00cc"/> <!-- Hilt -->
+    </g>
+    
+    <!-- Sword 2 (Green) -->
+    <g transform="rotate(-45, 250, 250)">
+        <rect x="235" y="50" width="30" height="300" fill="#00ff00"/>
+        <rect x="200" y="350" width="100" height="20" fill="#00ff00"/> <!-- Guard -->
+        <rect x="240" y="370" width="20" height="80" fill="#00cc00"/> <!-- Hilt -->
+    </g>
+  </g>
+</svg>

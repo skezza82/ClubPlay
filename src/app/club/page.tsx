@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
     getClub,
     getClubMembers,
@@ -31,8 +31,9 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
-export default function ClubPage() {
-    const { id: clubId } = useParams();
+function ClubContent() {
+    const searchParams = useSearchParams();
+    const clubId = searchParams.get('id');
     const { user } = useAuth();
     const router = useRouter();
     const [club, setClub] = useState<any>(null);
@@ -122,8 +123,9 @@ export default function ClubPage() {
                 photoURL: user.photoURL || undefined
             });
             setChatInput("");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to send message", error);
+            alert("Failed to send: " + error.message);
         } finally {
             setIsSending(false);
         }
@@ -269,6 +271,7 @@ export default function ClubPage() {
         fetchClubData();
     }, [clubId]);
 
+    if (!clubId) return <div className="text-white text-center py-20">No club selected</div>;
     if (!club) return <div className="text-white text-center py-20">Loading Club...</div>;
 
     return (
@@ -306,7 +309,7 @@ export default function ClubPage() {
                     </div>
                     <div className="flex gap-2">
                         {isAdmin ? (
-                            <Link href={`/clubs/${clubId}/admin`}>
+                            <Link href={`/club/admin?id=${clubId}`}>
                                 <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10">Admin Dashboard</Button>
                             </Link>
                         ) : isMember ? (
@@ -461,7 +464,7 @@ export default function ClubPage() {
                                                     <Trophy className="w-4 h-4 text-yellow-500" /> Current Challenge
                                                 </div>
                                                 {isAdmin && (
-                                                    <Link href={`/clubs/${clubId}/admin?tab=game`}>
+                                                    <Link href={`/club/admin?id=${clubId}&tab=game`}>
                                                         <Edit className="w-3 h-3 hover:text-white cursor-pointer transition-colors" />
                                                     </Link>
                                                 )}
@@ -491,7 +494,7 @@ export default function ClubPage() {
 
                                 <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
                                     <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
-                                    Finish in the top rank at the end of the week (Sunday Midnight) to earn <span className="text-white font-bold">25 Club Points</span>.
+                                    Finish in the top 3 at the end of a challenge to earn <span className="text-white font-bold">Club Points</span>.
                                 </div>
                             </div>
                         </div>
@@ -568,178 +571,179 @@ export default function ClubPage() {
                                 )}
                             </div>
                         </div>
+                    </>
                 )}
 
-                        {/* SEASON TAB */}
-                        {activeTab === "season" && (
-                            <div className="space-y-12">
-                                <Card className="border-white/10 bg-surface/40">
-                                    <CardHeader>
-                                        <CardTitle>Club Leaderboard</CardTitle>
-                                        <CardDescription>Accumulated points from weekly victories.</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="rounded-lg overflow-hidden border border-white/5">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
-                                                    <tr>
-                                                        <th className="p-4">Rank</th>
-                                                        <th className="p-4">Player</th>
-                                                        <th className="p-4 text-right">Weekly Wins</th>
-                                                        <th className="p-4 text-right">Total Points</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-white/5">
-                                                    {seasonStandings.map((player, index) => (
-                                                        <tr key={player.id} className="hover:bg-white/5 transition-colors">
-                                                            <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
-                                                            <td className="p-4">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
-                                                                        {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
-                                                                    </div>
-                                                                    <span className="font-bold text-white">{player.displayName}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
-                                                            <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
-                                                        </tr>
-                                                    ))}
-                                                    {(seasonStandings.length === 0) && (
-                                                        <tr>
-                                                            <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Past Challenges History */}
-                                <div>
-                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
-                                        <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
-                                    </h3>
-                                    <div className="grid md:grid-cols-2 gap-6 pb-20">
-                                        {pastSessions.length === 0 ? (
-                                            <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
-                                                <p>No completed challenges yet.</p>
-                                            </div>
-                                        ) : (
-                                            pastSessions.map((session) => (
-                                                <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
-                                                    <div className="h-32 bg-black/50 relative">
-                                                        {(session.cover_image_url || session.gameTitle) && (
-                                                            <Image
-                                                                src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
-                                                                alt={session.gameTitle || "Game Art"}
-                                                                fill
-                                                                className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
-                                                            />
-                                                        )}
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-                                                        {isAdmin && (
-                                                            <div className="absolute top-2 right-2 z-10">
-                                                                <Button
-                                                                    variant="destructive"
-                                                                    size="icon"
-                                                                    className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 border border-white/20"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleDeleteSession(session.id);
-                                                                    }}
-                                                                >
-                                                                    <Trash2 className="w-4 h-4 text-white" />
-                                                                </Button>
+                {/* SEASON TAB */}
+                {activeTab === "season" && (
+                    <div className="space-y-12">
+                        <Card className="border-white/10 bg-surface/40">
+                            <CardHeader>
+                                <CardTitle>Club Leaderboard</CardTitle>
+                                <CardDescription>Accumulated points from weekly victories.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="rounded-lg overflow-hidden border border-white/5">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
+                                            <tr>
+                                                <th className="p-4">Rank</th>
+                                                <th className="p-4">Player</th>
+                                                <th className="p-4 text-right">Weekly Wins</th>
+                                                <th className="p-4 text-right">Total Points</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {seasonStandings.map((player, index) => (
+                                                <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
+                                                                {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
                                                             </div>
-                                                        )}
-                                                        <div className="absolute bottom-4 left-4 right-4">
-                                                            <div className="flex justify-between items-end">
-                                                                <div>
-                                                                    <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
-                                                                        {new Date(session.endDate).toLocaleDateString()}
-                                                                    </p>
-                                                                    <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
-                                                                </div>
-                                                                <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                                                                    {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
-                                                                </span>
-                                                            </div>
+                                                            <span className="font-bold text-white">{player.displayName}</span>
                                                         </div>
-                                                    </div>
-                                                    <CardContent className="pt-4">
-                                                        <div className="space-y-3">
-                                                            {session.topScores?.length > 0 ? (
-                                                                session.topScores.map((score: any, index: number) => (
-                                                                    <div key={index} className="flex items-center justify-between text-sm">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
-                                                                                    index === 1 ? 'bg-gray-400 text-black' :
-                                                                                        index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
-                                                                            >
-                                                                                {index + 1}
-                                                                            </div>
-                                                                            <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
-                                                                                {score.displayName || "Unknown"}
-                                                                            </span>
-                                                                        </div>
-                                                                        <span className="font-mono font-bold text-primary">
-                                                                            {formatScore(score.scoreValue, session.challengeType)}
-                                                                        </span>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
-                                                            )}
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
-                                            ))
-                                        )}
-                                    </div>
+                                                    </td>
+                                                    <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
+                                                    <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
+                                                </tr>
+                                            ))}
+                                            {(seasonStandings.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            </div>
-                        )}
+                            </CardContent>
+                        </Card>
 
-                        {/* MEMBERS TAB */}
-                        {activeTab === "members" && (
-                            <div className="grid md:grid-cols-4 gap-6">
-                                {members.length === 0 ? (
-                                    <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
-                                        <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                                        <p>No members found.</p>
+                        {/* Past Challenges History */}
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
+                                <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
+                            </h3>
+                            <div className="grid md:grid-cols-2 gap-6 pb-20">
+                                {pastSessions.length === 0 ? (
+                                    <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                        <p>No completed challenges yet.</p>
                                     </div>
                                 ) : (
-                                    members.map((member) => (
-                                        <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
-                                            <div className="p-6 flex flex-col items-center text-center">
-                                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
-                                                    {member.photoURL ? (
-                                                        <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
-                                                    ) : (
-                                                        <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
-                                                    )}
-                                                </div>
-                                                <h3 className="font-bold text-white mb-1 flex items-center gap-2">
-                                                    {member.displayName}
-                                                    {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
-                                                </h3>
-                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
-                                                    {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
-                                                </p>
-                                                <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
-                                                    Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                    pastSessions.map((session) => (
+                                        <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
+                                            <div className="h-32 bg-black/50 relative">
+                                                {(session.cover_image_url || session.gameTitle) && (
+                                                    <Image
+                                                        src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
+                                                        alt={session.gameTitle || "Game Art"}
+                                                        fill
+                                                        className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                                                    />
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+                                                {isAdmin && (
+                                                    <div className="absolute top-2 right-2 z-10">
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="icon"
+                                                            className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 border border-white/20"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteSession(session.id);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="w-4 h-4 text-white" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                <div className="absolute bottom-4 left-4 right-4">
+                                                    <div className="flex justify-between items-end">
+                                                        <div>
+                                                            <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
+                                                                {new Date(session.endDate).toLocaleDateString()}
+                                                            </p>
+                                                            <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
+                                                        </div>
+                                                        <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
+                                                            {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <CardContent className="pt-4">
+                                                <div className="space-y-3">
+                                                    {session.topScores?.length > 0 ? (
+                                                        session.topScores.map((score: any, index: number) => (
+                                                            <div key={index} className="flex items-center justify-between text-sm">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                        ${index === 0 ? 'bg-yellow-500 text-black' :
+                                                                            index === 1 ? 'bg-gray-400 text-black' :
+                                                                                index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
+                                                                    >
+                                                                        {index + 1}
+                                                                    </div>
+                                                                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
+                                                                        {score.displayName || "Unknown"}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="font-mono font-bold text-primary">
+                                                                    {formatScore(score.scoreValue, session.challengeType)}
+                                                                </span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
+                                                    )}
+                                                </div>
+                                            </CardContent>
                                         </Card>
                                     ))
                                 )}
                             </div>
-                        )}
-
+                        </div>
                     </div>
+                )}
+
+                {/* MEMBERS TAB */}
+                {activeTab === "members" && (
+                    <div className="grid md:grid-cols-4 gap-6">
+                        {members.length === 0 ? (
+                            <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                <p>No members found.</p>
+                            </div>
+                        ) : (
+                            members.map((member) => (
+                                <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
+                                    <div className="p-6 flex flex-col items-center text-center">
+                                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
+                                            {member.photoURL ? (
+                                                <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
+                                            ) : (
+                                                <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
+                                            )}
+                                        </div>
+                                        <h3 className="font-bold text-white mb-1 flex items-center gap-2">
+                                            {member.displayName}
+                                            {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
+                                        </h3>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
+                                            {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
+                                        </p>
+                                        <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
+                                            Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                )}
+
+            </div>
         </main >
     );
 }
@@ -752,5 +756,13 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
         >
             {children}
         </button>
+    );
+}
+
+export default function ClubPage() {
+    return (
+        <Suspense fallback={<div className="text-white text-center py-20">Loading...</div>}>
+            <ClubContent />
+        </Suspense>
     );
 }

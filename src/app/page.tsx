@@ -136,7 +136,7 @@ export default function Home() {
                 </div>
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
                   {userClubs.map(club => (
-                    <Link key={club.id} href={`/clubs/${club.id}`} className="flex-shrink-0">
+                    <Link key={club.id} href={`/club?id=${club.id}`} className="flex-shrink-0">
                       <Card className="w-64 h-32 border-white/5 bg-surface/60 backdrop-blur-md hover:border-primary/50 transition-all group relative overflow-hidden">
                         <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
                           <img src={club.logoUrl || "/images/retro-club-bg.png"} alt="" className="w-full h-full object-cover" />
@@ -205,7 +205,7 @@ export default function Home() {
                             </div>
 
                             <div className="flex gap-4">
-                              <Link href={activeSession ? `/clubs/${activeSession.clubId}` : "/clubs"}>
+                              <Link href={activeSession ? `/club?id=${activeSession.clubId}` : "/profile"}>
                                 <Button className="px-8 h-12 neon-border font-black uppercase italic tracking-widest">
                                   {activeSession ? "Enter the Arena" : "View Club"}
                                 </Button>

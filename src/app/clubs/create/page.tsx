@@ -51,6 +51,9 @@ export default function CreateClubPage() {
                 // BETTER: Generate a doc ID first
                 const tempId = Math.random().toString(36).substring(7);
                 finalLogoUrl = await uploadClubLogo(tempId, logoFile);
+            } else if (logoPreview && !logoPreview.startsWith('blob:')) {
+                // Use preset URL if it's not a blob (local file preview)
+                finalLogoUrl = logoPreview;
             }
 
             // 3. Create Club via Firestore
@@ -121,6 +124,34 @@ export default function CreateClubPage() {
                                 accept="image/*"
                             />
                             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Upload Custom Logo (Optional)</p>
+
+                            <div className="w-full pt-4 border-t border-white/5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3 text-center">Or Choose a Preset</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {[
+                                        { id: 'controller', url: '/avatars/club-icons/controller.svg' },
+                                        { id: 'arcade', url: '/avatars/club-icons/arcade.svg' },
+                                        { id: 'trophy', url: '/avatars/club-icons/trophy.svg' },
+                                        { id: 'swords', url: '/avatars/club-icons/swords.svg' },
+                                        { id: 'rocket', url: '/avatars/club-icons/rocket.svg' },
+                                    ].map((icon) => (
+                                        <button
+                                            key={icon.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setLogoPreview(icon.url);
+                                                setLogoFile(null); // Clear custom file if preset selected
+                                            }}
+                                            className={`aspect-square rounded-xl border-2 overflow-hidden transition-all bg-black/20 ${logoPreview === icon.url
+                                                ? "border-primary scale-95 shadow-[0_0_10px_rgba(0,242,234,0.3)]"
+                                                : "border-white/5 hover:border-white/20 hover:scale-105"
+                                                }`}
+                                        >
+                                            <img src={icon.url} alt={icon.id} className="w-full h-full object-cover p-2" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="space-y-2">

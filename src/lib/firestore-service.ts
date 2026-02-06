@@ -604,6 +604,8 @@ export const subscribeToClubMessages = (clubId: string, callback: (messages: Mes
             ...doc.data()
         } as Message));
         callback(messages);
+    }, (error) => {
+        console.error("Error subscribing to messages:", error);
     });
 };
 
@@ -679,4 +681,20 @@ export const deleteSession = async (sessionId: string) => {
 export const updateLastVisitedClub = async (userId: string, clubId: string) => {
     const userRef = doc(db, "users", userId);
     await setDoc(userRef, { lastVisitedClubId: clubId }, { merge: true });
+};
+
+export const fixMembership = async (userId: string, clubId: string, displayName: string) => {
+    const membershipId = `${userId}_${clubId}`;
+    const membershipRef = doc(db, "memberships", membershipId);
+    await setDoc(membershipRef, {
+        clubId,
+        userId,
+        role: 'member',
+        displayName: displayName || "Fixed Member",
+        joinedAt: new Date().toISOString()
+    }, { merge: true });
+
+    // Increment member count just in case
+    // Note: This might double count if we aren't careful, but for a repair tool it's okay
+    // We'll skip updating member count to avoid issues, just fixing the permission doc is enough
 };

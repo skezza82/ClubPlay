@@ -26,14 +26,16 @@ import { PremiumLogo } from "@/components/PremiumLogo";
 import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search } from "lucide-react";
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { uploadClubLogo } from "@/lib/avatar-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
-import { useRef } from "react";
-export default function ClubAdminPage() {
-    const { id: clubId } = useParams();
+import { useRef, Suspense } from "react";
+
+function ClubAdminContent() {
+    const searchParams = useSearchParams();
+    const clubId = searchParams.get('id');
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
@@ -377,7 +379,7 @@ export default function ClubAdminPage() {
                 </div>
 
                 <div className="flex gap-3 w-full md:w-auto">
-                    <Link href={`/clubs/${clubId}`} className="flex-1 md:flex-none">
+                    <Link href={`/club?id=${clubId}`} className="flex-1 md:flex-none">
                         <Button variant="outline" className="w-full border-primary/20 hover:bg-primary/5 text-xs font-black uppercase tracking-widest h-12 px-8 neon-border-static">
                             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Club
                         </Button>
@@ -804,6 +806,8 @@ export default function ClubAdminPage() {
                                                     <div className="aspect-video bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
                                                         <Image
                                                             src={activeSession.cover_image_url || getLibretroBoxartUrl(activeSession.gameTitle, activeSession.platform)}
+
+
                                                             alt={activeSession.gameTitle}
                                                             fill
                                                             className="object-cover opacity-80"
@@ -1083,5 +1087,13 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
         >
             {children}
         </button>
+    );
+}
+
+export default function ClubAdminPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>}>
+            <ClubAdminContent />
+        </Suspense>
     );
 }

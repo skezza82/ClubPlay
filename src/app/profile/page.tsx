@@ -251,7 +251,7 @@ export default function ProfilePage() {
                                 ) : userClubs.length > 0 ? (
                                     <div className="grid gap-3">
                                         {userClubs.map(club => (
-                                            <Link key={club.id} href={`/clubs/${club.id}/admin`}>
+                                            <Link key={club.id} href={`/club/admin?id=${club.id}`}>
                                                 <div className="flex items-center p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all cursor-pointer group">
                                                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3 overflow-hidden">
                                                         {club.logoUrl ? (
