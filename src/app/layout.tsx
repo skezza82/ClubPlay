@@ -43,6 +43,7 @@ import { PWAProvider } from "@/context/PWAContext";
 import { PWARegistrar } from "@/components/PWARegistrar";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { Navbar } from "@/components/Navbar";
+import { AndroidBackHandler } from "@/components/AndroidBackHandler";
 
 export default function RootLayout({
   children,
@@ -71,6 +72,7 @@ export default function RootLayout({
           <PWAProvider>
             <PWARegistrar />
             <InstallPrompt />
+            <AndroidBackHandler />
             <Navbar />
             {children}
           </PWAProvider>
