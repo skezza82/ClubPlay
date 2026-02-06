@@ -88,15 +88,18 @@ export const getLatestClubMembership = async (userId: string) => {
 
 export const getActiveSessions = async (clubId: string) => {
     const sessionsRef = collection(db, "weekly_sessions");
+    // Sort client-side to avoid index propagation delays/issues with composite queries
     const q = query(
         sessionsRef,
         where("clubId", "==", clubId),
-        where("isActive", "==", true),
-        orderBy("endDate", "asc") // Order by ending soonest
+        where("isActive", "==", true)
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+    const sessions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+
+    // Sort by endDate ascending
+    return sessions.sort((a, b) => a.endDate.localeCompare(b.endDate));
 };
 // Keep for backward compat temporarily, but return first
 export const getActiveSession = async (clubId: string) => {
