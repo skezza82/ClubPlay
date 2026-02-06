@@ -88,7 +88,7 @@ export default function Home() {
   }, [user, authLoading]);
 
   // Handle Loading State
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <main className="flex min-h-screen items-center justify-center relative overflow-hidden">
         <div className="star-background"><div className="stars"></div></div>
@@ -112,15 +112,17 @@ export default function Home() {
         </div>
       ) : (
         <>
-          {/* Hero Section */}
-          <section className="mb-16 text-center relative flex flex-col items-center animate-fade-in-up stagger-1 min-h-[20vh] justify-center">
-            <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter mb-4">
-              Join the <span className="text-primary">Elite</span>
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Compete with friends in weekly gaming challenges. <span className="text-primary font-bold">One Game. One Week. One Champion.</span>
-            </p>
-          </section>
+          {/* Hero Section - Only show if user has NO clubs */}
+          {userClubs.length === 0 && (
+            <section className="mb-16 text-center relative flex flex-col items-center animate-fade-in-up stagger-1 min-h-[20vh] justify-center">
+              <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter mb-4">
+                Join the <span className="text-primary">Elite</span>
+              </h1>
+              <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+                Compete with friends in weekly gaming challenges. <span className="text-primary font-bold">One Game. One Week. One Champion.</span>
+              </p>
+            </section>
+          )}
 
           {/* YOUR CLUBS SECTION */}
           {userClubs.length > 0 ? (
