@@ -99,17 +99,17 @@ export default function ClubPage() {
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (activeTab === "chat" && clubId) {
+        if (clubId) {
             const unsubscribe = subscribeToClubMessages(clubId as string, setMessages);
             return () => unsubscribe();
         }
-    }, [activeTab, clubId]);
+    }, [clubId]);
 
     useEffect(() => {
-        if (activeTab === "chat" && chatEndRef.current) {
+        if (chatEndRef.current) {
             chatEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
-    }, [messages, activeTab]);
+    }, [messages]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -349,323 +349,397 @@ export default function ClubPage() {
 
                 {/* OVERVIEW TAB */}
                 {activeTab === "overview" && (
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {/* Main Column: Current Game & Scoreboard */}
-                        <div className="md:col-span-2 space-y-6">
-                            {/* Active Game Card */}
-                            <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
-                                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <CardHeader>
-                                    <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">Current Challenge</CardDescription>
-                                    <div className="flex justify-between items-start">
-                                        <CardTitle className="text-3xl md:text-4xl font-black text-white italic">{game?.title || "No Active Game"}</CardTitle>
-                                        <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden">
-                                        {game?.cover_image_url || (game?.title && game?.platform) ? (
-                                            <Image
-                                                src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
-                                                alt={game.title}
-                                                fill
-                                                className="object-cover opacity-60 group-hover:opacity-100 transition-opacity"
-                                                onError={(e: any) => {
-                                                    // Fallback to a placeholder if image fails to load
-                                                    e.target.srcset = PLACEHOLDER_BOXART_URL;
-                                                    e.target.src = PLACEHOLDER_BOXART_URL;
-                                                }}
-                                            />
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2">
-                                                <Gamepad2 className="w-8 h-8 opacity-20" />
-                                                <span className="text-[10px] uppercase font-bold tracking-widest opacity-20">No Banner Available</span>
+                    <>
+                        <div className="grid md:grid-cols-3 gap-8">
+                            {/* Main Column: Current Game & Scoreboard */}
+                            <div className="md:col-span-2 space-y-6">
+                                {/* Active Game Card */}
+                                <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <CardHeader>
+                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">Current Challenge</CardDescription>
+                                        <div className="flex justify-between items-start">
+                                            <CardTitle className="text-3xl md:text-4xl font-black text-white italic">{game?.title || "No Active Game"}</CardTitle>
+                                            <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden">
+                                            {game?.cover_image_url || (game?.title && game?.platform) ? (
+                                                <Image
+                                                    src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
+                                                    alt={game.title}
+                                                    fill
+                                                    className="object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                                                    onError={(e: any) => {
+                                                        // Fallback to a placeholder if image fails to load
+                                                        e.target.srcset = PLACEHOLDER_BOXART_URL;
+                                                        e.target.src = PLACEHOLDER_BOXART_URL;
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Gamepad2 className="w-8 h-8 opacity-20" />
+                                                    <span className="text-[10px] uppercase font-bold tracking-widest opacity-20">No Banner Available</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-gray-300 mb-6 font-medium italic">
+                                            {activeSession?.challengeType === 'speed'
+                                                ? "Speed Trial: Submit your fastest time. Record setting runs required!"
+                                                : "High Score: Submit your best points total. Top the charts!"}
+                                        </p>
+
+                                        {activeSession?.rules && (
+                                            <div className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                                                <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                                    <Shield className="w-3 h-3" /> Challenge Rules
+                                                </h4>
+                                                <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+                                                    {activeSession.rules}
+                                                </p>
+
+                                                <div className="mt-4 pt-4 border-t border-primary/20">
+                                                    <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                                        <Timer className="w-3 h-3" /> Time Remaining
+                                                    </h4>
+                                                    <CountdownTimer targetDate={activeSession.endDate} />
+                                                </div>
+                                                {game?.platform && (
+                                                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
+                                                        <span>System:</span>
+                                                        <span className="text-white">{game.platform}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
-                                    </div>
-                                    <p className="text-gray-300 mb-6 font-medium italic">
-                                        {activeSession?.challengeType === 'speed'
-                                            ? "Speed Trial: Submit your fastest time. Record setting runs required!"
-                                            : "High Score: Submit your best points total. Top the charts!"}
-                                    </p>
 
-                                    {activeSession?.rules && (
-                                        <div className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
-                                            <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                                                <Shield className="w-3 h-3" /> Challenge Rules
-                                            </h4>
-                                            <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
-                                                {activeSession.rules}
-                                            </p>
-
-                                            <div className="mt-4 pt-4 border-t border-primary/20">
-                                                <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                                                    <Timer className="w-3 h-3" /> Time Remaining
-                                                </h4>
-                                                <CountdownTimer targetDate={activeSession.endDate} />
-                                            </div>
-                                            {game?.platform && (
-                                                <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
-                                                    <span>System:</span>
-                                                    <span className="text-white">{game.platform}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {isMember && activeSession ? (
-                                        <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                                                    {activeSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
-                                                </label>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        type="number"
-                                                        placeholder={activeSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
-                                                        value={scoreInput}
-                                                        onChange={(e) => setScoreInput(e.target.value)}
-                                                        className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
-                                                        required
-                                                    />
-                                                    <Button
-                                                        disabled={isSubmitting}
-                                                        type="submit"
-                                                        className="h-14 px-8 neon-border transition-all active:scale-95"
-                                                    >
-                                                        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "SUBMIT"}
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </form>
-                                    ) : !isMember ? (
-                                        <div className="bg-white/5 p-4 rounded-xl text-center border border-white/5">
-                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Join this club to submit scores</p>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-4 text-muted-foreground italic">No active challenge right now.</div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                        </div>
-
-                        {/* Sidebar: Weekly Leaderboard (Members Only) */}
-                        <div className="space-y-6">
-                            {isMember ? (
-                                <Card className="border-white/5 bg-gradient-to-b from-surface to-black">
-                                    <CardHeader>
-                                        <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center justify-between w-full">
-                                            <div className="flex items-center gap-2">
-                                                <Trophy className="w-4 h-4 text-yellow-500" /> Current Challenge
-                                            </div>
-                                            {isAdmin && (
-                                                <Link href={`/clubs/${clubId}/admin?tab=game`}>
-                                                    <Edit className="w-3 h-3 hover:text-white cursor-pointer transition-colors" />
-                                                </Link>
-                                            )}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {weekScores.slice(0, 5).map((score, i) => (
-                                            <div key={score.id} className="flex items-center justify-between text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
-                                                    <span className="text-white truncate max-w-[120px]">{score.displayName}</span>
-                                                </div>
-                                                <span className="font-mono text-primary font-bold">
-                                                    {formatScore(score.scoreValue, activeSession?.challengeType)}
-                                                </span>
-                                            </div>
-                                        ))}
-                                        {(weekScores.length === 0) && <div className="text-xs text-muted-foreground italic">No scores yet. Be the first!</div>}
-                                    </CardContent>
-                                </Card>
-                            ) : (
-                                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary/80">
-                                    <p className="font-bold mb-1 flex items-center gap-2"><Trophy className="w-3 h-3" /> Members Only</p>
-                                    Sign in and join the club to see the live leaderboard and submit your scores!
-                                </div>
-                            )}
-
-                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
-                                <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
-                                Finish in the top rank at the end of the week (Sunday Midnight) to earn <span className="text-white font-bold">25 Club Points</span>.
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* SEASON TAB */}
-                {activeTab === "season" && (
-                    <div className="space-y-12">
-                        <Card className="border-white/10 bg-surface/40">
-                            <CardHeader>
-                                <CardTitle>Club Leaderboard</CardTitle>
-                                <CardDescription>Accumulated points from weekly victories.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="rounded-lg overflow-hidden border border-white/5">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
-                                            <tr>
-                                                <th className="p-4">Rank</th>
-                                                <th className="p-4">Player</th>
-                                                <th className="p-4 text-right">Weekly Wins</th>
-                                                <th className="p-4 text-right">Total Points</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {seasonStandings.map((player, index) => (
-                                                <tr key={player.id} className="hover:bg-white/5 transition-colors">
-                                                    <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
-                                                                {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
-                                                            </div>
-                                                            <span className="font-bold text-white">{player.displayName}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
-                                                    <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
-                                                </tr>
-                                            ))}
-                                            {(seasonStandings.length === 0) && (
-                                                <tr>
-                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Past Challenges History */}
-                        <div>
-                            <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
-                                <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
-                            </h3>
-                            <div className="grid md:grid-cols-2 gap-6 pb-20">
-                                {pastSessions.length === 0 ? (
-                                    <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
-                                        <p>No completed challenges yet.</p>
-                                    </div>
-                                ) : (
-                                    pastSessions.map((session) => (
-                                        <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
-                                            <div className="h-32 bg-black/50 relative">
-                                                {(session.cover_image_url || session.gameTitle) && (
-                                                    <Image
-                                                        src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
-                                                        alt={session.gameTitle || "Game Art"}
-                                                        fill
-                                                        className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
-                                                    />
-                                                )}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-                                                {isAdmin && (
-                                                    <div className="absolute top-2 right-2 z-10">
+                                        {isMember && activeSession ? (
+                                            <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                                                        {activeSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
+                                                    </label>
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            placeholder={activeSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
+                                                            value={scoreInput}
+                                                            onChange={(e) => setScoreInput(e.target.value)}
+                                                            className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
+                                                            required
+                                                        />
                                                         <Button
-                                                            variant="destructive"
-                                                            size="icon"
-                                                            className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 border border-white/20"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteSession(session.id);
-                                                            }}
+                                                            disabled={isSubmitting}
+                                                            type="submit"
+                                                            className="h-14 px-8 neon-border transition-all active:scale-95"
                                                         >
-                                                            <Trash2 className="w-4 h-4 text-white" />
+                                                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "SUBMIT"}
                                                         </Button>
                                                     </div>
+                                                </div>
+                                            </form>
+                                        ) : !isMember ? (
+                                            <div className="bg-white/5 p-4 rounded-xl text-center border border-white/5">
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Join this club to submit scores</p>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-4 text-muted-foreground italic">No active challenge right now.</div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                            </div>
+
+                            {/* Sidebar: Weekly Leaderboard (Members Only) */}
+                            <div className="space-y-6">
+                                {isMember ? (
+                                    <Card className="border-white/5 bg-gradient-to-b from-surface to-black">
+                                        <CardHeader>
+                                            <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-2">
+                                                    <Trophy className="w-4 h-4 text-yellow-500" /> Current Challenge
+                                                </div>
+                                                {isAdmin && (
+                                                    <Link href={`/clubs/${clubId}/admin?tab=game`}>
+                                                        <Edit className="w-3 h-3 hover:text-white cursor-pointer transition-colors" />
+                                                    </Link>
                                                 )}
-                                                <div className="absolute bottom-4 left-4 right-4">
-                                                    <div className="flex justify-between items-end">
-                                                        <div>
-                                                            <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
-                                                                {new Date(session.endDate).toLocaleDateString()}
-                                                            </p>
-                                                            <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
-                                                        </div>
-                                                        <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                                                            {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
-                                                        </span>
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {weekScores.slice(0, 5).map((score, i) => (
+                                                <div key={score.id} className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
+                                                        <span className="text-white truncate max-w-[120px]">{score.displayName}</span>
                                                     </div>
+                                                    <span className="font-mono text-primary font-bold">
+                                                        {formatScore(score.scoreValue, activeSession?.challengeType)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                            {(weekScores.length === 0) && <div className="text-xs text-muted-foreground italic">No scores yet. Be the first!</div>}
+                                        </CardContent>
+                                    </Card>
+                                ) : (
+                                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary/80">
+                                        <p className="font-bold mb-1 flex items-center gap-2"><Trophy className="w-3 h-3" /> Members Only</p>
+                                        Sign in and join the club to see the live leaderboard and submit your scores!
+                                    </div>
+                                )}
+
+                                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
+                                    <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
+                                    Finish in the top rank at the end of the week (Sunday Midnight) to earn <span className="text-white font-bold">25 Club Points</span>.
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Chat Section in Overview */}
+                        <div className="flex flex-col h-[500px] bg-surface/30 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden mt-8">
+                            {/* Chat Header */}
+                            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
+                                <h3 className="font-bold text-white flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-primary" /> Club Chat
+                                </h3>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <Shield className="w-3 h-3" /> Members Only
+                                </div>
+                            </div>
+
+                            {/* Messages Area */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                                {messages.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+                                        <MessageSquare className="w-12 h-12 mb-2" />
+                                        <p className="text-sm">No messages yet. Start the conversation!</p>
+                                    </div>
+                                ) : (
+                                    messages.map((msg) => (
+                                        <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.uid ? 'flex-row-reverse' : ''}`}>
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 overflow-hidden mt-1 border border-white/10">
+                                                {msg.photoURL ? (
+                                                    <Image src={msg.photoURL} alt={msg.displayName} width={32} height={32} className="object-cover w-full h-full" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
+                                                        {msg.displayName?.[0]}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>
+                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-1">
+                                                    <span className="font-bold text-white/80">{msg.displayName}</span>
+                                                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <div className={`p-3 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap ${msg.userId === user?.uid ? 'bg-primary text-black rounded-tr-none font-medium' : 'bg-white/10 text-white rounded-tl-none border border-white/5'}`}>
+                                                    {msg.text}
                                                 </div>
                                             </div>
-                                            <CardContent className="pt-4">
-                                                <div className="space-y-3">
-                                                    {session.topScores?.length > 0 ? (
-                                                        session.topScores.map((score: any, index: number) => (
-                                                            <div key={index} className="flex items-center justify-between text-sm">
+                                        </div>
+                                    ))
+                                )}
+                                <div ref={chatEndRef} />
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="p-4 bg-black/40 border-t border-white/10">
+                                {isMember ? (
+                                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                                        <Input
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            placeholder="Type a message..."
+                                            className="flex-1 bg-white/5 border-white/10 text-white focus:ring-primary/50"
+                                            disabled={isSending}
+                                        />
+                                        <Button
+                                            type="submit"
+                                            disabled={!chatInput.trim() || isSending}
+                                            className="bg-primary text-black hover:bg-primary/90 font-bold"
+                                        >
+                                            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                        </Button>
+                                    </form>
+                                ) : (
+                                    <div className="text-center text-xs text-muted-foreground py-2 italic border border-dashed border-white/10 rounded-lg">
+                                        Join the club to participate in the chat.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                )}
+
+                        {/* SEASON TAB */}
+                        {activeTab === "season" && (
+                            <div className="space-y-12">
+                                <Card className="border-white/10 bg-surface/40">
+                                    <CardHeader>
+                                        <CardTitle>Club Leaderboard</CardTitle>
+                                        <CardDescription>Accumulated points from weekly victories.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="rounded-lg overflow-hidden border border-white/5">
+                                            <table className="w-full text-left text-sm">
+                                                <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
+                                                    <tr>
+                                                        <th className="p-4">Rank</th>
+                                                        <th className="p-4">Player</th>
+                                                        <th className="p-4 text-right">Weekly Wins</th>
+                                                        <th className="p-4 text-right">Total Points</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/5">
+                                                    {seasonStandings.map((player, index) => (
+                                                        <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                                                            <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
+                                                            <td className="p-4">
                                                                 <div className="flex items-center gap-3">
-                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
-                                                                            index === 1 ? 'bg-gray-400 text-black' :
-                                                                                index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
-                                                                    >
-                                                                        {index + 1}
+                                                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
+                                                                        {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
                                                                     </div>
-                                                                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
-                                                                        {score.displayName || "Unknown"}
-                                                                    </span>
+                                                                    <span className="font-bold text-white">{player.displayName}</span>
                                                                 </div>
-                                                                <span className="font-mono font-bold text-primary">
-                                                                    {formatScore(score.scoreValue, session.challengeType)}
+                                                            </td>
+                                                            <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
+                                                            <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
+                                                        </tr>
+                                                    ))}
+                                                    {(seasonStandings.length === 0) && (
+                                                        <tr>
+                                                            <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Past Challenges History */}
+                                <div>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
+                                        <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
+                                    </h3>
+                                    <div className="grid md:grid-cols-2 gap-6 pb-20">
+                                        {pastSessions.length === 0 ? (
+                                            <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                                <p>No completed challenges yet.</p>
+                                            </div>
+                                        ) : (
+                                            pastSessions.map((session) => (
+                                                <Card key={session.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group">
+                                                    <div className="h-32 bg-black/50 relative">
+                                                        {(session.cover_image_url || session.gameTitle) && (
+                                                            <Image
+                                                                src={session.cover_image_url || getLibretroBoxartUrl(session.gameTitle || "", session.platform || "")}
+                                                                alt={session.gameTitle || "Game Art"}
+                                                                fill
+                                                                className="object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                                                            />
+                                                        )}
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
+                                                        {isAdmin && (
+                                                            <div className="absolute top-2 right-2 z-10">
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="icon"
+                                                                    className="w-8 h-8 rounded-full bg-red-500/80 hover:bg-red-600 border border-white/20"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteSession(session.id);
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="w-4 h-4 text-white" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute bottom-4 left-4 right-4">
+                                                            <div className="flex justify-between items-end">
+                                                                <div>
+                                                                    <p className="text-[10px] uppercase font-bold tracking-widest text-primary mb-1">
+                                                                        {new Date(session.endDate).toLocaleDateString()}
+                                                                    </p>
+                                                                    <h3 className="text-xl font-bold text-white leading-tight truncate">{session.gameTitle}</h3>
+                                                                </div>
+                                                                <span className="bg-white/10 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
+                                                                    {session.challengeType === 'speed' ? 'Speedrun' : 'High Score'}
                                                                 </span>
                                                             </div>
-                                                        ))
+                                                        </div>
+                                                    </div>
+                                                    <CardContent className="pt-4">
+                                                        <div className="space-y-3">
+                                                            {session.topScores?.length > 0 ? (
+                                                                session.topScores.map((score: any, index: number) => (
+                                                                    <div key={index} className="flex items-center justify-between text-sm">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                                ${index === 0 ? 'bg-yellow-500 text-black' :
+                                                                                    index === 1 ? 'bg-gray-400 text-black' :
+                                                                                        index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
+                                                                            >
+                                                                                {index + 1}
+                                                                            </div>
+                                                                            <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
+                                                                                {score.displayName || "Unknown"}
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="font-mono font-bold text-primary">
+                                                                            {formatScore(score.scoreValue, session.challengeType)}
+                                                                        </span>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
+                                                            )}
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MEMBERS TAB */}
+                        {activeTab === "members" && (
+                            <div className="grid md:grid-cols-4 gap-6">
+                                {members.length === 0 ? (
+                                    <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
+                                        <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                                        <p>No members found.</p>
+                                    </div>
+                                ) : (
+                                    members.map((member) => (
+                                        <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
+                                            <div className="p-6 flex flex-col items-center text-center">
+                                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
+                                                    {member.photoURL ? (
+                                                        <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
                                                     ) : (
-                                                        <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
+                                                        <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
                                                     )}
                                                 </div>
-                                            </CardContent>
+                                                <h3 className="font-bold text-white mb-1 flex items-center gap-2">
+                                                    {member.displayName}
+                                                    {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
+                                                </h3>
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
+                                                    {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
+                                                </p>
+                                                <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
+                                                    Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                                </div>
+                                            </div>
                                         </Card>
                                     ))
                                 )}
                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* MEMBERS TAB */}
-                {activeTab === "members" && (
-                    <div className="grid md:grid-cols-4 gap-6">
-                        {members.length === 0 ? (
-                            <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
-                                <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                                <p>No members found.</p>
-                            </div>
-                        ) : (
-                            members.map((member) => (
-                                <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
-                                    <div className="p-6 flex flex-col items-center text-center">
-                                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
-                                            {member.photoURL ? (
-                                                <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
-                                            ) : (
-                                                <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
-                                            )}
-                                        </div>
-                                        <h3 className="font-bold text-white mb-1 flex items-center gap-2">
-                                            {member.displayName}
-                                            {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
-                                            {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
-                                        </p>
-                                        <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
-                                            Joined {new Date(member.joinedAt).toLocaleDateString()}
-                                        </div>
-                                    </div>
-                                </Card>
-                            ))
                         )}
-                    </div>
-                )}
 
-            </div>
+                    </div>
         </main >
     );
 }
