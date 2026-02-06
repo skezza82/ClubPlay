@@ -15,11 +15,12 @@ const geistMono = Geist_Mono({
 import type { Viewport } from "next";
 
 export const viewport: Viewport = {
-  themeColor: "#66fcf1",
+  themeColor: "#0B0C10", // Match background color
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {

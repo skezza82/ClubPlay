@@ -49,7 +49,8 @@ export interface WeeklySession {
     rules?: string;
     isActive: boolean;
     endDate: string;
-    challengeType: 'score' | 'speed';
+    challengeType: 'score' | 'speed' | 'custom';
+    customUnit?: string;
     cover_image_url?: string;
     isProcessed?: boolean;
 }
@@ -85,19 +86,22 @@ export const getLatestClubMembership = async (userId: string) => {
     return querySnapshot.docs[0].data() as Membership;
 };
 
-export const getActiveSession = async (clubId: string) => {
+export const getActiveSessions = async (clubId: string) => {
     const sessionsRef = collection(db, "weekly_sessions");
     const q = query(
         sessionsRef,
         where("clubId", "==", clubId),
         where("isActive", "==", true),
-        limit(1)
+        orderBy("endDate", "asc") // Order by ending soonest
     );
 
     const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) return null;
-
-    return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as WeeklySession;
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+};
+// Keep for backward compat temporarily, but return first
+export const getActiveSession = async (clubId: string) => {
+    const sessions = await getActiveSessions(clubId);
+    return sessions.length > 0 ? sessions[0] : null;
 };
 
 export const getSessionLeader = async (sessionId: string) => {
@@ -506,14 +510,18 @@ export const updateMemberRole = async (clubId: string, userId: string, newRole: 
     await setDoc(membershipRef, { role: newRole }, { merge: true });
 };
 
-export const createManualSession = async (clubId: string, details: { title: string, platform: string, rules: string, endDate: string, challengeType: 'score' | 'speed', cover_image_url?: string }) => {
-    // 1. Deactivate current sessions
+export const createManualSession = async (clubId: string, details: { title: string, platform: string, rules: string, endDate: string, challengeType: 'score' | 'speed' | 'custom', customUnit?: string, cover_image_url?: string }) => {
+    // 1. Check current sessions count
     const sessionsRef = collection(db, "weekly_sessions");
     const q = query(sessionsRef, where("clubId", "==", clubId), where("isActive", "==", true));
     const snap = await getDocs(q);
 
+    if (snap.size >= 3) {
+        throw new Error("Maximum of 3 active challenges allowed. Please end a challenge before starting a new one.");
+    }
+
     const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.update(d.ref, { isActive: false }));
+    // snap.docs.forEach(d => batch.update(d.ref, { isActive: false })); // REMOVED: Do not deactivate others
 
     // 2. Create new session
     const newSessionRef = doc(collection(db, "weekly_sessions"));
@@ -527,6 +535,7 @@ export const createManualSession = async (clubId: string, details: { title: stri
         startDate: Timestamp.now(),
         endDate: details.endDate,
         challengeType: details.challengeType,
+        customUnit: details.customUnit || null,
         cover_image_url: details.cover_image_url || null
     });
 
@@ -631,8 +640,19 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
         return 0;
     }
 
-    // 2. Sort scores (current logic: higher is better for 'score', need 'speed' logic later)
-    const sortedScores = [...scores].sort((a, b) => b.scoreValue - a.scoreValue);
+    // 1.5 Fetch session to check challenge type
+    const sessionDocRef = doc(db, "weekly_sessions", sessionId);
+    const sessionDoc = await getDoc(sessionDocRef);
+    if (!sessionDoc.exists()) throw new Error("Session not found");
+    const sessionData = sessionDoc.data() as WeeklySession;
+
+    // 2. Sort scores
+    const sortedScores = [...scores].sort((a, b) => {
+        if (sessionData.challengeType === 'speed') {
+            return a.scoreValue - b.scoreValue; // Lower is better for speed
+        }
+        return b.scoreValue - a.scoreValue; // Higher is better for score
+    });
 
     // 3. Calculate points
     const updates: { userId: string, pointsToAdd: number }[] = [];

@@ -31,6 +31,20 @@ export const uploadClubLogo = async (clubId: string, file: File) => {
     }
 };
 
+export const uploadSessionBoxart = async (clubId: string, file: File) => {
+    console.log("Starting session boxart upload for club:", clubId, "file:", file.name);
+    try {
+        const storageRef = ref(storage, `session_boxarts/${clubId}/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        console.log("Session boxart upload successful, URL:", url);
+        return url;
+    } catch (error) {
+        console.error("Firebase Storage Error (Session Boxart):", error);
+        throw error;
+    }
+};
+
 export const updateUserAvatar = async (userId: string, photoURL: string) => {
     console.log("Updating user avatar in Auth and Firestore...");
     // 1. Update Firebase Auth Profile

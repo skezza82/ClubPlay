@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
     getClub,
     getClubMembers,
-    getActiveSession,
+    getActiveSessions, // Updated import
     getSessionScores,
     getSeasonStandings,
     leaveClub,
@@ -37,7 +37,8 @@ function ClubContent() {
     const { user } = useAuth();
     const router = useRouter();
     const [club, setClub] = useState<any>(null);
-    const [activeSession, setActiveSession] = useState<any>(null);
+    const [activeSessions, setActiveSessions] = useState<any[]>([]); // Array of sessions
+    const [selectedSession, setSelectedSession] = useState<any>(null); // Currently selected session
     const [game, setGame] = useState<any>(null);
     const [weekScores, setWeekScores] = useState<any[]>([]);
     const [pastSessions, setPastSessions] = useState<any[]>([]);
@@ -133,7 +134,7 @@ function ClubContent() {
 
     const handleScoreSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !activeSession || !scoreInput) return;
+        if (!user || !selectedSession || !scoreInput) return;
 
         const score = parseInt(scoreInput);
         if (isNaN(score) || score <= 0) {
@@ -144,7 +145,7 @@ function ClubContent() {
         setIsSubmitting(true);
         try {
             await submitScore(
-                activeSession.id,
+                selectedSession.id,
                 user.uid,
                 score,
                 user.displayName || "Unknown Member"
@@ -153,9 +154,9 @@ function ClubContent() {
             setScoreInput(""); // Clear input
 
             // Refresh scores immediately
-            const updatedScores = await getSessionScores(activeSession.id);
+            const updatedScores = await getSessionScores(selectedSession.id);
             const sortedScores = [...updatedScores].sort((a, b) => {
-                if (activeSession.challengeType === 'speed') {
+                if (selectedSession.challengeType === 'speed') {
                     return a.scoreValue - b.scoreValue;
                 }
                 return b.scoreValue - a.scoreValue;
@@ -218,34 +219,15 @@ function ClubContent() {
                 const membersData = await getClubMembers(clubId as string);
                 setMembers(membersData);
 
-                // 3. Active Session
-                const session = await getActiveSession(clubId as string);
-                setActiveSession(session);
+                // 3. Active Sessions
+                const sessions = await getActiveSessions(clubId as string);
+                setActiveSessions(sessions);
 
-                if (session) {
-                    if (session.gameId) {
-                        // 4. Fetch Game Details from Supabase
-                        const { data: gameData } = await supabase.from('games').select('*').eq('id', session.gameId).single();
-                        if (gameData) setGame(gameData);
-                    } else {
-                        // It's a manual game, use session details
-                        setGame({
-                            title: session.gameTitle,
-                            platform: session.platform,
-                            cover_image_url: session.cover_image_url || null
-                        });
-                    }
-
-                    // 5. Week Scores
-                    const scores = await getSessionScores(session.id);
-                    const sortedScores = [...scores].sort((a, b) => {
-                        if (session.challengeType === 'speed') {
-                            return a.scoreValue - b.scoreValue; // Fastest (lowest) first
-                        }
-                        return b.scoreValue - a.scoreValue; // Highest first
-                    });
-                    setWeekScores(sortedScores);
+                // Default to the first session if available
+                if (sessions.length > 0) {
+                    setSelectedSession(sessions[0]);
                 }
+                // (Game and scores fetching moved to separate effect depending on selectedSession)
 
                 // 6. Season Standings
                 const standings = await getSeasonStandings(clubId as string);
@@ -270,6 +252,37 @@ function ClubContent() {
 
         fetchClubData();
     }, [clubId]);
+
+    // Update game and scores when selectedSession changes
+    useEffect(() => {
+        const updateSessionData = async () => {
+            if (!selectedSession) return;
+
+            // Fetch Game Details
+            if (selectedSession.gameId) {
+                const { data: gameData } = await supabase.from('games').select('*').eq('id', selectedSession.gameId).single();
+                if (gameData) setGame(gameData);
+            } else {
+                setGame({
+                    title: selectedSession.gameTitle,
+                    platform: selectedSession.platform,
+                    cover_image_url: selectedSession.cover_image_url || null
+                });
+            }
+
+            // Fetch Scores
+            const scores = await getSessionScores(selectedSession.id);
+            const sortedScores = [...scores].sort((a, b) => {
+                if (selectedSession.challengeType === 'speed') {
+                    return a.scoreValue - b.scoreValue;
+                }
+                return b.scoreValue - a.scoreValue;
+            });
+            setWeekScores(sortedScores);
+        };
+
+        updateSessionData();
+    }, [selectedSession]);
 
     if (!clubId) return <div className="text-white text-center py-20">No club selected</div>;
     if (!club) return <div className="text-white text-center py-20">Loading Club...</div>;
@@ -356,6 +369,24 @@ function ClubContent() {
                         <div className="grid md:grid-cols-3 gap-8">
                             {/* Main Column: Current Game & Scoreboard */}
                             <div className="md:col-span-2 space-y-6">
+                                {/* Session Selector (if multiple) */}
+                                {activeSessions.length > 1 && (
+                                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                        {activeSessions.map((session) => (
+                                            <button
+                                                key={session.id}
+                                                onClick={() => setSelectedSession(session)}
+                                                className={`flex-shrink-0 px-4 py-2 rounded-lg border text-sm font-bold uppercase tracking-wider transition-all
+                                                ${selectedSession?.id === session.id
+                                                        ? 'bg-primary text-black border-primary'
+                                                        : 'bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10'}`}
+                                            >
+                                                {session.gameTitle}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
                                 {/* Active Game Card */}
                                 <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
                                     <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -388,25 +419,25 @@ function ClubContent() {
                                             )}
                                         </div>
                                         <p className="text-gray-300 mb-6 font-medium italic">
-                                            {activeSession?.challengeType === 'speed'
+                                            {selectedSession?.challengeType === 'speed'
                                                 ? "Speed Trial: Submit your fastest time. Record setting runs required!"
                                                 : "High Score: Submit your best points total. Top the charts!"}
                                         </p>
 
-                                        {activeSession?.rules && (
+                                        {selectedSession?.rules && (
                                             <div className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
                                                 <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
                                                     <Shield className="w-3 h-3" /> Challenge Rules
                                                 </h4>
                                                 <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
-                                                    {activeSession.rules}
+                                                    {selectedSession.rules}
                                                 </p>
 
                                                 <div className="mt-4 pt-4 border-t border-primary/20">
                                                     <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
                                                         <Timer className="w-3 h-3" /> Time Remaining
                                                     </h4>
-                                                    <CountdownTimer targetDate={activeSession.endDate} />
+                                                    <CountdownTimer targetDate={selectedSession.endDate} />
                                                 </div>
                                                 {game?.platform && (
                                                     <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
@@ -417,16 +448,16 @@ function ClubContent() {
                                             </div>
                                         )}
 
-                                        {isMember && activeSession ? (
+                                        {isMember && selectedSession ? (
                                             <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                                                        {activeSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
+                                                        {selectedSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
                                                     </label>
                                                     <div className="flex gap-2">
                                                         <Input
                                                             type="number"
-                                                            placeholder={activeSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
+                                                            placeholder={selectedSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
                                                             value={scoreInput}
                                                             onChange={(e) => setScoreInput(e.target.value)}
                                                             className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
@@ -478,7 +509,7 @@ function ClubContent() {
                                                         <span className="text-white truncate max-w-[120px]">{score.displayName}</span>
                                                     </div>
                                                     <span className="font-mono text-primary font-bold">
-                                                        {formatScore(score.scoreValue, activeSession?.challengeType)}
+                                                        {formatScore(score.scoreValue, selectedSession?.challengeType)}
                                                     </span>
                                                 </div>
                                             ))}

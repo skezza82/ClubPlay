@@ -1,0 +1,31 @@
+
+// This effect updates the game and scores when selectedSession changes
+    useEffect(() => {
+        const updateSessionData = async () => {
+            if (!selectedSession) return;
+
+            // Fetch Game Details
+            if (selectedSession.gameId) {
+                const { data: gameData } = await supabase.from('games').select('*').eq('id', selectedSession.gameId).single();
+                if (gameData) setGame(gameData);
+            } else {
+                setGame({
+                    title: selectedSession.gameTitle,
+                    platform: selectedSession.platform,
+                    cover_image_url: selectedSession.cover_image_url || null
+                });
+            }
+
+            // Fetch Scores
+            const scores = await getSessionScores(selectedSession.id);
+            const sortedScores = [...scores].sort((a, b) => {
+                if (selectedSession.challengeType === 'speed') {
+                    return a.scoreValue - b.scoreValue;
+                }
+                return b.scoreValue - a.scoreValue;
+            });
+            setWeekScores(sortedScores);
+        };
+
+        updateSessionData();
+    }, [selectedSession]);

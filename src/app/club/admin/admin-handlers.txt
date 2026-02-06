@@ -1,0 +1,84 @@
+
+    // Helper to refresh sessions
+    const refreshSessions = async () => {
+        const sessions = await getActiveSessions(clubId as string);
+        setActiveSessions(sessions);
+        
+        // Also refresh scores for the first session if exists (or logic to handle multiple score views later)
+        if (sessions.length > 0) {
+             const scores = await getSessionScores(sessions[0].id);
+             setWeekScores(scores);
+        } else {
+             setWeekScores([]);
+        }
+    };
+
+    const handleUpdateSession = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingSessionId) return;
+
+        setIsUpdating(true);
+        try {
+            await updateSession(editingSessionId, {
+                gameTitle: editedSession.title,
+                platform: editedSession.platform,
+                rules: editedSession.rules,
+                endDate: editedSession.endDate,
+                challengeType: editedSession.challengeType,
+                customUnit: editedSession.customUnit,
+                cover_image_url: editedSession.cover_image_url
+            });
+            alert("Session updated successfully! 🎮");
+            
+            await refreshSessions();
+            setEditingSessionId(null);
+        } catch (error) {
+            console.error("Error updating session:", error);
+            alert("Failed to update challenge.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleManualSession = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!manualGame.title || !manualGame.platform) {
+            alert("Title and Platform are required.");
+            return;
+        }
+
+        setIsUpdating(true);
+        try {
+            await createManualSession(clubId as string, manualGame);
+            alert("Manual game challenge started successfully! 🎮");
+            setManualGame({
+                title: "",
+                platform: "",
+                rules: "",
+                endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+                challengeType: 'score',
+                customUnit: "",
+                cover_image_url: ""
+            });
+
+            await refreshSessions();
+        } catch (error) {
+            console.error("Error creating manual session:", error);
+            alert("Failed to start challenge: " + (error as any).message); // Show limit error
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleEditClick = (session: any) => {
+        setEditingSessionId(session.id);
+        setEditedSession({
+            title: session.gameTitle || "",
+            platform: session.platform || "",
+            rules: session.rules || "",
+            endDate: session.endDate || "",
+            challengeType: session.challengeType || 'score',
+            customUnit: session.customUnit || "",
+            cover_image_url: session.cover_image_url || ""
+        });
+    };

@@ -147,7 +147,7 @@ export function AuthGate() {
 
                             <Button
                                 type="submit"
-                                className="w-full bg-primary text-black font-black hover:bg-primary-dim transition-all group h-12"
+                                className="w-full bg-primary text-white font-black hover:bg-primary-dim transition-all group h-12"
                                 disabled={loading}
                             >
                                 {loading ? (

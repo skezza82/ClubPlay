@@ -10,7 +10,7 @@ import {
     disbandClub,
     updateMemberRole,
     createManualSession,
-    getActiveSession,
+    getActiveSessions, // Updated import
     updateSession,
     endSessionEarly,
     deleteScore,
@@ -29,7 +29,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { uploadClubLogo } from "@/lib/avatar-service";
+import { uploadClubLogo, uploadSessionBoxart } from "@/lib/avatar-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { useRef, Suspense } from "react";
 
@@ -59,54 +59,82 @@ function ClubAdminContent() {
         platform: "",
         rules: "",
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-        challengeType: 'score' as 'score' | 'speed',
+        challengeType: 'score' as 'score' | 'speed' | 'custom',
+        customUnit: "",
         cover_image_url: ""
     });
-    const [activeSession, setActiveSession] = useState<any>(null);
-    const [isEditingSession, setIsEditingSession] = useState(false);
+    const [activeSessions, setActiveSessions] = useState<any[]>([]); // Array of sessions
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null); // Track which session is being edited
+    const [viewingScoresSessionId, setViewingScoresSessionId] = useState<string | null>(null); // Track which session's scores are being viewed
     const [editedSession, setEditedSession] = useState({
         title: "",
         platform: "",
         rules: "",
         endDate: "",
-        challengeType: 'score' as 'score' | 'speed',
+        challengeType: 'score' as 'score' | 'speed' | 'custom',
+        customUnit: "",
         cover_image_url: ""
     });
+    const [boxartFile, setBoxartFile] = useState<File | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const boxartInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
     const router = useRouter();
 
+    // Helper to refresh sessions
+    const refreshSessions = async () => {
+        const sessions = await getActiveSessions(clubId as string);
+        setActiveSessions(sessions);
+
+        // Also refresh scores for the first session if exists (or logic to handle multiple score views later)
+        // For now, let's just clear specific session scores on refresh to avoid confusion, 
+        // or we could fetch scores for the *editing* session if there is one.
+        // Let's just default to empty until a user selects one to view/edit.
+        if (sessions.length > 0) {
+            const targetId = viewingScoresSessionId && sessions.find(s => s.id === viewingScoresSessionId) ? viewingScoresSessionId : sessions[0].id;
+            const scores = await getSessionScores(targetId);
+            setWeekScores(scores);
+            setViewingScoresSessionId(targetId);
+        } else {
+            setWeekScores([]);
+            setViewingScoresSessionId(null);
+        }
+    };
+
     const handleUpdateSession = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!activeSession) return;
+        if (!editingSessionId) return;
 
         setIsUpdating(true);
         try {
-            await updateSession(activeSession.id, {
+            await updateSession(editingSessionId, {
                 gameTitle: editedSession.title,
                 platform: editedSession.platform,
                 rules: editedSession.rules,
                 endDate: editedSession.endDate,
                 challengeType: editedSession.challengeType,
+                customUnit: editedSession.customUnit,
                 cover_image_url: editedSession.cover_image_url
             });
             alert("Session updated successfully! 🎮");
-            setActiveSession({
-                ...activeSession,
-                gameTitle: editedSession.title,
-                platform: editedSession.platform,
-                rules: editedSession.rules,
-                endDate: editedSession.endDate,
-                challengeType: editedSession.challengeType,
-                cover_image_url: editedSession.cover_image_url
-            });
-            setIsEditingSession(false);
+
+            await refreshSessions();
+            setEditingSessionId(null);
         } catch (error) {
             console.error("Error updating session:", error);
             alert("Failed to update challenge.");
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleBoxartSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setBoxartFile(file);
+            // Use local blob for immediate preview
+            setManualGame(prev => ({ ...prev, cover_image_url: URL.createObjectURL(file) }));
         }
     };
 
@@ -119,7 +147,26 @@ function ClubAdminContent() {
 
         setIsUpdating(true);
         try {
-            await createManualSession(clubId as string, manualGame);
+            let finalCoverUrl = manualGame.cover_image_url;
+
+            // Upload custom boxart if selected
+            if (boxartFile) {
+                try {
+                    finalCoverUrl = await uploadSessionBoxart(clubId as string, boxartFile);
+                } catch (uploadErr) {
+                    console.error("Failed to upload boxart:", uploadErr);
+                    if (!confirm("Failed to upload boxart image. Continue without it?")) {
+                        setIsUpdating(false);
+                        return;
+                    }
+                }
+            }
+
+            await createManualSession(clubId as string, {
+                ...manualGame,
+                cover_image_url: finalCoverUrl
+            });
+
             alert("Manual game challenge started successfully! 🎮");
             setManualGame({
                 title: "",
@@ -127,28 +174,31 @@ function ClubAdminContent() {
                 rules: "",
                 endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
                 challengeType: 'score',
+                customUnit: "",
                 cover_image_url: ""
             });
+            setBoxartFile(null);
 
-            // Refresh active session
-            const session = await getActiveSession(clubId as string);
-            if (session) {
-                setActiveSession(session);
-                setEditedSession({
-                    title: session.gameTitle || "",
-                    platform: session.platform || "",
-                    rules: session.rules || "",
-                    endDate: session.endDate || "",
-                    challengeType: session.challengeType || 'score',
-                    cover_image_url: session.cover_image_url || ""
-                });
-            }
+            await refreshSessions();
         } catch (error) {
             console.error("Error creating manual session:", error);
-            alert("Failed to start manual challenge.");
+            alert("Failed to start challenge: " + (error as any).message); // Show limit error
         } finally {
             setIsUpdating(false);
         }
+    };
+
+    const handleEditClick = (session: any) => {
+        setEditingSessionId(session.id);
+        setEditedSession({
+            title: session.gameTitle || "",
+            platform: session.platform || "",
+            rules: session.rules || "",
+            endDate: session.endDate || "",
+            challengeType: session.challengeType || 'score',
+            customUnit: session.customUnit || "",
+            cover_image_url: session.cover_image_url || ""
+        });
     };
 
     // Score Management Handlers
@@ -219,22 +269,15 @@ function ClubAdminContent() {
 
                 // 3. (Already fetched members above to verify role)
 
-                // 4. Fetch Active Session
-                const session = await getActiveSession(clubId as string);
-                if (session) {
-                    setActiveSession(session);
-                    setEditedSession({
-                        title: session.gameTitle || "",
-                        platform: session.platform || "",
-                        rules: session.rules || "",
-                        endDate: session.endDate || "",
-                        challengeType: session.challengeType || 'score',
-                        cover_image_url: session.cover_image_url || ""
-                    });
+                // 4. Fetch Active Sessions
+                const sessions = await getActiveSessions(clubId as string);
+                setActiveSessions(sessions);
 
-                    // Fetch scores for this session
-                    const scores = await getSessionScores(session.id);
+                if (sessions.length > 0) {
+                    // Fetch scores for the first session by default
+                    const scores = await getSessionScores(sessions[0].id);
                     setWeekScores(scores);
+                    setViewingScoresSessionId(sessions[0].id);
                 }
 
             } catch (error) {
@@ -597,247 +640,410 @@ function ClubAdminContent() {
             {
                 activeTab === "game" && (
                     <div className="space-y-8 animate-fade-in-up">
-                        {activeSession && (
+
+                        {/* Create New Challenge Section - Only show if not editing and < 3 active sessions */}
+                        {!editingSessionId && activeSessions.length < 3 && (
                             <Card className="border-primary/20 bg-surface/40 backdrop-blur-md">
-                                <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Trophy className="w-5 h-5 text-primary" />
-                                            Current Active Challenge
-                                        </CardTitle>
-                                        <CardDescription>Details for the ongoing weekly competition.</CardDescription>
-                                    </div>
-                                    {!isEditingSession && (
-                                        <div className="flex gap-2 w-full md:w-auto">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => setIsEditingSession(true)}
-                                                className="border-primary/20 text-xs font-bold uppercase tracking-widest px-6 h-10 neon-border-static flex-1 md:flex-none"
-                                            >
-                                                Edit Challenge
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                onClick={async () => {
-                                                    if (window.confirm("Are you sure you want to end this challenge early? It will be moved to History immediately.")) {
-                                                        try {
-                                                            await endSessionEarly(activeSession.id);
-
-
-                                                            // Trigger points processing (Client-side now)
-                                                            try {
-                                                                const processedCount = await processSessionResults(activeSession.id, clubId as string);
-                                                                console.log(`Processed ${processedCount} scores.`);
-                                                                alert("Challenge ended and points distributed successfully! 🏆");
-                                                            } catch (procError) {
-                                                                console.error("Error processing challenge points:", procError);
-                                                                alert(`Warning: Challenge ended but points processing failed: ${(procError as any).message}`);
-                                                            }
-
-                                                            setActiveSession(null); // Clear from view immediately
-                                                            alert("Challenge ended and points distributed!");
-                                                        } catch (e) {
-                                                            console.error("Error ending session:", e);
-                                                            alert("Failed to end session. Please try again.");
-                                                        }
-                                                    }
-                                                }}
-                                                className="text-xs font-bold uppercase tracking-widest px-6 h-10 flex-1 md:flex-none"
-                                            >
-                                                Finish Now
-                                            </Button>
-                                        </div>
-                                    )}
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Trophy className="w-5 h-5 text-primary" />
+                                        Create New Challenge
+                                    </CardTitle>
+                                    <CardDescription>Start a new weekly competition. You can have up to 3 active challenges.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {isEditingSession ? (
-                                        <form onSubmit={handleUpdateSession} className="space-y-6">
-                                            <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
-                                                <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                                                    <Search className="w-3 h-3" /> Auto-Fill from IGDB
-                                                </label>
-                                                <GameSearch
-                                                    onSelect={(game) => {
-                                                        setEditedSession(prev => ({
-                                                            ...prev,
-                                                            title: game.name,
-                                                            cover_image_url: game.coverUrl || ""
-                                                        }));
-                                                    }}
-                                                    className="w-full"
-                                                />
-                                            </div>
+                                    <form onSubmit={handleManualSession} className="space-y-6">
+                                        <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
+                                            <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                <Search className="w-3 h-3" /> Auto-Fill from IGDB
+                                            </label>
+                                            <GameSearch
+                                                onSelect={(game) => {
+                                                    setManualGame(prev => ({
+                                                        ...prev,
+                                                        title: game.name,
+                                                        platform: "Arcade", // Default, user can change
+                                                        cover_image_url: game.coverUrl || ""
+                                                    }));
+                                                    setBoxartFile(null); // Clear custom file if game selected
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
-                                                    <Input
-                                                        value={editedSession.title}
-                                                        onChange={(e) => setEditedSession({ ...editedSession, title: e.target.value })}
-                                                        className="bg-background/50 border-white/10"
-                                                        required
+                                        <div className="mb-6 animate-fade-in-up">
+                                            <label className="text-xs font-bold text-white uppercase tracking-widest block mb-2">Boxart Image</label>
+                                            <div className="flex items-start gap-4">
+                                                <div
+                                                    onClick={() => boxartInputRef.current?.click()}
+                                                    className="w-32 h-44 bg-black/40 rounded-lg border-2 border-dashed border-white/10 hover:border-primary/50 cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group transition-all"
+                                                >
+                                                    {manualGame.cover_image_url ? (
+                                                        <>
+                                                            <img src={manualGame.cover_image_url} alt="Cover" className="w-full h-full object-cover" />
+                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                <Camera className="w-8 h-8 text-white" />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="text-center p-2">
+                                                            <Camera className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                                                            <span className="text-[10px] text-muted-foreground uppercase font-bold">Upload Boxart</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 space-y-2 pt-2">
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Upload a custom boxart image or cover art for your challenge.
+                                                    </p>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => boxartInputRef.current?.click()}
+                                                            className="text-xs font-bold uppercase"
+                                                        >
+                                                            Choose File
+                                                        </Button>
+                                                        {manualGame.cover_image_url && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setManualGame(prev => ({ ...prev, cover_image_url: "" }));
+                                                                    setBoxartFile(null);
+                                                                    if (boxartInputRef.current) boxartInputRef.current.value = "";
+                                                                }}
+                                                                className="text-xs font-bold uppercase text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                                                            >
+                                                                Remove
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        ref={boxartInputRef}
+                                                        onChange={handleBoxartSelect}
+                                                        className="hidden"
+                                                        accept="image/*"
                                                     />
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-white uppercase tracking-widest">System / Platform</label>
-                                                    <Input
-                                                        value={editedSession.platform}
-                                                        onChange={(e) => setEditedSession({ ...editedSession, platform: e.target.value })}
-                                                        className="bg-background/50 border-white/10"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Type</label>
-                                                    <select
-                                                        value={editedSession.challengeType}
-                                                        onChange={(e) => setEditedSession({ ...editedSession, challengeType: e.target.value as 'score' | 'speed' })}
-                                                        className="w-full h-10 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none cursor-pointer"
-                                                        required
-                                                    >
-                                                        <option value="score">Points (High Score)</option>
-                                                        <option value="speed">Speed (Fastest Time)</option>
-                                                    </select>
-                                                </div>
                                             </div>
+                                        </div>
 
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div className="space-y-2">
-                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Requirements / Rules</label>
-                                                <textarea
-                                                    value={editedSession.rules}
-                                                    onChange={(e) => setEditedSession({ ...editedSession, rules: e.target.value })}
-                                                    className="w-full h-32 bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
-                                                    required
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2 max-w-sm">
-                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Finish Date & Time</label>
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
                                                 <Input
-                                                    type="datetime-local"
-                                                    value={editedSession.endDate}
-                                                    onChange={(e) => setEditedSession({ ...editedSession, endDate: e.target.value })}
+                                                    value={manualGame.title}
+                                                    onChange={(e) => setManualGame({ ...manualGame, title: e.target.value })}
+                                                    placeholder="e.g. Street Fighter II"
                                                     className="bg-background/50 border-white/10 text-white"
                                                     required
                                                 />
                                             </div>
-
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                <Button type="submit" className="neon-border h-12 font-black uppercase tracking-widest px-8" disabled={isUpdating}>
-                                                    {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                                                    Save Changes
-                                                </Button>
-                                                <Button type="button" variant="ghost" onClick={() => setIsEditingSession(false)} className="h-12 text-muted-foreground uppercase tracking-widest font-bold">
-                                                    Cancel
-                                                </Button>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">System / Platform</label>
+                                                <Input
+                                                    value={manualGame.platform}
+                                                    onChange={(e) => setManualGame({ ...manualGame, platform: e.target.value })}
+                                                    placeholder="e.g. Arcade, SNES"
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                    required
+                                                />
                                             </div>
-
-                                            {/* Live Preview of Boxart */}
-                                            {editedSession.title && editedSession.platform && (
-                                                <div className="mt-8 pt-8 border-t border-white/5">
-                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Boxart Preview (via Libretro)</h4>
-                                                    <div className="aspect-video w-full max-w-sm bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
-                                                        <Image
-                                                            src={getLibretroBoxartUrl(editedSession.title, editedSession.platform)}
-                                                            alt="Preview"
-                                                            fill
-                                                            className="object-cover"
-                                                            onError={(e: any) => { e.target.style.display = 'none'; }}
-                                                        />
-                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                                            <Gamepad2 className="w-12 h-12" />
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-[10px] text-muted-foreground mt-2 italic">Artwork fetched dynamically from Libretro Thumbnails repo.</p>
-
-                                                    <div className="mt-4 flex gap-4 items-end">
-                                                        <div className="flex-1 space-y-2">
-                                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Manual Boxart URL</label>
-                                                            <Input
-                                                                value={editedSession.cover_image_url}
-                                                                onChange={(e) => setEditedSession({ ...editedSession, cover_image_url: e.target.value })}
-                                                                placeholder="https://..."
-                                                                className="bg-background/50 border-white/10"
-                                                            />
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            className="h-10 border-primary/20 text-primary hover:bg-primary/10"
-                                                            onClick={() => {
-                                                                const url = getLibretroBoxartUrl(editedSession.title, editedSession.platform);
-                                                                setEditedSession({ ...editedSession, cover_image_url: url });
-                                                            }}
-                                                        >
-                                                            Use Libretro Art
-                                                        </Button>
-                                                    </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Type</label>
+                                                <select
+                                                    value={manualGame.challengeType}
+                                                    onChange={(e) => setManualGame({ ...manualGame, challengeType: e.target.value as 'score' | 'speed' | 'custom' })}
+                                                    className="w-full h-10 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none cursor-pointer"
+                                                    required
+                                                >
+                                                    <option value="score">Points (High Score)</option>
+                                                    <option value="speed">Speed (Fastest Time)</option>
+                                                    <option value="custom">Custom (e.g. Kills)</option>
+                                                </select>
+                                            </div>
+                                            {manualGame.challengeType === 'custom' && (
+                                                <div className="space-y-2 animate-fade-in-up md:col-span-3">
+                                                    <label className="text-xs font-bold text-primary uppercase tracking-widest">Unit / Label</label>
+                                                    <Input
+                                                        value={manualGame.customUnit}
+                                                        onChange={(e) => setManualGame({ ...manualGame, customUnit: e.target.value })}
+                                                        placeholder="e.g. Kills, Laps, Wins"
+                                                        className="bg-background/50 border-white/10 text-white"
+                                                        required
+                                                    />
                                                 </div>
                                             )}
-                                        </form>
-                                    ) : (
-                                        <div className="grid md:grid-cols-2 gap-8">
-                                            <div className="space-y-6">
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Active Game</h4>
-                                                    <p className="text-3xl font-black text-white italic uppercase tracking-tighter">{activeSession.gameTitle}</p>
-                                                </div>
-                                                <div className="flex gap-8">
-                                                    <div>
-                                                        <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Platform</h4>
-                                                        <p className="text-white font-bold">{activeSession.platform}</p>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Mode</h4>
-                                                        <p className="text-primary font-bold uppercase">{activeSession.challengeType === 'speed' ? 'Speed Trial' : 'High Score'}</p>
-                                                    </div>
-                                                </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Rules / Requirements</label>
+                                            <textarea
+                                                value={manualGame.rules}
+                                                onChange={(e) => setManualGame({ ...manualGame, rules: e.target.value })}
+                                                placeholder="e.g. Default settings, 1 credit only"
+                                                className="w-full h-24 bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-white/5">
+                                            <div className="flex-1 space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Date Ends</label>
+                                                <Input
+                                                    type="datetime-local"
+                                                    value={manualGame.endDate}
+                                                    onChange={(e) => setManualGame({ ...manualGame, endDate: e.target.value })}
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                    required
+                                                />
                                             </div>
-                                            <div className="space-y-6">
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Ends At</h4>
-                                                    <p className="text-white font-bold flex items-center gap-2">
-                                                        <Calendar className="w-4 h-4 text-primary" />
-                                                        {new Date(activeSession.endDate).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Boxart Preview</h4>
-                                                    <div className="aspect-video bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
-                                                        <Image
-                                                            src={activeSession.cover_image_url || getLibretroBoxartUrl(activeSession.gameTitle, activeSession.platform)}
-
-
-                                                            alt={activeSession.gameTitle}
-                                                            fill
-                                                            className="object-cover opacity-80"
-                                                            onError={(e: any) => { e.target.style.display = 'none'; }}
-                                                        />
-                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
-                                                            <Gamepad2 className="w-12 h-12" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Rules</h4>
-                                                    <div className="text-sm text-white/80 leading-relaxed italic p-4 bg-white/5 border border-white/10 rounded-xl whitespace-pre-wrap">
-                                                        {activeSession.rules}
-                                                    </div>
-                                                </div>
+                                            <div className="flex items-end">
+                                                <Button type="submit" className="neon-border h-12 font-black uppercase tracking-widest px-8 w-full sm:w-auto" disabled={isUpdating}>
+                                                    {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Gamepad2 className="w-5 h-5 mr-2" />}
+                                                    Start Competition
+                                                </Button>
                                             </div>
                                         </div>
-                                    )}
+                                    </form>
                                 </CardContent>
                             </Card>
                         )}
 
+                        {/* Editing Form */}
+                        {editingSessionId && (
+                            <Card className="border-primary/20 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">Edit Challenge</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <form onSubmit={handleUpdateSession} className="space-y-6">
+                                        <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
+                                            <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                <Search className="w-3 h-3" /> Auto-Fill from IGDB
+                                            </label>
+                                            <GameSearch
+                                                onSelect={(game) => {
+                                                    setEditedSession(prev => ({
+                                                        ...prev,
+                                                        title: game.name,
+                                                        cover_image_url: game.coverUrl || ""
+                                                    }));
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
+                                                <Input
+                                                    value={editedSession.title}
+                                                    onChange={(e) => setEditedSession({ ...editedSession, title: e.target.value })}
+                                                    className="bg-background/50 border-white/10"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">System / Platform</label>
+                                                <Input
+                                                    value={editedSession.platform}
+                                                    onChange={(e) => setEditedSession({ ...editedSession, platform: e.target.value })}
+                                                    className="bg-background/50 border-white/10"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Type</label>
+                                                <select
+                                                    value={editedSession.challengeType}
+                                                    onChange={(e) => setEditedSession({ ...editedSession, challengeType: e.target.value as 'score' | 'speed' | 'custom' })}
+                                                    className="w-full h-10 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none cursor-pointer"
+                                                    required
+                                                >
+                                                    <option value="score">Points (High Score)</option>
+                                                    <option value="speed">Speed (Fastest Time)</option>
+                                                    <option value="custom">Custom (e.g. Kills)</option>
+                                                </select>
+                                            </div>
+                                            {editedSession.challengeType === 'custom' && (
+                                                <div className="space-y-2 animate-fade-in-up">
+                                                    <label className="text-xs font-bold text-primary uppercase tracking-widest">Unit / Label</label>
+                                                    <Input
+                                                        value={editedSession.customUnit}
+                                                        onChange={(e) => setEditedSession({ ...editedSession, customUnit: e.target.value })}
+                                                        placeholder="e.g. Kills, Laps, Wins"
+                                                        className="bg-background/50 border-white/10 text-white"
+                                                        required
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Requirements / Rules</label>
+                                            <textarea
+                                                value={editedSession.rules}
+                                                onChange={(e) => setEditedSession({ ...editedSession, rules: e.target.value })}
+                                                className="w-full h-32 bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2 max-w-sm">
+                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Finish Date & Time</label>
+                                            <Input
+                                                type="datetime-local"
+                                                value={editedSession.endDate}
+                                                onChange={(e) => setEditedSession({ ...editedSession, endDate: e.target.value })}
+                                                className="bg-background/50 border-white/10 text-white"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <Button type="submit" className="neon-border h-12 font-black uppercase tracking-widest px-8" disabled={isUpdating}>
+                                                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                                                Save Changes
+                                            </Button>
+                                            <Button type="button" variant="ghost" onClick={() => setEditingSessionId(null)} className="h-12 text-muted-foreground uppercase tracking-widest font-bold">
+                                                Cancel
+                                            </Button>
+                                        </div>
+
+                                        {/* Live Preview of Boxart */}
+                                        {editedSession.title && editedSession.platform && (
+                                            <div className="mt-8 pt-8 border-t border-white/5">
+                                                <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Boxart Preview (via Libretro)</h4>
+                                                <div className="aspect-video w-full max-w-sm bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center">
+                                                    <Image
+                                                        src={getLibretroBoxartUrl(editedSession.title, editedSession.platform)}
+                                                        alt="Preview"
+                                                        fill
+                                                        className="object-cover"
+                                                        onError={(e: any) => { e.target.style.display = 'none'; }}
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                                        <Gamepad2 className="w-12 h-12" />
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 flex gap-4 items-end">
+                                                    <div className="flex-1 space-y-2">
+                                                        <label className="text-xs font-bold text-white uppercase tracking-widest">Manual Boxart URL</label>
+                                                        <Input
+                                                            value={editedSession.cover_image_url}
+                                                            onChange={(e) => setEditedSession({ ...editedSession, cover_image_url: e.target.value })}
+                                                            placeholder="https://..."
+                                                            className="bg-background/50 border-white/10"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </form>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Active Sessions List */}
+                        <div className="space-y-4">
+                            <h3 className="text-xl font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                <Gamepad2 className="w-5 h-5 text-primary" /> Active Challenges ({activeSessions.length}/3)
+                            </h3>
+
+                            {activeSessions.length === 0 ? (
+                                <div className="p-8 text-center border border-dashed border-white/10 rounded-xl text-muted-foreground">
+                                    No active challenges. Create one above!
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {activeSessions.map((session) => (
+                                        <Card key={session.id} className="border-white/5 bg-surface/30">
+                                            <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
+                                                {/* Boxart */}
+                                                <div className="w-24 h-16 relative bg-black/50 rounded overflow-hidden flex-shrink-0">
+                                                    {session.cover_image_url ? (
+                                                        <img src={session.cover_image_url} alt={session.gameTitle} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Gamepad2 className="w-8 h-8 text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-white text-lg">{session.gameTitle}</h4>
+                                                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
+                                                        <span className="flex items-center gap-1"><Gamepad2 className="w-3 h-3" /> {session.platform}</span>
+                                                        <span className="flex items-center gap-1"><Trophy className="w-3 h-3" /> {session.challengeType.toUpperCase()}</span>
+                                                        <span className="flex items-center gap-1 text-primary"><Calendar className="w-3 h-3" /> Ends: {new Date(session.endDate).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant={viewingScoresSessionId === session.id ? "secondary" : "ghost"}
+                                                        className="border-white/10"
+                                                        onClick={async () => {
+                                                            setViewingScoresSessionId(session.id);
+                                                            const scores = await getSessionScores(session.id);
+                                                            setWeekScores(scores);
+                                                        }}
+                                                    >
+                                                        <Trophy className="w-4 h-4 mr-1" /> Scores
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="border-primary/20 hover:bg-primary/10 text-primary"
+                                                        onClick={() => handleEditClick(session)}
+                                                        disabled={!!editingSessionId}
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"
+                                                        onClick={async () => {
+                                                            if (window.confirm(`End "${session.gameTitle}" early? Points will be processed immediately.`)) {
+                                                                try {
+                                                                    await endSessionEarly(session.id);
+                                                                    try {
+                                                                        const processedCount = await processSessionResults(session.id, clubId as string);
+                                                                        alert(`Challenge ended! Processed ${processedCount} scores.`);
+                                                                    } catch (procError) {
+                                                                        alert(`Ended, but processing failed: ${(procError as any).message}`);
+                                                                    }
+                                                                    await refreshSessions();
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                    alert("Failed to end session.");
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        Finish
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Scoreboard Management */}
-                        {activeSession && (
+                        {viewingScoresSessionId && activeSessions.find(s => s.id === viewingScoresSessionId) && (
                             <Card className="border-blue-500/20 bg-surface/40 backdrop-blur-md">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Trophy className="w-5 h-5 text-blue-400" />
-                                        Scoreboard Management
+                                        Scoreboard: {activeSessions.find(s => s.id === viewingScoresSessionId)?.gameTitle}
                                     </CardTitle>
                                     <CardDescription>Edit or remove invalid scores from the leaderboard.</CardDescription>
                                 </CardHeader>
@@ -887,7 +1093,7 @@ function ClubAdminContent() {
                                                         ) : (
                                                             <>
                                                                 <div className="font-mono font-bold text-primary text-lg mr-4">
-                                                                    {activeSession?.challengeType === 'speed' ? `${score.scoreValue}s` : score.scoreValue.toLocaleString()}
+                                                                    {activeSessions.find(s => s.id === viewingScoresSessionId)?.challengeType === 'speed' ? `${score.scoreValue}s` : score.scoreValue.toLocaleString()}
                                                                 </div>
                                                                 <div className="flex gap-1">
                                                                     <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-400" onClick={() => handleEditScore(score)}>
@@ -907,171 +1113,6 @@ function ClubAdminContent() {
                                 </CardContent>
                             </Card>
                         )}
-
-                        <Card className="border-purple-500/20 bg-surface/40 backdrop-blur-md">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Gamepad2 className="w-5 h-5 text-purple-400" />
-                                    {activeSession ? "Start New Season Challenge" : "Add Game Manually"}
-                                </CardTitle>
-                                <CardDescription>Setup a custom challenge for your club members.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <form onSubmit={handleManualSession} className="space-y-6">
-                                    <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
-                                        <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                                            <Search className="w-3 h-3" /> Search Game (Auto-Fill)
-                                        </label>
-                                        <GameSearch
-                                            onSelect={(game) => {
-                                                setManualGame(prev => ({
-                                                    ...prev,
-                                                    title: game.name,
-                                                    cover_image_url: game.coverUrl || ""
-                                                }));
-                                            }}
-                                            className="w-full"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Game Title</label>
-                                            <Input
-                                                placeholder="e.g., Halo Infinite"
-                                                value={manualGame.title}
-                                                onChange={(e) => setManualGame({ ...manualGame, title: e.target.value })}
-                                                className="bg-background/50 border-white/10"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-white uppercase tracking-widest">System / Platform</label>
-                                            <Input
-                                                placeholder="e.g., Xbox Series X"
-                                                value={manualGame.platform}
-                                                onChange={(e) => setManualGame({ ...manualGame, platform: e.target.value })}
-                                                className="bg-background/50 border-white/10"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Type</label>
-                                            <select
-                                                value={manualGame.challengeType}
-                                                onChange={(e) => setManualGame({ ...manualGame, challengeType: e.target.value as 'score' | 'speed' })}
-                                                className="w-full h-10 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none cursor-pointer"
-                                                required
-                                            >
-                                                <option value="score">Points (High Score)</option>
-                                                <option value="speed">Speed (Fastest Time)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Preview & Boxart Selection */}
-                                    <div className="grid md:grid-cols-2 gap-6 p-6 bg-black/20 rounded-xl border border-white/5">
-                                        <div>
-                                            <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Boxart Preview</h4>
-                                            <div className="aspect-video bg-black/50 rounded-lg border border-white/10 relative overflow-hidden flex items-center justify-center group">
-                                                {(manualGame.cover_image_url || (manualGame.title && manualGame.platform)) ? (
-                                                    <Image
-                                                        src={manualGame.cover_image_url || getLibretroBoxartUrl(manualGame.title, manualGame.platform)}
-                                                        alt="Preview"
-                                                        fill
-                                                        className="object-cover opacity-80"
-                                                        onError={(e: any) => {
-                                                            e.target.srcset = PLACEHOLDER_BOXART_URL;
-                                                            e.target.src = PLACEHOLDER_BOXART_URL;
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <Gamepad2 className="w-12 h-12 text-white/10" />
-                                                )}
-
-                                                {/* Overlay Actions */}
-                                                {!manualGame.cover_image_url && manualGame.title && manualGame.platform && (
-                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            className="neon-border text-[10px]"
-                                                            onClick={() => setManualGame({ ...manualGame, cover_image_url: getLibretroBoxartUrl(manualGame.title, manualGame.platform) })}
-                                                        >
-                                                            Use Libretro Art
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <p className="text-[10px] text-muted-foreground mt-2 italic text-center">
-                                                {manualGame.cover_image_url ? "Custom artwork selected" : "Previewing Libretro match"}
-                                            </p>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-white uppercase tracking-widest">Manual Boxart URL</label>
-                                                <Input
-                                                    placeholder="https://..."
-                                                    value={manualGame.cover_image_url}
-                                                    onChange={(e) => setManualGame({ ...manualGame, cover_image_url: e.target.value })}
-                                                    className="bg-background/50 border-white/10 text-xs font-mono"
-                                                />
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    Paste a direct image link here to override the automatic artwork. Be sure to use a high-quality landscape image (16:9).
-                                                </p>
-                                            </div>
-                                            {manualGame.cover_image_url && (
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 text-[10px] uppercase font-bold"
-                                                    onClick={() => setManualGame({ ...manualGame, cover_image_url: "" })}
-                                                >
-                                                    <Trash2 className="w-3 h-3 mr-2" /> Reset to Automatic
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Requirements / Rules</label>
-                                        <textarea
-                                            placeholder="e.g., Play Ranked Slayer. Highest K/D wins. Screenshots of the post-game carnage required."
-                                            value={manualGame.rules}
-                                            onChange={(e) => setManualGame({ ...manualGame, rules: e.target.value })}
-                                            className="w-full h-32 bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2 max-w-sm">
-                                        <label className="text-xs font-bold text-white uppercase tracking-widest">Challenge Finish Date & Time</label>
-                                        <Input
-                                            type="datetime-local"
-                                            value={manualGame.endDate}
-                                            onChange={(e) => setManualGame({ ...manualGame, endDate: e.target.value })}
-                                            className="bg-background/50 border-white/10 text-white"
-                                            required
-                                        />
-                                    </div>
-
-                                    <Button
-                                        type="submit"
-                                        className="w-full md:w-auto px-12 neon-border h-12 italic font-black uppercase tracking-widest"
-                                        disabled={isUpdating}
-                                    >
-                                        {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                                        Start Manual Challenge
-                                    </Button>
-                                </form>
-                            </CardContent>
-                        </Card>
-
-                        <div className="text-sm text-muted-foreground bg-white/5 p-4 rounded-lg italic border border-white/5">
-                            <AlertTriangle className="w-4 h-4 inline mr-2 text-yellow-500" />
-                            Warning: Starting a new manual challenge will deactivate the current one and clear the weekly leaderboard for this club.
-                        </div>
                     </div>
                 )
             }

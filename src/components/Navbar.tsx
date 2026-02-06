@@ -12,7 +12,7 @@ export function Navbar() {
     if (!user) return null;
 
     return (
-        <nav className="sticky top-0 z-[100] w-full border-b border-white/5 bg-background/80 backdrop-blur-md">
+        <nav className="sticky top-0 z-[100] w-full border-b border-white/5 bg-background/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
             <div className="container mx-auto px-4 h-20 flex items-center justify-between">
                 <div className="flex items-center gap-8">
                     <PremiumLogo />
