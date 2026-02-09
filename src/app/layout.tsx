@@ -43,6 +43,7 @@ import { PWAProvider } from "@/context/PWAContext";
 import { PWARegistrar } from "@/components/PWARegistrar";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { Navbar } from "@/components/Navbar";
+import { AdBanner } from "@/components/AdBanner";
 import { AndroidBackHandler } from "@/components/AndroidBackHandler";
 
 export default function RootLayout({
@@ -74,7 +75,12 @@ export default function RootLayout({
             <InstallPrompt />
             <AndroidBackHandler />
             <Navbar />
-            {children}
+            <main className="pb-16 min-h-screen">
+              {children}
+            </main>
+            <div className="fixed bottom-0 left-0 right-0 z-50">
+              <AdBanner />
+            </div>
           </PWAProvider>
         </AuthProvider>
       </body>

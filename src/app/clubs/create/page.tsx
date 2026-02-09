@@ -17,6 +17,7 @@ import { useRef } from "react";
 export default function CreateClubPage() {
     const [name, setName] = useState("");
     const [inviteCode, setInviteCode] = useState("");
+    const [bio, setBio] = useState("");
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +64,8 @@ export default function CreateClubPage() {
                 user.uid,
                 user.displayName || "Club Owner",
                 user.photoURL || undefined,
-                finalLogoUrl || undefined
+                finalLogoUrl || undefined,
+                bio || undefined
             );
 
             alert("Club created successfully! 🎮");
@@ -175,6 +177,18 @@ export default function CreateClubPage() {
                                 className="bg-background/30 border-white/10 focus:border-primary/50 font-mono"
                             />
                             <p className="text-[10px] text-muted-foreground">4 characters max. This will be used for joining your club.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-primary tracking-widest uppercase">Club Bio (Optional)</label>
+                            <textarea
+                                placeholder="Tell us what your club is about..."
+                                value={bio}
+                                onChange={(e) => setBio(e.target.value)}
+                                className="w-full bg-background/30 border border-white/10 focus:border-primary/50 rounded-md p-3 min-h-[100px] text-sm resize-none"
+                                maxLength={200}
+                            />
+                            <p className="text-[10px] text-muted-foreground text-right">{bio.length}/200</p>
                         </div>
 
                         <Button className="w-full neon-border font-black text-lg h-14" disabled={isLoading}>

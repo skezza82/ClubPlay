@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-service";
-import { getUserClubs } from "@/lib/firestore-service";
+import { getUserClubs, updateUserProfile } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { usePWA } from "@/context/PWAContext";
@@ -59,7 +59,11 @@ export default function ProfilePage() {
         if (!user) return;
         setIsSaving(true);
         try {
-            await updateUserAvatar(user.uid, avatarUrl);
+            // Update both avatar and nickname
+            await updateUserProfile(user.uid, {
+                displayName: nickname,
+                photoURL: avatarUrl
+            });
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
         } catch (error) {
@@ -225,6 +229,20 @@ export default function ProfilePage() {
                                         </span>
                                     ) : "Update Profile"}
                                 </Button>
+
+                                <div className="pt-6 border-t border-white/5">
+                                    <Link href="/delete-account">
+                                        <Button variant="ghost" type="button" className="w-full text-red-500 hover:text-red-400 hover:bg-red-500/10 h-12">
+                                            Delete Account
+                                        </Button>
+                                    </Link>
+                                </div>
+
+                                <div className="text-center pt-2">
+                                    <Link href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                                        Privacy Policy
+                                    </Link>
+                                </div>
                             </form>
                         </CardContent>
                     </Card>
@@ -283,7 +301,7 @@ export default function ProfilePage() {
                     <InstallAppButton />
                 </div>
             </div>
-        </main>
+        </main >
     );
 }
 

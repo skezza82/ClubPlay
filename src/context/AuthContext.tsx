@@ -30,9 +30,12 @@ const AuthContext = createContext<AuthContextType>({
     bypassAuth: async () => { },
 });
 
+import { useRouter } from "next/navigation";
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -93,6 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             await firebaseSignOut(auth);
             setUser(null); // Clear manual state if any
+            router.push('/login');
         } catch (error) {
             console.error("Error signing out", error);
         }

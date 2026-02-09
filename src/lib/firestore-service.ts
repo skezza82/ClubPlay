@@ -2,28 +2,30 @@ import {
     collection,
     query,
     where,
+    getDocs,
     orderBy,
     limit,
-    getDocs,
     doc,
     getDoc,
-    setDoc,
     updateDoc,
-    addDoc,
-    runTransaction,
-    deleteDoc,
+    increment,
+    setDoc,
     writeBatch,
-    Timestamp,
+    addDoc,
+    deleteDoc,
+    runTransaction,
     onSnapshot,
     QuerySnapshot,
-    increment,
+    Timestamp,
     serverTimestamp
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
+import { updateProfile } from "firebase/auth";
 
 export interface Club {
     id: string;
     name: string;
+    bio?: string;
     ownerId: string;
 }
 
@@ -60,6 +62,7 @@ export interface ClubStanding {
     clubId: string;
     userId: string;
     points: number;
+    wins: number;
     displayName: string;
     photoURL?: string | null;
 }
@@ -168,7 +171,8 @@ export const createClub = async (
     ownerId: string,
     ownerDisplayName: string,
     ownerPhotoURL?: string,
-    logoUrl?: string
+    logoUrl?: string,
+    bio?: string
 ) => {
     try {
         // Use a transaction to create club and membership atomically
@@ -183,6 +187,7 @@ export const createClub = async (
                 ownerId,
                 memberCount: 1,
                 logoUrl: logoUrl || null,
+                bio: bio || "",
                 createdAt: new Date().toISOString()
             };
 
@@ -269,10 +274,16 @@ export const getSeasonStandings = async (clubId: string) => {
         const userDoc = await getDoc(doc(db, "users", data.userId));
         const userData = userDoc.exists() ? userDoc.data() : {};
 
+        // Helper to check if a name is "real"
+        const isValidName = (name: string) => name && name !== "Unknown" && name !== "Unknown Member" && name !== "Unknown User";
+
+        const userDisplayName = isValidName(userData.displayName) ? userData.displayName : null;
+        const storedDisplayName = isValidName(data.displayName) ? data.displayName : null;
+
         return {
             id: docSnap.id,
             ...data,
-            displayName: userData.displayName || "Unknown Member",
+            displayName: userDisplayName || storedDisplayName || "Unknown Member",
             photoURL: userData.photoURL
         };
     }));
@@ -280,40 +291,111 @@ export const getSeasonStandings = async (clubId: string) => {
     return standings;
 };
 
-export const updateClubStandings = async (clubId: string, updates: { userId: string, pointsToAdd: number }[]) => {
+export const updateClubStandings = async (clubId: string, updates: { userId: string, pointsToAdd: number, isWinner?: boolean, displayName?: string }[]) => {
     const batch = writeBatch(db);
 
     for (const update of updates) {
-        // We use a composite key of clubId_userId for unique standings per club
         const standingId = `${clubId}_${update.userId}`;
         const standingRef = doc(db, "season_standings", standingId);
 
-        // This is a bit tricky because we need to read current points to add to them.
-        // For atomic updates without reading inside a loop (which is slow/complex in batch),
-        // we might ideally use increment().
-        // Let's use Firestore's increment operator for efficiency.
-
-        // However, we strictly need user details if creating new doc.
-        // Assuming the doc might not exist, set with merge is good, 
-        // but we need to supply basic info if it's new.
-        // For simplicity in this iteration, we trust the increment works on fields even if doc is created?
-        // No, set with merge: true and increment works.
-
-
-
-        // We need to fetch user details if we want to store them in standing doc
-        // BUT, keeping standings lightweight and just storing ID + points is better,
-        // joining with users table on read.
-        // The current `getSeasonStandings` joins on read. So we just store points.
-
-        batch.set(standingRef, {
+        const data: any = {
             clubId,
             userId: update.userId,
             points: increment(update.pointsToAdd)
-        }, { merge: true });
+        };
+
+        if (update.displayName) {
+            data.displayName = update.displayName;
+        }
+
+        if (update.isWinner) {
+            data.wins = increment(1);
+        }
+
+        batch.set(standingRef, data, { merge: true });
     }
 
     await batch.commit();
+};
+
+export const updateMemberStats = async (clubId: string, userId: string, stats: { wins?: number, points?: number }) => {
+    const standingId = `${clubId}_${userId}`;
+    const standingRef = doc(db, "season_standings", standingId);
+
+    const data: any = { clubId, userId };
+    if (stats.wins !== undefined) data.wins = stats.wins;
+    if (stats.points !== undefined) data.points = stats.points;
+
+    await setDoc(standingRef, data, { merge: true });
+};
+
+export const migrateLeaderboardNames = async (clubId: string) => {
+    let count = 0;
+    const batch = writeBatch(db);
+
+    // Helper to pick best name
+    const resolveName = (userData: any) => {
+        if (userData.displayName && userData.displayName !== "Unknown" && userData.displayName !== "Unknown Member" && userData.displayName !== "Unknown User") {
+            return userData.displayName;
+        }
+        if (userData.email) {
+            return userData.email.split('@')[0];
+        }
+        return "Unknown";
+    };
+
+    // 1. Fix Season Standings
+    const standingsRef = collection(db, "season_standings");
+    const q = query(standingsRef, where("clubId", "==", clubId));
+    const snapshot = await getDocs(q);
+
+    for (const docSnap of snapshot.docs) {
+        // Always try to improve the name
+        const data = docSnap.data();
+        if (data.userId) {
+            const userDoc = await getDoc(doc(db, "users", data.userId));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const newName = resolveName(userData);
+                // Only update if it's different and meaningful
+                if (newName !== "Unknown" && newName !== data.displayName) {
+                    batch.update(docSnap.ref, { displayName: newName });
+                    count++;
+                }
+            }
+        }
+    }
+
+    // 2. Fix Session Scores
+    const sessionsRef = collection(db, "weekly_sessions");
+    const sessionsQ = query(sessionsRef, where("clubId", "==", clubId));
+    const sessionsSnap = await getDocs(sessionsQ);
+
+    for (const sessionDoc of sessionsSnap.docs) {
+        const scoresRef = collection(db, "scores");
+        const scoresQ = query(scoresRef, where("sessionId", "==", sessionDoc.id));
+        const scoresSnap = await getDocs(scoresQ);
+
+        for (const scoreSnap of scoresSnap.docs) {
+            const data = scoreSnap.data();
+            if (data.userId) {
+                const userDoc = await getDoc(doc(db, "users", data.userId));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    const newName = resolveName(userData);
+                    if (newName !== "Unknown" && newName !== data.displayName) {
+                        batch.update(scoreSnap.ref, { displayName: newName });
+                        count++;
+                    }
+                }
+            }
+        }
+    }
+
+    if (count > 0) {
+        await batch.commit();
+    }
+    return count;
 };
 
 export const markSessionProcessed = async (sessionId: string) => {
@@ -420,6 +502,20 @@ export const respondToJoinRequest = async (requestId: string, clubId: string, us
     }
 };
 
+// User Management
+export const updateUserProfile = async (userId: string, data: { displayName?: string, photoURL?: string }) => {
+    const userRef = doc(db, "users", userId);
+    await setDoc(userRef, data, { merge: true });
+
+    // Also update Auth profile if current user
+    if (auth.currentUser && auth.currentUser.uid === userId) {
+        await updateProfile(auth.currentUser, {
+            displayName: data.displayName || auth.currentUser.displayName,
+            photoURL: data.photoURL || auth.currentUser.photoURL
+        });
+    }
+};
+
 export const getUserClubs = async (userId: string) => {
     const membershipsRef = collection(db, "memberships");
     const q = query(membershipsRef, where("userId", "==", userId));
@@ -440,6 +536,7 @@ export const getUserClubs = async (userId: string) => {
         return null;
     }));
 
+    console.log(`[getUserClubs] Found ${memberships.length} memberships for user ${userId}`);
     return clubs.filter(c => c !== null) as (Club & { role: string, logoUrl?: string })[];
 };
 
@@ -658,7 +755,7 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
     });
 
     // 3. Calculate points
-    const updates: { userId: string, pointsToAdd: number }[] = [];
+    const updates: { userId: string, pointsToAdd: number, isWinner?: boolean, displayName?: string }[] = [];
 
     sortedScores.forEach((score, index) => {
         let points = 25;
@@ -668,7 +765,9 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
 
         updates.push({
             userId: score.userId,
-            pointsToAdd: points
+            pointsToAdd: points,
+            isWinner: index === 0,
+            displayName: score.displayName
         });
     });
 
@@ -721,3 +820,32 @@ export const fixMembership = async (userId: string, clubId: string, displayName:
     // Note: This might double count if we aren't careful, but for a repair tool it's okay
     // We'll skip updating member count to avoid issues, just fixing the permission doc is enough
 };
+
+export async function deleteUserAccount(userId: string) {
+    // 1. Get all memberships for this user
+    const membershipsRef = collection(db, "memberships");
+    const q = query(membershipsRef, where("userId", "==", userId));
+    const snapshot = await getDocs(q);
+
+    const batch = writeBatch(db);
+
+    // 2. Delete memberships
+    snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+
+    // 3. Delete user profile
+    const userRef = doc(db, "users", userId);
+    batch.delete(userRef);
+
+    // 4. Delete user scores (Optional, but good for "Delete All Data")
+    const scoresRef = collection(db, "scores");
+    const scoresQuery = query(scoresRef, where("userId", "==", userId));
+    const scoresSnap = await getDocs(scoresQuery);
+    scoresSnap.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+
+    // Commit the batch
+    await batch.commit();
+}

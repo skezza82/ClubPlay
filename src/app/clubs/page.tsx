@@ -154,7 +154,7 @@ export default function ClubsPage() {
                         </CardHeader>
                         <CardContent>
                             <CardDescription className="mb-6 line-clamp-2 text-gray-400">
-                                Join {club.name} and compete for the crown. One session per week, one winner per season.
+                                {club.bio || "Join " + club.name + " and compete for the crown. One session per week, one winner per season."}
                             </CardDescription>
 
                             <Button

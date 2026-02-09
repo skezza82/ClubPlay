@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: "export", // Commented out for Vercel/Web deployment (IGDB requires API routes). Uncomment for Android APK build.
+  output: "export", // Enabled for Capacitor/Android APK build.
   images: {
     unoptimized: true,
     remotePatterns: [

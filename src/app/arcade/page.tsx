@@ -21,9 +21,25 @@ const GAMES: ArcadeGame[] = [
         id: "tetris",
         title: "Tetris",
         description: "The addictive puzzle game that started it all.",
-        url: "https://play.tetris.com/",
+        url: "https://tetris.com/play-tetris",
         image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Tetris_logo_2019.svg/2560px-Tetris_logo_2019.svg.png",
         publisher: "Tetris.com"
+    },
+    {
+        id: "pacman",
+        title: "Pac-Man",
+        description: "Navigate the maze, eat all the dots, and avoid the ghosts!",
+        url: "https://freepacman.org/",
+        image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Pac_Man.svg/1200px-Pac_Man.svg.png",
+        publisher: "FreePacman"
+    },
+    {
+        id: "hextris",
+        title: "Hextris",
+        description: "An addictive puzzle game inspired by Tetris.",
+        url: "https://hextris.io/",
+        image: "https://placehold.co/600x400/222/hex?text=Hextris",
+        publisher: "Hextris.io"
     }
 ];
 

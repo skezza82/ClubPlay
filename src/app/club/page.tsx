@@ -17,7 +17,8 @@ import {
     sendClubMessage,
     type Message,
     deleteSession,
-    updateLastVisitedClub
+    updateLastVisitedClub,
+    processSessionResults
 } from "@/lib/firestore-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { supabase } from "@/lib/supabase";
@@ -25,7 +26,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { CountdownTimer } from "@/components/CountdownTimer";
-import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2 } from "lucide-react";
+import { Share } from "@capacitor/share";
+import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2, Share2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
@@ -253,6 +255,57 @@ function ClubContent() {
         fetchClubData();
     }, [clubId]);
 
+    // Welcome Message Logic
+    useEffect(() => {
+        if (clubId && user && isMember && club) {
+            const key = `welcome_${clubId}_${user.uid}`;
+            const hasSeenWelcome = localStorage.getItem(key);
+
+            if (!hasSeenWelcome) {
+                // Check if joined less than 24h ago
+                const membership = members.find(m => m.userId === user.uid);
+                if (membership && membership.joinedAt) {
+                    const joinedAt = new Date(membership.joinedAt);
+                    const now = new Date();
+                    const diffHours = (now.getTime() - joinedAt.getTime()) / (1000 * 60 * 60);
+
+                    if (diffHours < 24) {
+                        alert(`🎉 Welcome to ${club.name}! \n\nWe're glad to have you here. Check out the current challenge and introduce yourself in the chat!`);
+                        localStorage.setItem(key, 'true');
+                    }
+                }
+            }
+        }
+    }, [clubId, user, isMember, club, members]);
+
+    // Auto-Finish Logic: Check if Active Session is Expired
+    useEffect(() => {
+        const checkAndProcessExpired = async () => {
+            if (!activeSessions || activeSessions.length === 0 || !clubId) return;
+
+            for (const session of activeSessions) {
+                if (session.isActive && new Date(session.endDate) < new Date()) {
+                    console.log(`Session ${session.id} expired. Processing results...`);
+                    try {
+                        await processSessionResults(session.id, clubId);
+                        // Refresh data
+                        // For now we just reload page or let live listeners update? 
+                        // Live listeners might not catch "isProcessed" change affecting local state immediately if query doesn't match
+                        // But strictly, we should probably trigger a refresh.
+                        // Ideally checking if *I* processed it to show a toast.
+                    } catch (e) {
+                        console.error("Auto-process failed", e);
+                    }
+                }
+            }
+        };
+
+        // Check on load and every minute
+        checkAndProcessExpired();
+        const interval = setInterval(checkAndProcessExpired, 60000);
+        return () => clearInterval(interval);
+    }, [activeSessions, clubId]);
+
     // Update game and scores when selectedSession changes
     useEffect(() => {
         const updateSessionData = async () => {
@@ -301,6 +354,14 @@ function ClubContent() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
                 </div>
+
+                {/* Back Button */}
+                <div className="absolute top-4 left-4 z-20">
+                    <Link href="/" className="flex items-center text-white/70 hover:text-white transition-colors group bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 hover:border-white/30">
+                        <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Back to Dashboard</span>
+                    </Link>
+                </div>
                 <div className="container mx-auto max-w-5xl relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6">
                     <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
                         {club.logoUrl ? (
@@ -346,6 +407,26 @@ function ClubContent() {
                                 )}
                             </Button>
                         )}
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="w-10 h-10 border-primary/30 text-primary hover:bg-primary/10 rounded-full"
+                            onClick={async () => {
+                                try {
+                                    await Share.share({
+                                        title: 'Join my Club on ClubPlay!',
+                                        text: `Come join ${club.name} on ClubPlay! Use invite code: ${club.inviteCode}`,
+                                        url: 'https://clubplay.app',
+                                        dialogTitle: 'Invite Friends',
+                                    });
+                                } catch (error) {
+                                    console.log('Error sharing:', error);
+                                    alert(`Invite Code: ${club.inviteCode}`);
+                                }
+                            }}
+                        >
+                            <Share2 className="w-5 h-5" />
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -614,7 +695,7 @@ function ClubContent() {
                                 <CardDescription>Accumulated points from weekly victories.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="rounded-lg overflow-hidden border border-white/5">
+                                <div className="rounded-lg overflow-hidden border border-white/5 overflow-x-auto">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
                                             <tr>
@@ -636,7 +717,7 @@ function ClubContent() {
                                                             <span className="font-bold text-white">{player.displayName}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 text-right text-gray-400">{player.wins || 0}</td>
+                                                    <td className="p-4 text-right text-gray-400 font-bold">{player.wins || 0}</td>
                                                     <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
                                                 </tr>
                                             ))}

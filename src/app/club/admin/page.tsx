@@ -17,7 +17,9 @@ import {
     updateScore,
     getSessionScores,
     processSessionResults,
-    type ClubMember
+    type ClubMember,
+    migrateLeaderboardNames,
+    updateMemberStats
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -46,6 +48,7 @@ function ClubAdminContent() {
 
     // Settings State
     const [clubName, setClubName] = useState("");
+    const [clubBio, setClubBio] = useState("");
     const [logoUrl, setLogoUrl] = useState("");
 
     // Game & Score State
@@ -261,6 +264,7 @@ function ClubAdminContent() {
 
                 setClub(clubData);
                 setClubName(clubData.name);
+                setClubBio(clubData.bio || "");
                 setLogoUrl(clubData.logoUrl || "");
 
                 // 2. Fetch Requests
@@ -339,10 +343,11 @@ function ClubAdminContent() {
         setIsUpdating(true);
         try {
             await updateClub(clubId as string, {
-                name: clubName
+                name: clubName,
+                bio: clubBio
             });
-            alert("Club name updated! 🎮");
-            setClub({ ...club, name: clubName });
+            alert("Club settings updated!");
+            setClub({ ...club, name: clubName, bio: clubBio });
         } catch (error) {
             console.error("Error updating settings:", error);
             alert("Failed to update settings.");
@@ -502,9 +507,9 @@ function ClubAdminContent() {
                         <CardContent>
                             <div className="space-y-4">
                                 {members.map((member) => (
-                                    <div key={member.id} className="flex items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center font-bold text-blue-400">
+                                    <div key={member.id} className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5 gap-4">
+                                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                                            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center font-bold text-blue-400 shrink-0">
                                                 {member.displayName?.[0] || "M"}
                                             </div>
                                             <div>
@@ -515,7 +520,8 @@ function ClubAdminContent() {
                                                 <p className="text-xs text-muted-foreground">Joined {new Date(member.joinedAt).toLocaleDateString()}</p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
+
+                                        <div className="flex gap-2 w-full sm:w-auto justify-end">
                                             {userRole === 'owner' && member.userId !== user?.uid && (
                                                 <Button
                                                     size="sm"
@@ -526,8 +532,34 @@ function ClubAdminContent() {
                                                     {member.role === 'admin' ? 'Demote' : 'Make Admin'}
                                                 </Button>
                                             )}
+
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    const wins = prompt("Enter new total wins for this user:", "0");
+                                                    if (wins === null) return;
+                                                    const points = prompt("Enter new total points for this user:", "0");
+                                                    if (points === null) return;
+
+                                                    updateMemberStats(clubId as string, member.userId, {
+                                                        wins: parseInt(wins),
+                                                        points: parseInt(points)
+                                                    })
+                                                        // @ts-ignore
+                                                        .then(() => alert("Stats updated!"))
+                                                        // @ts-ignore
+                                                        .catch((e: any) => alert("Failed to update stats: " + e.message));
+                                                }}
+                                                className="border-primary/20 text-primary hover:bg-primary/10 text-[10px] h-7"
+                                            >
+                                                Edit Stats
+                                            </Button>
+
                                             {member.role !== 'owner' && (
-                                                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-400">
+                                                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-400 text-xs" onClick={() => {
+                                                    alert("Remove member feature coming soon");
+                                                }}>
                                                     Remove
                                                 </Button>
                                             )}
@@ -597,18 +629,55 @@ function ClubAdminContent() {
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Name</label>
                                             <Input
+                                                id="clubName"
                                                 value={clubName}
                                                 onChange={(e) => setClubName(e.target.value)}
                                                 className="bg-background/50 border-white/10 h-12 text-white font-bold"
+                                                placeholder="Enter club name"
                                             />
                                         </div>
-                                        <Button type="submit" size="sm" className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest h-8 px-4" disabled={isUpdating}>
-                                            {isUpdating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                                            Update Name
-                                        </Button>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Bio</label>
+                                            <textarea
+                                                id="clubBio"
+                                                value={clubBio}
+                                                onChange={(e) => setClubBio(e.target.value)}
+                                                className="w-full bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all h-24"
+                                                placeholder="Tell us about your club..."
+                                            />
+                                        </div>
+                                        <div className="pt-2">
+                                            <Button type="submit" size="sm" className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest h-8 px-4" disabled={isUpdating}>
+                                                {isUpdating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                                Update Identity
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
+
+                            <div className="mt-8 pt-8 border-t border-white/5">
+                                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                    <ShieldCheck className="w-4 h-4 text-orange-400" /> Maintenance
+                                </h4>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                        if (!confirm("Fix 'Unknown User' in leaderboard?")) return;
+                                        try {
+                                            const count = await migrateLeaderboardNames(clubId as string);
+                                            alert(`Fixed ${count} entries!`);
+                                        } catch (e) {
+                                            console.error(e);
+                                            alert("Failed to migrate.");
+                                        }
+                                    }}
+                                    className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                                >
+                                    Fix Leaderboard Names
+                                </Button>
+                            </div>
 
                             {userRole === 'owner' && (
                                 <div className="mt-12 pt-12 border-t border-red-500/20">
@@ -662,7 +731,7 @@ function ClubAdminContent() {
                                                     setManualGame(prev => ({
                                                         ...prev,
                                                         title: game.name,
-                                                        platform: "Arcade", // Default, user can change
+                                                        platform: game.platforms || "Arcade", // Use fetched platform or default
                                                         cover_image_url: game.coverUrl || ""
                                                     }));
                                                     setBoxartFile(null); // Clear custom file if game selected
@@ -831,6 +900,7 @@ function ClubAdminContent() {
                                                     setEditedSession(prev => ({
                                                         ...prev,
                                                         title: game.name,
+                                                        platform: game.platforms || prev.platform,
                                                         cover_image_url: game.coverUrl || ""
                                                     }));
                                                 }}

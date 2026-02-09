@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.clubplay.app',
+  appId: 'com.clubplaygaming.app',
   appName: 'ClubPlay',
   webDir: 'out'
 };

@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Android Signing
+*.jks
+key.jks
+keystore.properties
+local.properties
+google-services.json

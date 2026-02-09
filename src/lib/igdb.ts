@@ -41,7 +41,8 @@ export async function searchGames(query: string) {
     const token = await getAccessToken();
 
     if (!token) {
-        throw new Error("No access token available");
+        console.warn("No access token available for IGDB");
+        return [];
     }
 
     try {
@@ -57,7 +58,8 @@ export async function searchGames(query: string) {
         });
 
         if (!response.ok) {
-            throw new Error(`IGDB API error: ${response.statusText}`);
+            console.warn(`IGDB API error: ${response.statusText}`);
+            return []; // Fail gracefully
         }
 
         const games = await response.json();
