@@ -12,6 +12,7 @@ import {
     getRedirectResult
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { initializePushNotifications, addPushListeners, saveFcmToken } from "@/lib/notifications";
 
 interface AuthContextType {
     user: User | null;
@@ -54,11 +55,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
         handleRedirect();
 
+        const initNotifications = async (userId: string) => {
+            addPushListeners();
+            const token = await initializePushNotifications();
+            if (token) {
+                await saveFcmToken(userId, token);
+            }
+        };
+
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);
             if (user) {
                 createUserDocument(user);
+                initNotifications(user.uid);
             }
         });
 

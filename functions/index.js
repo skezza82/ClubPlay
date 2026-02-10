@@ -89,3 +89,65 @@ exports.searchGames = functions.https.onRequest(async (req, res) => {
         res.status(500).send({ error: error.message });
     }
 });
+
+/**
+ * Notifies the club owner when a new join request is created.
+ */
+exports.onJoinRequestCreated = functions.firestore
+    .document("join_requests/{requestId}")
+    .onCreate(async (snapshot, context) => {
+        const requestData = snapshot.data();
+        const clubId = requestData.clubId;
+        const applicantName = requestData.displayName || "Someone";
+
+        try {
+            // 1. Get the club to find the owner
+            const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
+            if (!clubDoc.exists) {
+                console.warn(`Club ${clubId} not found for join request ${context.params.requestId}`);
+                return null;
+            }
+
+            const clubData = clubDoc.data();
+            const ownerId = clubData.ownerId;
+            const clubName = clubData.name;
+
+            if (!ownerId) {
+                console.warn(`Club ${clubId} has no ownerId`);
+                return null;
+            }
+
+            // 2. Get the owner's FCM token
+            const ownerDoc = await admin.firestore().collection("users").doc(ownerId).get();
+            if (!ownerDoc.exists) {
+                console.warn(`Owner ${ownerId} not found for club ${clubId}`);
+                return null;
+            }
+
+            const fcmToken = ownerDoc.data().fcmToken;
+            if (!fcmToken) {
+                console.log(`Owner ${ownerId} has no fcmToken registered.`);
+                return null;
+            }
+
+            // 3. Send the notification
+            const message = {
+                notification: {
+                    title: "New Join Request! 📩",
+                    body: `${applicantName} wants to join ${clubName}`,
+                },
+                token: fcmToken,
+                data: {
+                    clubId: clubId,
+                    type: "JOIN_REQUEST"
+                }
+            };
+
+            const response = await admin.messaging().send(message);
+            console.log("Successfully sent message:", response);
+            return response;
+        } catch (error) {
+            console.error("Error sending join request notification:", error);
+            return null;
+        }
+    });
