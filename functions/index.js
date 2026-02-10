@@ -95,10 +95,22 @@ exports.searchGames = functions.https.onRequest(async (req, res) => {
  */
 exports.onJoinRequestCreated = functions.firestore
     .document("join_requests/{requestId}")
-    .onCreate(async (snapshot, context) => {
-        const requestData = snapshot.data();
+    .onWrite(async (change, context) => {
+        // If the document was deleted, do nothing
+        if (!change.after.exists) return null;
+
+        const requestData = change.after.data();
         const clubId = requestData.clubId;
         const applicantName = requestData.displayName || "Someone";
+        const status = requestData.status;
+
+        console.log(`[TRIGGER] onJoinRequestCreated fired for ID: ${context.params.requestId}, Status: ${status}`);
+
+        // Only notify on pending requests
+        if (status !== 'pending') {
+            console.log(`Request ${context.params.requestId} is ${status}, skipping notification.`);
+            return null;
+        }
 
         try {
             // 1. Get the club to find the owner
@@ -111,6 +123,8 @@ exports.onJoinRequestCreated = functions.firestore
             const clubData = clubDoc.data();
             const ownerId = clubData.ownerId;
             const clubName = clubData.name;
+
+            console.log(`Processing join request for club: ${clubName} (${clubId}), Owner: ${ownerId}`);
 
             if (!ownerId) {
                 console.warn(`Club ${clubId} has no ownerId`);
@@ -125,6 +139,8 @@ exports.onJoinRequestCreated = functions.firestore
             }
 
             const fcmToken = ownerDoc.data().fcmToken;
+            console.log(`FCM Token for owner ${ownerId}: ${fcmToken ? fcmToken.substring(0, 10) + "..." : "MISSING"}`);
+
             if (!fcmToken) {
                 console.log(`Owner ${ownerId} has no fcmToken registered.`);
                 return null;

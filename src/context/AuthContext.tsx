@@ -56,7 +56,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         handleRedirect();
 
         const initNotifications = async (userId: string) => {
-            addPushListeners();
+            addPushListeners((data) => {
+                if (data.type === 'JOIN_REQUEST' && data.clubId) {
+                    router.push(`/club/admin?id=${data.clubId}&tab=requests`);
+                }
+            });
             const token = await initializePushNotifications();
             if (token) {
                 await saveFcmToken(userId, token);

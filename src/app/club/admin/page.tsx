@@ -18,7 +18,6 @@ import {
     getSessionScores,
     processSessionResults,
     type ClubMember,
-    migrateLeaderboardNames,
     updateMemberStats
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -656,28 +655,6 @@ function ClubAdminContent() {
                                 </div>
                             </form>
 
-                            <div className="mt-8 pt-8 border-t border-white/5">
-                                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-orange-400" /> Maintenance
-                                </h4>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                        if (!confirm("Fix 'Unknown User' in leaderboard?")) return;
-                                        try {
-                                            const count = await migrateLeaderboardNames(clubId as string);
-                                            alert(`Fixed ${count} entries!`);
-                                        } catch (e) {
-                                            console.error(e);
-                                            alert("Failed to migrate.");
-                                        }
-                                    }}
-                                    className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-                                >
-                                    Fix Leaderboard Names
-                                </Button>
-                            </div>
 
                             {userRole === 'owner' && (
                                 <div className="mt-12 pt-12 border-t border-red-500/20">

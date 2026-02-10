@@ -103,7 +103,6 @@ function HomeContent() {
   if (authLoading || loading) {
     return (
       <main className="flex min-h-screen items-center justify-center relative overflow-hidden">
-        <div className="star-background"><div className="stars"></div></div>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
           <p className="text-primary font-mono animate-pulse">Initializing Interface...</p>
@@ -114,9 +113,6 @@ function HomeContent() {
 
   return (
     <main className="flex-1 container mx-auto px-4 py-8 relative min-h-screen">
-      <div className="star-background">
-        <div className="stars"></div>
-      </div>
 
       {!user ? (
         <div className="flex min-h-[80vh] items-center justify-center px-4">
@@ -356,7 +352,6 @@ export default function Home() {
   return (
     <Suspense fallback={
       <main className="flex min-h-screen items-center justify-center relative overflow-hidden">
-        <div className="star-background"><div className="stars"></div></div>
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
           <p className="text-primary font-mono">Loading Space Station...</p>

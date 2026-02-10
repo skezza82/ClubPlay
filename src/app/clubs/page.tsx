@@ -127,45 +127,11 @@ export default function ClubsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredClubs.map((club) => (
-                    <Card key={club.id} className="group hover:scale-[1.02] transition-all duration-300 border-white/5 hover:border-primary/40 bg-surface/40 overflow-hidden relative">
-                        {/* New Tag for Newest Clubs (last 24h) */}
-                        {club.createdAt && (new Date().getTime() - new Date(club.createdAt).getTime() < 86400000) && (
-                            <div className="absolute top-0 right-0 p-2 z-10">
-                                <span className="bg-primary text-black font-black text-[8px] uppercase px-2 py-1 rounded italic flex items-center gap-1">
-                                    <Sparkles className="w-2 h-2" /> New
-                                </span>
-                            </div>
-                        )}
-
-                        <div className="h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <CardHeader>
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <Badge className="mb-2 bg-white/10 text-gray-400 border-white/10 uppercase text-[10px] tracking-widest font-bold px-2 py-0.5 rounded">
-                                        ID: {club.inviteCode}
-                                    </Badge>
-                                    <CardTitle className="text-xl group-hover:text-primary transition-colors">{club.name}</CardTitle>
-                                </div>
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-muted-foreground text-xs font-mono">
-                                    <Users className="w-3 h-3 text-primary" />
-                                    {club.memberCount || 0}
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <CardDescription className="mb-6 line-clamp-2 text-gray-400">
-                                {club.bio || "Join " + club.name + " and compete for the crown. One session per week, one winner per season."}
-                            </CardDescription>
-
-                            <Button
-                                className="w-full neon-border font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform"
-                                onClick={() => handleJoinRequest(club.id)}
-                            >
-                                Send Join Request
-                                <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                            </Button>
-                        </CardContent>
-                    </Card>
+                    <ClubCard
+                        key={club.id}
+                        club={club}
+                        onJoin={() => handleJoinRequest(club.id)}
+                    />
                 ))}
             </div>
 
@@ -177,6 +143,64 @@ export default function ClubsPage() {
                 </div>
             )}
         </main>
+    );
+}
+
+function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+        <Card
+            className={`group flex flex-col transition-all duration-300 border-white/5 hover:border-primary/40 bg-surface/40 overflow-hidden relative cursor-pointer ${isExpanded ? 'ring-1 ring-primary/30 shadow-[0_0_20px_rgba(102,252,241,0.15)] bg-surface/60' : 'hover:scale-[1.01]'}`}
+            onClick={() => setIsExpanded(!isExpanded)}
+            onMouseEnter={() => setIsExpanded(true)}
+            onMouseLeave={() => setIsExpanded(false)}
+        >
+            {/* New Tag for Newest Clubs (last 24h) */}
+            {club.createdAt && (new Date().getTime() - new Date(club.createdAt).getTime() < 86400000) && (
+                <div className="absolute top-0 right-0 p-2 z-10">
+                    <span className="bg-primary text-black font-black text-[8px] uppercase px-2 py-1 rounded italic flex items-center gap-1">
+                        <Sparkles className="w-2 h-2" /> New
+                    </span>
+                </div>
+            )}
+
+            <div className="h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <Badge className="mb-2 bg-white/10 text-gray-400 border-white/10 uppercase text-[10px] tracking-widest font-bold px-2 py-0.5 rounded">
+                            ID: {club.inviteCode}
+                        </Badge>
+                        <CardTitle className="text-xl group-hover:text-primary transition-colors">{club.name}</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-muted-foreground text-xs font-mono">
+                        <Users className="w-3 h-3 text-primary" />
+                        {club.memberCount || 0}
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="flex flex-col flex-grow">
+                <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'mb-6' : 'mb-4'}`}>
+                    <p className={`text-sm text-gray-400 transition-all duration-300 ${isExpanded ? 'line-clamp-none' : 'line-clamp-2'}`}>
+                        {club.bio || "Join " + club.name + " and compete for the crown. One session per week, one winner per season."}
+                    </p>
+                </div>
+
+                <div className="mt-auto pt-2">
+                    <Button
+                        className="w-full neon-border font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onJoin();
+                        }}
+                    >
+                        Send Join Request
+                        <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

@@ -100,7 +100,12 @@ function ClubContent() {
     };
 
     // Chat Logic
-    const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+
+    // Scroll to top on mount
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     useEffect(() => {
         if (clubId) {
@@ -110,8 +115,8 @@ function ClubContent() {
     }, [clubId]);
 
     useEffect(() => {
-        if (chatEndRef.current) {
-            chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages]);
 
@@ -362,7 +367,7 @@ function ClubContent() {
                         <span className="text-xs font-bold uppercase tracking-wider">Back to Dashboard</span>
                     </Link>
                 </div>
-                <div className="container mx-auto max-w-5xl relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6">
+                <div className="container mx-auto max-w-4xl relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6">
                     <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
                         {club.logoUrl ? (
                             <Image src={club.logoUrl} alt={club.name} width={128} height={128} className="object-cover w-full h-full" />
@@ -432,7 +437,7 @@ function ClubContent() {
             </div>
 
             {/* Navigation */}
-            <div className="container mx-auto max-w-5xl px-4 mt-8 mb-8">
+            <div className="container mx-auto max-w-3xl px-6 mt-8 mb-8">
                 <div className="flex gap-2 border-b border-white/10 pb-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
                     <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Club Leaderboard</TabButton>
@@ -442,7 +447,7 @@ function ClubContent() {
             </div>
 
             {/* Content Area */}
-            <div className="container mx-auto max-w-5xl px-4 space-y-8 animate-fade-in-up">
+            <div className="container mx-auto max-w-3xl px-6 space-y-8 animate-fade-in-up">
 
                 {/* OVERVIEW TAB */}
                 {activeTab === "overview" && (
@@ -629,7 +634,10 @@ function ClubContent() {
                             </div>
 
                             {/* Messages Area */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                            <div
+                                ref={chatContainerRef}
+                                className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent scroll-smooth"
+                            >
                                 {messages.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
                                         <MessageSquare className="w-12 h-12 mb-2" />
@@ -659,7 +667,6 @@ function ClubContent() {
                                         </div>
                                     ))
                                 )}
-                                <div ref={chatEndRef} />
                             </div>
 
                             {/* Input Area */}
@@ -847,7 +854,7 @@ function ClubContent() {
 
                 {/* MEMBERS TAB */}
                 {activeTab === "members" && (
-                    <div className="grid md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         {members.length === 0 ? (
                             <div className="col-span-full text-center py-20 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
                                 <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
