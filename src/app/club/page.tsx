@@ -62,10 +62,10 @@ function ClubContent() {
     const isAdmin = currentUserMembership?.role === 'admin' || isOwner;
     const isMember = !!currentUserMembership;
 
-    const formatScore = (val: number, type: 'score' | 'speed') => {
-        if (type === 'score' || !type) return val.toLocaleString();
+    const formatScore = (val: number, type: 'score' | 'speed' | 'custom') => {
+        if (type === 'score' || type === 'custom' || !type) return val.toLocaleString();
 
-        // Format seconds to MM:SS
+        // Format seconds to MM:SS for speed challenges
         const minutes = Math.floor(val / 60);
         const seconds = val % 60;
         return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -416,7 +416,7 @@ function ClubContent() {
                                     await Share.share({
                                         title: 'Join my Club on ClubPlay!',
                                         text: `Come join ${club.name} on ClubPlay! Use invite code: ${club.inviteCode}`,
-                                        url: 'https://clubplay.app',
+                                        url: 'https://play.google.com/store/apps/details?id=com.clubplaygaming.app',
                                         dialogTitle: 'Invite Friends',
                                     });
                                 } catch (error) {
@@ -583,17 +583,22 @@ function ClubContent() {
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
-                                            {weekScores.slice(0, 5).map((score, i) => (
-                                                <div key={score.id} className="flex items-center justify-between text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
-                                                        <span className="text-white truncate max-w-[120px]">{score.displayName}</span>
+                                            {weekScores.slice(0, 5).map((score, i) => {
+                                                const member = members.find(m => m.userId === score.userId);
+                                                const displayName = member?.displayName || score.displayName;
+
+                                                return (
+                                                    <div key={score.id} className="flex items-center justify-between text-sm">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
+                                                            <span className="text-white truncate max-w-[120px]">{displayName}</span>
+                                                        </div>
+                                                        <span className="font-mono text-primary font-bold">
+                                                            {formatScore(score.scoreValue, selectedSession?.challengeType)}
+                                                        </span>
                                                     </div>
-                                                    <span className="font-mono text-primary font-bold">
-                                                        {formatScore(score.scoreValue, selectedSession?.challengeType)}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                             {(weekScores.length === 0) && <div className="text-xs text-muted-foreground italic">No scores yet. Be the first!</div>}
                                         </CardContent>
                                     </Card>
@@ -696,34 +701,50 @@ function ClubContent() {
                             </CardHeader>
                             <CardContent>
                                 <div className="rounded-lg overflow-hidden border border-white/5 overflow-x-auto">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold">
+                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold text-[10px] md:text-xs">
                                             <tr>
-                                                <th className="p-4">Rank</th>
-                                                <th className="p-4">Player</th>
-                                                <th className="p-4 text-right">Weekly Wins</th>
-                                                <th className="p-4 text-right">Total Points</th>
+                                                <th className="p-3 md:p-4">#</th>
+                                                <th className="p-3 md:p-4">Player</th>
+                                                <th className="p-3 md:p-4 text-right">
+                                                    <span className="hidden sm:inline">Weekly Wins</span>
+                                                    <span className="sm:hidden">Wins</span>
+                                                </th>
+                                                <th className="p-3 md:p-4 text-right">
+                                                    <span className="hidden sm:inline">Total Points</span>
+                                                    <span className="sm:hidden">Pts</span>
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
-                                            {seasonStandings.map((player, index) => (
-                                                <tr key={player.id} className="hover:bg-white/5 transition-colors">
-                                                    <td className="p-4 font-bold text-gray-500">#{index + 1}</td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
-                                                                {player.photoURL ? <img src={player.photoURL} className="w-full h-full rounded-full" /> : player.displayName[0]}
+                                            {seasonStandings.map((player, index) => {
+                                                const member = members.find(m => m.userId === player.userId);
+                                                const displayName = member?.displayName || player.displayName;
+                                                const photoURL = member?.photoURL || player.photoURL;
+
+                                                return (
+                                                    <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                                                        <td className="p-3 md:p-4 font-bold text-gray-500 text-xs md:text-sm">#{index + 1}</td>
+                                                        <td className="p-3 md:p-4">
+                                                            <div className="flex items-center gap-2 md:gap-3">
+                                                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gray-800 flex items-center justify-center text-[10px] md:text-xs overflow-hidden shrink-0">
+                                                                    {photoURL ? (
+                                                                        <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        displayName?.[0]
+                                                                    )}
+                                                                </div>
+                                                                <span className="font-bold text-white text-xs md:text-sm truncate max-w-[80px] sm:max-w-none">{displayName}</span>
                                                             </div>
-                                                            <span className="font-bold text-white">{player.displayName}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4 text-right text-gray-400 font-bold">{player.wins || 0}</td>
-                                                    <td className="p-4 text-right font-mono text-primary font-bold text-lg">{player.points}</td>
-                                                </tr>
-                                            ))}
+                                                        </td>
+                                                        <td className="p-3 md:p-4 text-right text-gray-400 font-bold text-xs md:text-sm">{player.wins || 0}</td>
+                                                        <td className="p-3 md:p-4 text-right font-mono text-primary font-bold text-base md:text-lg">{player.points}</td>
+                                                    </tr>
+                                                )
+                                            })}
                                             {(seasonStandings.length === 0) && (
                                                 <tr>
-                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground">No points awarded yet.</td>
+                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground text-xs">No points awarded yet.</td>
                                                 </tr>
                                             )}
                                         </tbody>
@@ -787,25 +808,30 @@ function ClubContent() {
                                             <CardContent className="pt-4">
                                                 <div className="space-y-3">
                                                     {session.topScores?.length > 0 ? (
-                                                        session.topScores.map((score: any, index: number) => (
-                                                            <div key={index} className="flex items-center justify-between text-sm">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                                                        session.topScores.map((score: any, index: number) => {
+                                                            const member = members.find(m => m.userId === score.userId);
+                                                            const displayName = member?.displayName || score.displayName;
+
+                                                            return (
+                                                                <div key={index} className="flex items-center justify-between text-sm">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
                                                         ${index === 0 ? 'bg-yellow-500 text-black' :
-                                                                            index === 1 ? 'bg-gray-400 text-black' :
-                                                                                index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
-                                                                    >
-                                                                        {index + 1}
+                                                                                index === 1 ? 'bg-gray-400 text-black' :
+                                                                                    index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
+                                                                        >
+                                                                            {index + 1}
+                                                                        </div>
+                                                                        <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
+                                                                            {displayName}
+                                                                        </span>
                                                                     </div>
-                                                                    <span className={`font-medium ${index === 0 ? 'text-white' : 'text-muted-foreground'}`}>
-                                                                        {score.displayName || "Unknown"}
+                                                                    <span className="font-mono text-primary text-xs">
+                                                                        {formatScore(score.scoreValue, session.challengeType)}
                                                                     </span>
                                                                 </div>
-                                                                <span className="font-mono font-bold text-primary">
-                                                                    {formatScore(score.scoreValue, session.challengeType)}
-                                                                </span>
-                                                            </div>
-                                                        ))
+                                                            )
+                                                        })
                                                     ) : (
                                                         <p className="text-center text-xs text-muted-foreground py-4 italic">No scores submitted</p>
                                                     )}

@@ -20,9 +20,12 @@ import {
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { getLibretroBoxartUrl } from "@/lib/libretro-utils";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function Home() {
+function HomeContent() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const [game, setGame] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -34,11 +37,20 @@ export default function Home() {
         try {
           // 1. Fetch user clubs
           const clubs = await getUserClubs(user.uid);
-          setUserClubs(clubs);
 
           // 1.5 Fetch User Profile for Last Visited
           const userDoc = await getDoc(doc(db, "users", user.uid));
           const lastVisitedId = userDoc.exists() ? userDoc.data().lastVisitedClubId : null;
+
+          // Sort clubs by last visited
+          const sortedClubs = [...clubs].sort((a, b) => {
+            if (lastVisitedId) {
+              if (a.id === lastVisitedId) return -1;
+              if (b.id === lastVisitedId) return 1;
+            }
+            return 0;
+          });
+          setUserClubs(sortedClubs);
 
           // 2. Fetch Active Sessions for ALL clubs
           const sessionPromises = clubs.map(club => getActiveSession(club.id));
@@ -115,6 +127,15 @@ export default function Home() {
           {/* Hero Section - Only show if user has NO clubs */}
           {userClubs.length === 0 && (
             <section className="mb-16 text-center relative flex flex-col items-center animate-fade-in-up stagger-1 min-h-[20vh] justify-center">
+              {searchParams.get('welcome') === 'true' && (
+                <div className="mb-8 p-6 bg-primary/10 border border-primary/20 rounded-xl max-w-2xl mx-auto backdrop-blur-md animate-bounce-in">
+                  <h2 className="text-2xl font-black text-white italic uppercase mb-2">Welcome to the Club!</h2>
+                  <p className="text-white/80">
+                    ClubPlay is all about <span className="text-primary font-bold">building communities</span> and competing for glory.
+                    <br />Find a club below or create your own to start your legacy!
+                  </p>
+                </div>
+              )}
               <h1 className="text-4xl md:text-6xl font-black text-white italic uppercase tracking-tighter mb-4">
                 Join the <span className="text-primary">Elite</span>
               </h1>
@@ -328,5 +349,21 @@ export default function Home() {
         </>
       )}
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen items-center justify-center relative overflow-hidden">
+        <div className="star-background"><div className="stars"></div></div>
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-primary font-mono">Loading Space Station...</p>
+        </div>
+      </main>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

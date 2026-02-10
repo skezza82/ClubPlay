@@ -233,16 +233,18 @@ export const getSessionScores = async (sessionId: string) => {
     // Enrich with user data
     const scores = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
+
+        // Always try to fetch latest user profile to ensure names match everywhere
+        const userDoc = await getDoc(doc(db, "users", data.userId));
         let displayName = data.displayName;
         let photoURL = null;
 
-        if (!displayName) {
-            const userDoc = await getDoc(doc(db, "users", data.userId));
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
+        if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.displayName && userData.displayName !== "Unknown") {
                 displayName = userData.displayName;
-                photoURL = userData.photoURL;
             }
+            photoURL = userData.photoURL;
         }
 
         return {

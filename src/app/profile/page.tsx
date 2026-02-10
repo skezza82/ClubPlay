@@ -14,6 +14,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { usePWA } from "@/context/PWAContext";
 import { Download } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function ProfilePage() {
     const { user } = useAuth();
@@ -54,6 +55,8 @@ export default function ProfilePage() {
         }
     }, [user]);
 
+    const router = useRouter();
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) return;
@@ -66,6 +69,13 @@ export default function ProfilePage() {
             });
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
+
+            // Redirect based on club membership
+            if (userClubs.length === 0) {
+                router.push("/?welcome=true");
+            } else {
+                router.push("/");
+            }
         } catch (error) {
             console.error("Error updating profile:", error);
         } finally {

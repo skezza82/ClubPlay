@@ -5,15 +5,17 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Ca
 import { Button } from "@/components/ui/Button";
 import { Gamepad2, LogOut, Play, Zap, Trophy } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
+// Tetris import removed
+
 
 interface ArcadeGame {
     id: string;
     title: string;
     description: string;
-    url: string;
+    url?: string;
     image: string;
     publisher: string;
+    type: 'iframe' | 'local';
 }
 
 const GAMES: ArcadeGame[] = [
@@ -23,7 +25,8 @@ const GAMES: ArcadeGame[] = [
         description: "The addictive puzzle game that started it all.",
         url: "https://tetris.com/play-tetris",
         image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Tetris_logo_2019.svg/2560px-Tetris_logo_2019.svg.png",
-        publisher: "Tetris.com"
+        publisher: "Tetris.com",
+        type: 'iframe'
     },
     {
         id: "pacman",
@@ -31,15 +34,26 @@ const GAMES: ArcadeGame[] = [
         description: "Navigate the maze, eat all the dots, and avoid the ghosts!",
         url: "https://freepacman.org/",
         image: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Pac_Man.svg/1200px-Pac_Man.svg.png",
-        publisher: "FreePacman"
+        publisher: "FreePacman",
+        type: 'iframe'
     },
     {
         id: "hextris",
         title: "Hextris",
         description: "An addictive puzzle game inspired by Tetris.",
         url: "https://hextris.io/",
-        image: "https://placehold.co/600x400/222/hex?text=Hextris",
-        publisher: "Hextris.io"
+        image: "/images/hextris.png",
+        publisher: "Hextris.io",
+        type: 'iframe'
+    },
+    {
+        id: "space-invaders",
+        title: "Space Invaders",
+        description: "Defend Earth from the alien invasion in this arcade classic.",
+        url: "https://funhtml5games.com/spaceinvaders/index.html",
+        image: "/images/space-invaders.png",
+        publisher: "FunHTML5Games",
+        type: 'iframe'
     }
 ];
 
@@ -56,7 +70,7 @@ export default function ArcadePage() {
                     The Arcade
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                    No coins required. Play classic browser games instantly.
+                    No coins required. Play classic games instantly.
                 </p>
             </div>
 
@@ -92,16 +106,10 @@ export default function ArcadePage() {
                             <CardTitle className="text-2xl font-black text-white italic uppercase">{game.title}</CardTitle>
                             <CardDescription className="text-white/60">{game.description}</CardDescription>
                         </CardHeader>
+
+
                     </Card>
                 ))}
-
-                {/* Coming Soon Card */}
-                <Card className="border-dashed border-white/10 bg-transparent flex flex-col items-center justify-center min-h-[300px] text-muted-foreground group">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <Trophy className="w-6 h-6 opacity-30" />
-                    </div>
-                    <p className="font-bold uppercase tracking-widest text-xs opacity-50">More Games Coming Soon</p>
-                </Card>
             </div>
 
             {/* Game Modal */}
@@ -124,7 +132,7 @@ export default function ArcadePage() {
                     </div>
 
                     {/* Game Viewport */}
-                    <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
+                    <div className="flex-1 bg-black/50 relative flex items-center justify-center p-0 pb-8 md:p-4 md:pb-4 overflow-hidden safe-area-bottom">
                         <iframe
                             src={activeGame.url}
                             className="w-full h-full border-0 select-none"

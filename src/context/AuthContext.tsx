@@ -6,7 +6,10 @@ import {
     User,
     signOut as firebaseSignOut,
     GoogleAuthProvider,
-    signInWithPopup
+    OAuthProvider,
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -38,6 +41,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
 
     useEffect(() => {
+        // Handle redirect result
+        const handleRedirect = async () => {
+            try {
+                const result = await getRedirectResult(auth);
+                if (result) {
+                    await createUserDocument(result.user);
+                }
+            } catch (error) {
+                console.error("Error handling redirect result", error);
+            }
+        };
+        handleRedirect();
+
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);
@@ -51,10 +67,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const loginWithGoogle = async () => {
         const provider = new GoogleAuthProvider();
+
+        // Detect mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+        );
+
         try {
-            const result = await signInWithPopup(auth, provider);
-            // Create user document if it doesn't exist
-            await createUserDocument(result.user);
+            if (isMobile) {
+                await signInWithRedirect(auth, provider);
+            } else {
+                const result = await signInWithPopup(auth, provider);
+                await createUserDocument(result.user);
+            }
         } catch (error) {
             console.error("Error signing in with Google", error);
             throw error;
@@ -96,7 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             await firebaseSignOut(auth);
             setUser(null); // Clear manual state if any
-            router.push('/login');
+            router.push('/');
         } catch (error) {
             console.error("Error signing out", error);
         }
