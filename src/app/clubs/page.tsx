@@ -2,11 +2,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllClubs, requestJoin } from "@/lib/firestore-service";
+import { getAllClubs, requestJoin, getActiveSessions } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PremiumLogo } from "@/components/PremiumLogo";
-import { Users, Search, PlusCircle, ArrowUpDown, ChevronRight, Loader2, Sparkles, Trophy } from "lucide-react";
+import { Users, Search, PlusCircle, ArrowUpDown, ChevronRight, Loader2, Sparkles, Trophy, Gamepad2 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -148,6 +148,29 @@ export default function ClubsPage() {
 
 function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [activeSession, setActiveSession] = useState<any>(null);
+    const [isLoadingSession, setIsLoadingSession] = useState(false);
+
+    useEffect(() => {
+        if (isExpanded && !activeSession && !isLoadingSession) {
+            const fetchSession = async () => {
+                setIsLoadingSession(true);
+                try {
+                    const sessions = await getActiveSessions(club.id);
+                    if (sessions.length > 0) {
+                        setActiveSession(sessions[0]);
+                    } else {
+                        setActiveSession({ none: true });
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch session", err);
+                } finally {
+                    setIsLoadingSession(false);
+                }
+            };
+            fetchSession();
+        }
+    }, [isExpanded, club.id, activeSession, isLoadingSession]);
 
     return (
         <Card
@@ -185,6 +208,31 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                     <p className={`text-sm text-gray-400 transition-all duration-300 ${isExpanded ? 'line-clamp-none' : 'line-clamp-2'}`}>
                         {club.bio || "Join " + club.name + " and compete for the crown. One session per week, one winner per season."}
                     </p>
+
+                    {isExpanded && (
+                        <div className="mt-4 pt-4 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <p className="text-[10px] font-bold text-primary tracking-widest uppercase mb-2">Current Challenge</p>
+                            {isLoadingSession ? (
+                                <div className="flex items-center gap-2 py-1">
+                                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                                    <span className="text-xs text-muted-foreground italic">Fetching intel...</span>
+                                </div>
+                            ) : activeSession?.none ? (
+                                <p className="text-xs text-muted-foreground italic">No active challenge right now.</p>
+                            ) : activeSession ? (
+                                <div className="flex items-center gap-3 bg-black/40 p-2 rounded-lg border border-white/5 group/game">
+                                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
+                                        <Trophy className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-white truncate">{activeSession.gameTitle}</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase">{activeSession.platform}</p>
+                                    </div>
+                                    <Gamepad2 className="w-4 h-4 text-white/10 group-hover/game:text-primary transition-colors" />
+                                </div>
+                            ) : null}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-auto pt-2">
