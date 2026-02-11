@@ -188,16 +188,18 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                 </div>
 
                 <div className="mt-auto pt-2">
-                    <Button
-                        className="w-full neon-border font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onJoin();
-                        }}
-                    >
-                        Send Join Request
-                        <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                    </Button>
+                    {!(["Retro Legends", "Retro Racers", "RPG Realm"].includes(club.name)) && (
+                        <Button
+                            className="w-full neon-border font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onJoin();
+                            }}
+                        >
+                            Send Join Request
+                            <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    )}
                 </div>
             </CardContent>
         </Card>

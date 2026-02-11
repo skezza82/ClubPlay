@@ -69,7 +69,7 @@ export default function CreateClubPage() {
             );
 
             alert("Club created successfully! 🎮");
-            router.push(`/clubs/${clubId}/admin`);
+            router.push(`/club/admin?id=${clubId}`);
         } catch (error: any) {
             alert("Error creating club: " + error.message);
         }

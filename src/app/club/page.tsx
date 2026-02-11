@@ -396,21 +396,23 @@ function ClubContent() {
                                 <LogOut className="w-4 h-4 mr-2" /> Leave Club
                             </Button>
                         ) : (
-                            <Button
-                                className="neon-border"
-                                onClick={handleJoinRequest}
-                                disabled={isPending || isRequesting}
-                            >
-                                {isRequesting ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : isPending ? (
-                                    <span className="flex items-center gap-2">
-                                        <Check className="w-4 h-4" /> Request Sent
-                                    </span>
-                                ) : (
-                                    "Request to Join"
-                                )}
-                            </Button>
+                            !(["Retro Legends", "Retro Racers", "RPG Realm"].includes(club?.name || "")) && (
+                                <Button
+                                    className="neon-border"
+                                    onClick={handleJoinRequest}
+                                    disabled={isPending || isRequesting}
+                                >
+                                    {isRequesting ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : isPending ? (
+                                        <span className="flex items-center gap-2">
+                                            <Check className="w-4 h-4" /> Request Sent
+                                        </span>
+                                    ) : (
+                                        "Request to Join"
+                                    )}
+                                </Button>
+                            )
                         )}
                         <Button
                             variant="outline"
