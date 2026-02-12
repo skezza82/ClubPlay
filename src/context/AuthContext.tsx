@@ -9,9 +9,12 @@ import {
     OAuthProvider,
     signInWithPopup,
     signInWithRedirect,
-    getRedirectResult
+    getRedirectResult,
+    signInWithCredential
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { initializePushNotifications, addPushListeners, saveFcmToken } from "@/lib/notifications";
 
 interface AuthContextType {
@@ -80,17 +83,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const loginWithGoogle = async () => {
-        const provider = new GoogleAuthProvider();
-
-        // Detect mobile
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-            navigator.userAgent
-        );
-
         try {
-            if (isMobile) {
-                await signInWithRedirect(auth, provider);
+            if (Capacitor.isNativePlatform()) {
+                const result = await FirebaseAuthentication.signInWithGoogle();
+                const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+                const userCredential = await signInWithCredential(auth, credential);
+                await createUserDocument(userCredential.user);
             } else {
+                const provider = new GoogleAuthProvider();
                 const result = await signInWithPopup(auth, provider);
                 await createUserDocument(result.user);
             }
@@ -133,6 +133,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const logout = async () => {
         try {
+            if (Capacitor.isNativePlatform()) {
+                await FirebaseAuthentication.signOut();
+            }
             await firebaseSignOut(auth);
             setUser(null); // Clear manual state if any
             router.push('/');
