@@ -9,12 +9,9 @@ import {
     OAuthProvider,
     signInWithPopup,
     signInWithRedirect,
-    getRedirectResult,
-    signInWithCredential
+    getRedirectResult
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Capacitor } from "@capacitor/core";
-import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { initializePushNotifications, addPushListeners, saveFcmToken } from "@/lib/notifications";
 
 interface AuthContextType {
@@ -83,21 +80,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const loginWithGoogle = async () => {
-        try {
-            if (Capacitor.isNativePlatform()) {
-                const result = await FirebaseAuthentication.signInWithGoogle();
-                const credential = GoogleAuthProvider.credential(result.credential?.idToken);
-                const userCredential = await signInWithCredential(auth, credential);
-                await createUserDocument(userCredential.user);
-            } else {
-                const provider = new GoogleAuthProvider();
-                const result = await signInWithPopup(auth, provider);
-                await createUserDocument(result.user);
-            }
-        } catch (error) {
-            console.error("Error signing in with Google", error);
-            throw error;
-        }
+        // Option removed from UI for now
+        console.log("Google login disabled for now");
     };
 
     const signUp = async (email: string, password: string, displayName: string) => {
@@ -133,9 +117,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const logout = async () => {
         try {
-            if (Capacitor.isNativePlatform()) {
-                await FirebaseAuthentication.signOut();
-            }
             await firebaseSignOut(auth);
             setUser(null); // Clear manual state if any
             router.push('/');
