@@ -37,4 +37,4 @@ To deploy the latest changes:
 1. Build the project: `npm run build`
 2. Deploy to Firebase: `firebase deploy --only hosting`
 
-Live URL: [https://club-play-app.web.app](https://club-play-app.web.app)
+Live URL: [https://clubplay.web.app](https://clubplay.web.app)

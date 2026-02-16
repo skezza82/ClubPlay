@@ -165,6 +165,7 @@ export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "r
                                 )}
                             </Button>
 
+
                         </form>
                     </CardContent>
                 </Card>
