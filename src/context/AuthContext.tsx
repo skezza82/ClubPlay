@@ -56,14 +56,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         handleRedirect();
 
         const initNotifications = async (userId: string) => {
-            addPushListeners((data) => {
-                if (data.type === 'JOIN_REQUEST' && data.clubId) {
-                    router.push(`/club/admin?id=${data.clubId}&tab=requests`);
+            try {
+                // Short delay to ensure Capacitor is ready
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                addPushListeners((data) => {
+                    if (data.type === 'JOIN_REQUEST' && data.clubId) {
+                        router.push(`/club/admin?id=${data.clubId}&tab=requests`);
+                    }
+                });
+                const token = await initializePushNotifications();
+                if (token) {
+                    await saveFcmToken(userId, token);
                 }
-            });
-            const token = await initializePushNotifications();
-            if (token) {
-                await saveFcmToken(userId, token);
+            } catch (error) {
+                console.error("Failed to initialize notifications:", error);
             }
         };
 
