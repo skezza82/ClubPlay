@@ -1,0 +1,16 @@
+[debug] [2026-02-16T14:38:48.648Z] ----------------------------------------------------------------------
+[debug] [2026-02-16T14:38:48.650Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\skezz\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy
+[debug] [2026-02-16T14:38:48.650Z] CLI Version:   15.5.1
+[debug] [2026-02-16T14:38:48.650Z] Platform:      win32
+[debug] [2026-02-16T14:38:48.650Z] Node Version:  v24.13.0
+[debug] [2026-02-16T14:38:48.650Z] Time:          Mon Feb 16 2026 14:38:48 GMT+0000 (Greenwich Mean Time)
+[debug] [2026-02-16T14:38:48.650Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-16T14:38:49.509Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-16T14:38:49.509Z] > authorizing via signed-in user (skezza19@googlemail.com)
+[debug] [2026-02-16T14:38:49.509Z] [iam] checking project club-play-app for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]
+[debug] [2026-02-16T14:38:49.509Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:49.510Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions [none]
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions  x-goog-user-project=club-play-app
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}

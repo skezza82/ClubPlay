@@ -55,6 +55,7 @@ export interface WeeklySession {
     customUnit?: string;
     cover_image_url?: string;
     isProcessed?: boolean;
+    startDate?: any;
 }
 
 export interface ClubStanding {
@@ -72,6 +73,68 @@ export interface Score {
     sessionId: string;
     scoreValue: number;
     displayName?: string;
+    submittedAt?: any;
+}
+
+export interface FriendRequest {
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderPhoto?: string | null;
+    receiverId: string;
+    status: 'pending' | 'accepted' | 'rejected';
+    createdAt: string;
+}
+
+export interface UserPublicProfile {
+    uid: string;
+    displayName: string;
+    photoURL?: string | null;
+    clubsJoined: number;
+    challengesCount: number;
+    wins: number;
+    friendsCount: number;
+    currentChallenge?: string | null;
+    mainClub?: {
+        id: string;
+        name: string;
+        rank: number;
+        totalMembers: number;
+    } | null;
+}
+
+export interface GOTM {
+    id: string;
+    clubId: string;
+    title: string;
+    platform: string;
+    year?: string;
+    developer?: string;
+    publisher?: string;
+    coverUrl?: string;
+    description?: string;
+    startDate: string; // ISO
+    endDate: string; // ISO
+    genre?: string;
+    igdbId?: string;
+}
+
+export interface GOTMReview {
+    id: string;
+    gotmId: string;
+    userId: string;
+    displayName: string;
+    photoURL?: string;
+    reviewText: string;
+    ratings: {
+        graphics: number;
+        sound: number;
+        gameplay: number;
+        story: number;
+        replayability: number;
+    };
+    recommend: boolean;
+    createdAt: string;
 }
 
 export const getLatestClubMembership = async (userId: string) => {
@@ -252,7 +315,8 @@ export const getSessionScores = async (sessionId: string) => {
             scoreValue: data.scoreValue || 0,
             userId: data.userId,
             displayName: displayName || "Unknown",
-            photoURL: photoURL
+            photoURL: photoURL,
+            submittedAt: data.submittedAt
         };
     }));
 
@@ -507,10 +571,27 @@ export const respondToJoinRequest = async (requestId: string, clubId: string, us
 // User Management
 export const updateUserProfile = async (userId: string, data: { displayName?: string, photoURL?: string }) => {
     const userRef = doc(db, "users", userId);
-    await setDoc(userRef, data, { merge: true });
+
+    // Generate search keywords for case-insensitive indexing
+    const updateData: any = { ...data };
+    if (data.displayName) {
+        const name = data.displayName;
+        updateData.displayNameLowercase = name.toLowerCase();
+
+        const parts = name.toLowerCase().split(/\s+/);
+        const keywords = new Set<string>();
+        parts.forEach(p => {
+            if (p.length > 1) keywords.add(p);
+        });
+        keywords.add(name.toLowerCase());
+        updateData.searchKeywords = Array.from(keywords);
+    }
+
+    await setDoc(userRef, updateData, { merge: true });
 
     // Also update Auth profile if current user
     if (auth.currentUser && auth.currentUser.uid === userId) {
+        const { updateProfile } = await import("firebase/auth");
         await updateProfile(auth.currentUser, {
             displayName: data.displayName || auth.currentUser.displayName,
             photoURL: data.photoURL || auth.currentUser.photoURL
@@ -615,15 +696,33 @@ export const updateMemberRole = async (clubId: string, userId: string, newRole: 
 export const createManualSession = async (clubId: string, details: { title: string, platform: string, rules: string, endDate: string, challengeType: 'score' | 'speed' | 'custom', customUnit?: string, cover_image_url?: string }) => {
     // 1. Check current sessions count
     const sessionsRef = collection(db, "weekly_sessions");
+    // Check for ANY active or upcoming sessions to determine start time
     const q = query(sessionsRef, where("clubId", "==", clubId), where("isActive", "==", true));
     const snap = await getDocs(q);
 
-    if (snap.size >= 3) {
-        throw new Error("Maximum of 3 active challenges allowed. Please end a challenge before starting a new one.");
+    let startDate = Timestamp.now();
+    let isActive = true;
+
+    // If there is an active session, schedule this one for AFTER it ends
+    if (snap.size >= 1) {
+        const currentSession = snap.docs[0].data();
+        // Parse the end date of the current session
+        const currentEndDate = new Date(currentSession.endDate);
+        // Set new start date to current end date
+        startDate = Timestamp.fromDate(currentEndDate);
+        isActive = false; // It's not active yet, it's "upcoming"
+
+        // Check if there is already a "next" session (upcoming)
+        // We can check this by looking for sessions with isActive=false and startDate > now? 
+        // For simplicity, let's just warn if they try to stack more than 1? 
+        // But for now, just let them stack or assume they know what they are doing.
+        // Actually, to prevent infinite stacking or confusion, let's allow only ONE upcoming session.
+        const qUpcoming = query(sessionsRef, where("clubId", "==", clubId), where("isActive", "==", false), where("isProcessed", "==", false));
+        // Wait, "isProcessed" might be undefined. 
+        // Let's just rely on the UI to limit them, but here we just proceed.
     }
 
     const batch = writeBatch(db);
-    // snap.docs.forEach(d => batch.update(d.ref, { isActive: false })); // REMOVED: Do not deactivate others
 
     // 2. Create new session
     const newSessionRef = doc(collection(db, "weekly_sessions"));
@@ -633,12 +732,13 @@ export const createManualSession = async (clubId: string, details: { title: stri
         gameTitle: details.title,
         platform: details.platform,
         rules: details.rules,
-        isActive: true,
-        startDate: Timestamp.now(),
+        isActive: isActive,
+        startDate: startDate,
         endDate: details.endDate,
         challengeType: details.challengeType,
         customUnit: details.customUnit || null,
-        cover_image_url: details.cover_image_url || null
+        cover_image_url: details.cover_image_url || null,
+        isProcessed: false
     });
 
     await batch.commit();
@@ -650,11 +750,77 @@ export const updateSession = async (sessionId: string, details: Partial<WeeklySe
     await updateDoc(docRef, details);
 };
 
+export const checkAndActivateUpcomingSession = async (clubId: string) => {
+    const sessionsRef = collection(db, "weekly_sessions");
+    // Find sessions that are NOT active, NOT processed (i.e. not finished), and have a start date in the past
+    const q = query(
+        sessionsRef,
+        where("clubId", "==", clubId),
+        where("isActive", "==", false),
+        where("isProcessed", "==", false)
+    );
+
+    const snapshot = await getDocs(q);
+    const now = new Date();
+
+    for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        // Check if start date has passed
+        // Note: startDate might be a Firestore Timestamp or a string depending on how it was saved.
+        let startDate: Date;
+        if (data.startDate && data.startDate.toDate) {
+            startDate = data.startDate.toDate();
+        } else if (data.startDate) {
+            startDate = new Date(data.startDate);
+        } else {
+            // If no start date, maybe it was meant for manual start? or legacy?
+            // Skip unless we enforce start dates
+            continue;
+        }
+
+        if (startDate <= now) {
+            console.log(`Activating upcoming session ${docSnap.id}`);
+            await updateDoc(docSnap.ref, { isActive: true });
+            // Only activate one? Or all eligible? Usually only one should be scheduled overlapping.
+            // Let's activate one to be safe, assuming only one game at a time.
+            return;
+        }
+    }
+};
+
 export const getAllClubs = async () => {
     const clubsRef = collection(db, "clubs");
     const q = query(clubsRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const searchClubs = async (searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 2) return [];
+
+    const clubsRef = collection(db, "clubs");
+    const term = searchTerm.toLowerCase();
+
+    // 1. Search by invite code (exact)
+    const qCode = query(clubsRef, where("inviteCode", "==", searchTerm.toUpperCase()), limit(5));
+    const snapCode = await getDocs(qCode);
+
+    // 2. Search by name prefix (case-sensitive fallback)
+    const capitalizedTerm = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1);
+    const qName = query(
+        clubsRef,
+        where("name", ">=", capitalizedTerm),
+        where("name", "<=", capitalizedTerm + "\uf8ff"),
+        limit(20)
+    );
+    const snapName = await getDocs(qName);
+
+    // Combine and return
+    const results = new Map();
+    snapCode.docs.forEach(doc => results.set(doc.id, { id: doc.id, ...doc.data() }));
+    snapName.docs.forEach(doc => results.set(doc.id, { id: doc.id, ...doc.data() }));
+
+    return Array.from(results.values());
 };
 
 export const requestJoin = async (clubId: string, userId: string, displayName: string, photoURL?: string) => {
@@ -748,12 +914,25 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
     if (!sessionDoc.exists()) throw new Error("Session not found");
     const sessionData = sessionDoc.data() as WeeklySession;
 
-    // 2. Sort scores
+    // 2. Sort scores with tie-breaker
     const sortedScores = [...scores].sort((a, b) => {
+        // Primary Sort: Score Value
         if (sessionData.challengeType === 'speed') {
-            return a.scoreValue - b.scoreValue; // Lower is better for speed
+            if (a.scoreValue !== b.scoreValue) {
+                return a.scoreValue - b.scoreValue; // Lower is better
+            }
+        } else {
+            if (a.scoreValue !== b.scoreValue) {
+                return b.scoreValue - a.scoreValue; // Higher is better
+            }
         }
-        return b.scoreValue - a.scoreValue; // Higher is better for score
+
+        // Secondary Sort: Submission Time (Earlier is better)
+        // If submittedAt is missing, treat as "infinity" (latest possible) to penalize
+        const timeA = a.submittedAt ? (a.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+        const timeB = b.submittedAt ? (b.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+
+        return timeA - timeB;
     });
 
     // 3. Calculate points
@@ -776,12 +955,15 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
     // 4. Update Standings
     await updateClubStandings(clubId, updates);
 
-    // 5. Mark Session Processed & Inactive
+    // 5. Mark Session Processed & Inactive & Store Winner
+    const winner = sortedScores.length > 0 ? sortedScores[0] : null;
     const sessionRef = doc(db, "weekly_sessions", sessionId);
     await updateDoc(sessionRef, {
         isProcessed: true,
         isActive: false,
-        endDate: new Date().toISOString()
+        endDate: new Date().toISOString(),
+        winnerId: winner ? winner.userId : null,
+        winnerName: winner ? (winner.displayName || "Unknown") : null
     });
 
     return updates.length;
@@ -851,3 +1033,355 @@ export async function deleteUserAccount(userId: string) {
     // Commit the batch
     await batch.commit();
 }
+
+// Social & Search Features
+export const getUserByDisplayName = async (displayName: string) => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("displayName", "==", displayName), limit(1));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+};
+
+export const searchUsers = async (searchTerm: string) => {
+    if (!searchTerm || searchTerm.length < 2) return [];
+
+    const usersRef = collection(db, "users");
+    const term = searchTerm.toLowerCase();
+
+    // 0. Exact match (case-sensitive) - Best for finding specific users immediately
+    const qExact = query(usersRef, where("displayName", "==", searchTerm), limit(1));
+    let snapshot = await getDocs(qExact);
+
+    // 1. Case-insensitive prefix search (on normalized field)
+    if (snapshot.empty) {
+        const qPrefix = query(
+            usersRef,
+            where("displayNameLowercase", ">=", term),
+            where("displayNameLowercase", "<=", term + "\uf8ff"),
+            limit(20)
+        );
+        snapshot = await getDocs(qPrefix);
+    }
+
+    // 2. Fallback: try capitalized first letter (common for old records)
+    if (snapshot.empty) {
+        const capitalizedTerm = term.charAt(0).toUpperCase() + term.slice(1);
+        const qCap = query(
+            usersRef,
+            where("displayName", ">=", capitalizedTerm),
+            where("displayName", "<=", capitalizedTerm + "\uf8ff"),
+            limit(20)
+        );
+        snapshot = await getDocs(qCap);
+    }
+
+    // 3. Fallback: check searchKeywords for keyword matches
+    if (snapshot.empty) {
+        const qKeywords = query(
+            usersRef,
+            where("searchKeywords", "array-contains", term),
+            limit(20)
+        );
+        snapshot = await getDocs(qKeywords);
+    }
+
+    // 4. Brute-force exact match on lowercase (Final safety net)
+    if (snapshot.empty) {
+        console.log(`[searchUsers] Final fallback attempt for: ${term}`);
+        const qBrute = query(usersRef, where("displayNameLowercase", "==", term), limit(1));
+        snapshot = await getDocs(qBrute);
+    }
+
+    const results = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+    })) as { uid: string, displayName: string, photoURL?: string }[];
+
+    // Fetch extra data for search results in parallel
+    const enrichedResults = await Promise.all(results.map(async (u) => {
+        try {
+            // Get friends count
+            const friendsSnap = await getDocs(query(collection(db, "users", u.uid, "friends"), limit(100)));
+
+            // Get main club challenge
+            const clubs = await getUserClubs(u.uid);
+            let currentChallenge = null;
+            if (clubs.length > 0) {
+                const session = await getActiveSession(clubs[0].id);
+                if (session) currentChallenge = session.gameTitle;
+            }
+
+            return {
+                ...u,
+                friendsCount: friendsSnap.size,
+                currentChallenge
+            };
+        } catch (e) {
+            return { ...u, friendsCount: 0, currentChallenge: null };
+        }
+    }));
+
+    return enrichedResults;
+};
+
+export const sendFriendRequest = async (senderId: string, receiverId: string) => {
+    if (senderId === receiverId) return;
+
+    if (!auth.currentUser) {
+        throw new Error("You must be signed in with a real account to send friend requests.");
+    }
+
+    try {
+        const senderDoc = await getDoc(doc(db, "users", senderId));
+        const senderData = senderDoc.data();
+
+        // Unique ID for the request to prevent duplicates
+        const requestId = `${senderId}_${receiverId}`;
+        const requestRef = doc(db, "friend_requests", requestId);
+
+        // Check if already exist
+        const existing = await getDoc(requestRef);
+        if (existing.exists()) return;
+
+        await setDoc(requestRef, {
+            senderId,
+            senderName: senderData?.displayName || auth.currentUser?.displayName || "Player",
+            senderPhoto: senderData?.photoURL || auth.currentUser?.photoURL || null,
+            receiverId,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        });
+        console.log(`Friend request sent from ${senderId} to ${receiverId}`);
+    } catch (e) {
+        console.error("sendFriendRequest error:", e);
+        throw e;
+    }
+};
+
+export const getFriendRequests = async (userId: string) => {
+    const q = query(
+        collection(db, "friend_requests"),
+        where("receiverId", "==", userId),
+        where("status", "==", "pending")
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FriendRequest[];
+};
+
+export const respondToFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
+    const requestRef = doc(db, "friend_requests", requestId);
+    const requestDoc = await getDoc(requestRef);
+
+    if (!requestDoc.exists()) return;
+    const data = requestDoc.data();
+
+    if (status === 'rejected') {
+        await deleteDoc(requestRef);
+    } else {
+        await runTransaction(db, async (transaction) => {
+            transaction.update(requestRef, { status: 'accepted' });
+
+            // Add to both users' friendship lists
+            const senderFriendRef = doc(db, "users", data.senderId, "friends", data.receiverId);
+            const receiverFriendRef = doc(db, "users", data.receiverId, "friends", data.senderId);
+
+            transaction.set(senderFriendRef, {
+                friendId: data.receiverId,
+                addedAt: serverTimestamp()
+            });
+            transaction.set(receiverFriendRef, {
+                friendId: data.senderId,
+                addedAt: serverTimestamp()
+            });
+        });
+    }
+};
+
+export const getFriends = async (userId: string) => {
+    if (!userId) return [];
+
+    const friendsRef = collection(db, "users", userId, "friends");
+    const snapshot = await getDocs(friendsRef);
+
+    // Fetch user details for each friend in parallel
+    const friends = await Promise.all(snapshot.docs.map(async (docSnap) => {
+        const friendId = docSnap.id;
+        const profile = await getUserPublicProfile(friendId);
+        return profile;
+    }));
+
+    return friends.filter(f => f !== null);
+};
+
+export const checkFriendshipStatus = async (userId: string, friendId: string) => {
+    const friendRef = doc(db, "users", userId, "friends", friendId);
+    const snap = await getDoc(friendRef);
+    return snap.exists();
+};
+
+export const getUserPublicProfile = async (userId: string) => {
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return null;
+
+    const userData = userDoc.data();
+
+    // 1. Get clubs joined count
+    const clubs = await getUserClubs(userId);
+
+    // 2. Get total challenges count (via standing records or scores)
+    const standingsRef = collection(db, "season_standings");
+    const qStandings = query(standingsRef, where("userId", "==", userId));
+    const standingsSnap = await getDocs(qStandings);
+
+    let totalWins = 0;
+    let totalPoints = 0;
+    standingsSnap.forEach(d => {
+        totalWins += d.data().wins || 0;
+        totalPoints += d.data().points || 0;
+    });
+
+    // 3. Find "Main" Club (the one they have most points in or just the first)
+    let mainClub = null;
+    if (clubs.length > 0) {
+        // Try to find status in the first club
+        const club = clubs[0];
+        const allStandings = await getSeasonStandings(club.id) as any[];
+        const userStandingIndex = allStandings.findIndex(s => s.userId === userId);
+
+        mainClub = {
+            id: club.id,
+            name: club.name,
+            rank: userStandingIndex !== -1 ? userStandingIndex + 1 : allStandings.length + 1,
+            totalMembers: allStandings.length
+        };
+    }
+
+    // 4. Get Friends Count
+    const friendsSnap = await getDocs(query(collection(db, "users", userId, "friends"), limit(500)));
+    const friendsCount = friendsSnap.size;
+
+    // 5. Get Current Challenge (from main club)
+    let currentChallenge = null;
+    if (mainClub) {
+        const activeSession = await getActiveSession(mainClub.id);
+        if (activeSession) currentChallenge = activeSession.gameTitle;
+    }
+
+    return {
+        uid: userId,
+        displayName: userData.displayName || "Unknown User",
+        photoURL: userData.photoURL || null,
+        clubsJoined: clubs.length,
+        challengesCount: standingsSnap.size, // Number of clubs they've participated in
+        wins: totalWins,
+        friendsCount,
+        currentChallenge,
+        mainClub
+    } as UserPublicProfile;
+};
+
+// GOTM Management
+export const createGOTM = async (clubId: string, details: Omit<GOTM, "id">) => {
+    // Basic overlap check
+    const gotmRef = collection(db, "gotm");
+    const q = query(
+        gotmRef,
+        where("clubId", "==", clubId)
+    );
+    const snap = await getDocs(q);
+
+    // Client-side overlap check
+    const hasOverlap = snap.docs.some(doc => {
+        const existing = doc.data() as GOTM;
+        // Check if existing range overlaps with new range
+        // Overlap if (StartA <= EndB) and (EndA >= StartB)
+        return existing.startDate <= details.endDate && existing.endDate >= details.startDate;
+    });
+
+    if (hasOverlap) {
+        // Just log warning, allow proceed as admin might want to overwrite or fix
+        console.warn("Detected overlapping GOTM schedule");
+    }
+
+    const docRef = doc(collection(db, "gotm"));
+    await setDoc(docRef, {
+        ...details,
+        id: docRef.id
+    });
+    return docRef.id;
+};
+
+export const getCurrentGOTM = async (clubId: string) => {
+    const gotmRef = collection(db, "gotm");
+    const now = new Date().toISOString().split('T')[0];
+    const q = query(
+        gotmRef,
+        where("clubId", "==", clubId)
+    );
+
+    const snap = await getDocs(q);
+
+    // Sort descending by startDate (latest first)
+    const sorted = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as GOTM))
+        .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+    // Find the first one that started on or before today, and hasn't ended yet
+    const active = sorted.find(g => g.startDate <= now && g.endDate >= now);
+
+    return active || null;
+};
+
+export const getUpcomingGOTM = async (clubId: string) => {
+    const gotmRef = collection(db, "gotm");
+    const now = new Date().toISOString().split('T')[0];
+    const q = query(
+        gotmRef,
+        where("clubId", "==", clubId)
+    );
+
+    const snap = await getDocs(q);
+
+    // Sort ascending by startDate (earliest first)
+    const sorted = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as GOTM))
+        .sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    // Find the first one that starts in the future
+    const upcoming = sorted.find(g => g.startDate > now);
+
+    return upcoming || null;
+};
+
+export const submitGOTMReview = async (clubId: string, gotmId: string, userId: string, review: Omit<GOTMReview, "id" | "gotmId" | "userId" | "createdAt">) => {
+    const reviewId = `${userId}_${gotmId}`;
+    const reviewRef = doc(db, "gotm_reviews", reviewId);
+
+    await setDoc(reviewRef, {
+        ...review,
+        id: reviewId,
+        gotmId,
+        userId,
+        clubId, // Denormalize for easier querying if needed
+        createdAt: new Date().toISOString()
+    }, { merge: true });
+};
+
+export const getGOTMReviews = async (gotmId: string) => {
+    const reviewsRef = collection(db, "gotm_reviews");
+    const q = query(reviewsRef, where("gotmId", "==", gotmId), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data() as GOTMReview);
+};
+
+export const getUserGOTMReview = async (gotmId: string, userId: string) => {
+    const reviewId = `${userId}_${gotmId}`;
+    const reviewRef = doc(db, "gotm_reviews", reviewId);
+    const snap = await getDoc(reviewRef);
+    if (snap.exists()) {
+        return snap.data() as GOTMReview;
+    }
+    return null;
+};

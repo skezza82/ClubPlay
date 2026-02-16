@@ -8,6 +8,7 @@
   --primary-dim: #45A29E;
   --text-main: #FFFFFF;
   --text-muted: #C5C6C7;
+  --text-on-primary: #000000;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -26,16 +27,74 @@
 }
 
 body {
-  background: transparent;
+  background: var(--background);
   color: var(--text-main);
   font-family: var(--font-sans);
   overflow-x: hidden;
   overscroll-behavior-y: none;
-  /* Prevent rubber-banding on mobile */
   touch-action: pan-y;
-  /* Allow vertical scroll but prevent pinch-to-zoom */
   -webkit-text-size-adjust: none;
-  /* Prevent font size changes on orientation shift */
+}
+
+/* Theme Overrides */
+.theme-cyber {
+  --primary: #66FCF1;
+  --primary-dim: #45A29E;
+  --background: #0B0C10;
+}
+
+.theme-sunset {
+  --primary: #FF7E5F;
+  --primary-dim: #FEB47B;
+  --background: #1A0A0A;
+}
+
+.theme-deepsea {
+  --primary: #00D1FF;
+  --primary-dim: #0070F3;
+  --background: #050A15;
+}
+
+.theme-matrix {
+  --primary: #00FF41;
+  --primary-dim: #008F11;
+  --background: #0D0208;
+}
+
+.theme-vampire {
+  --primary: #FF2E2E;
+  --primary-dim: #950740;
+  --background: #110101;
+}
+
+.theme-midnight {
+  --primary: #A084E8;
+  --primary-dim: #6F61C0;
+  --background: #080312;
+}
+
+/* RGB Toggle Overrides */
+.no-rgb .rgb-neon-border::before,
+.no-rgb .rgb-neon-border::after,
+.no-rgb .neon-border::before,
+.no-rgb .neon-border::after {
+  animation: none !important;
+  background: var(--primary-dim) !important;
+  opacity: 0.3 !important;
+}
+
+.no-rgb .rgb-neon-border,
+.no-rgb .neon-border {
+  border: 1px solid var(--primary-dim);
+  box-shadow: none !important;
+}
+
+.no-rgb .animate-pulse,
+.no-rgb .text-glow,
+.no-rgb .glow-primary {
+  animation: none !important;
+  text-shadow: none !important;
+  filter: none !important;
 }
 
 /* Glassmorphism Utilities */
@@ -93,6 +152,23 @@ body {
   animation: float 6s ease-in-out infinite;
 }
 
+.neon-border {
+  position: relative;
+  z-index: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 1px;
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--primary-dim);
+  transition: all 0.3s ease;
+  color: var(--text-on-primary) !important;
+}
+
+.neon-border:hover {
+  box-shadow: 0 0 20px var(--primary);
+  transform: translateY(-2px);
+}
+
 /* RGB Neon Border Animation */
 @property --angle {
   syntax: '<angle>';
@@ -121,7 +197,7 @@ body {
   position: absolute;
   z-index: -2;
   inset: -100px;
-  background: conic-gradient(from var(--angle), #66FCF1, #ff00ff, #00ff00, #ff0000, #66FCF1);
+  background: conic-gradient(from var(--angle), var(--primary), #ff00ff, #00ff00, #ff0000, var(--primary));
   animation: rotate-border 4s linear infinite;
 }
 
@@ -227,13 +303,37 @@ body {
   animation-delay: 0.5s;
 }
 
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+
+  70% {
+    transform: scale(0.9);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* Text Glow */
 .text-glow {
-  text-shadow: 0 0 10px rgba(102, 252, 241, 0.6);
+  text-shadow: 0 0 10px var(--primary);
 }
 
 .glow-primary {
-  filter: drop-shadow(0 0 5px rgba(102, 252, 241, 0.5));
+  filter: drop-shadow(0 0 5px var(--primary));
 }
 
 .glow-yellow {

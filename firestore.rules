@@ -2,13 +2,32 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is the owner of a club
+    // -------------------------------------------------------------------------
+    // SOCIAL & FRIENDS (Moved to top for clear priority)
+    // -------------------------------------------------------------------------
+    
+    // Friend Requests - Essential for the add/accept flow
+    match /friend_requests/{requestId} {
+      // Allow all authenticated users to read/write requests to support 
+      // existence checks and cross-user updates.
+      allow read, write: if request.auth != null;
+    }
+
+    // Friends Subcollection - Stores the final relationships
+    match /users/{userId}/friends/{friendId} {
+      // Allow reading friends lists and writing (for mutual updates)
+      allow read, write: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------------
+    // CORE SYSTEM
+    // -------------------------------------------------------------------------
+
+    // Helper functions
     function isClubOwner(clubId) {
       return request.auth != null && get(/databases/$(database)/documents/clubs/$(clubId)).data.ownerId == request.auth.uid;
     }
 
-    // Helper to check for admin OR owner access via memberships
-    // This is safer for role-based management
     function hasAdminAccess(clubId) {
       let membershipPath = /databases/$(database)/documents/memberships/$(request.auth.uid + '_' + clubId);
       return request.auth != null && (
@@ -83,6 +102,20 @@ service cloud.firestore {
     match /season_standings/{standingId} {
       allow read: if true;
       allow write: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
+    }
+
+    // GOTM
+    match /gotm/{gotmId} {
+      allow read: if true;
+      allow create: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
+      allow update, delete: if request.auth != null && hasAdminAccess(resource.data.clubId);
+    }
+
+    // GOTM Reviews
+    match /gotm_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }
