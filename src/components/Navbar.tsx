@@ -4,10 +4,12 @@ import Link from "next/link";
 import { PremiumLogo } from "./PremiumLogo";
 import { UserProfile } from "./UserProfile";
 import { useAuth } from "@/context/AuthContext";
-import { Compass, PlusSquare, Search, Users } from "lucide-react";
+import { Compass, Gamepad2, PlusSquare, Search, Users } from "lucide-react";
+import { useGamepad } from "@/hooks/useGamepad";
 
 export function Navbar() {
     const { user } = useAuth();
+    const { hasGamepadAccess } = useGamepad();
 
     if (!user) return null;
 

@@ -167,6 +167,13 @@ export const getActiveSessions = async (clubId: string) => {
     // Sort by endDate ascending
     return sessions.sort((a, b) => a.endDate.localeCompare(b.endDate));
 };
+
+export const getClubSessions = async (clubId: string) => {
+    const sessionsRef = collection(db, "weekly_sessions");
+    const q = query(sessionsRef, where("clubId", "==", clubId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+};
 // Keep for backward compat temporarily, but return first
 export const getActiveSession = async (clubId: string) => {
     const sessions = await getActiveSessions(clubId);
@@ -322,6 +329,8 @@ export const getSessionScores = async (sessionId: string) => {
 
     return scores;
 };
+
+export const getClubSessionScores = getSessionScores;
 
 export const getSeasonStandings = async (clubId: string) => {
     // For now, we'll simulate season standings or read from a 'season_standings' collection
@@ -838,6 +847,8 @@ export const requestJoin = async (clubId: string, userId: string, displayName: s
     return requestId;
 };
 
+export const joinClub = requestJoin;
+
 export const checkPendingRequest = async (userId: string, clubId: string) => {
     const requestId = `${userId}_${clubId}`;
     const requestRef = doc(db, "join_requests", requestId);
@@ -885,6 +896,8 @@ export const subscribeToClubMessages = (clubId: string, callback: (messages: Mes
         console.error("Error subscribing to messages:", error);
     });
 };
+
+export const getClubMessages = subscribeToClubMessages;
 
 export const sendClubMessage = async (clubId: string, userId: string, text: string, userProfile: { displayName: string, photoURL?: string }) => {
     const messagesRef = collection(db, "clubs", clubId, "messages");
@@ -1159,6 +1172,20 @@ export const sendFriendRequest = async (senderId: string, receiverId: string) =>
     }
 };
 
+export const getSentFriendRequests = async (userId: string) => {
+    try {
+        const q = query(
+            collection(db, "friend_requests"),
+            where("senderId", "==", userId)
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => doc.data().receiverId) as string[];
+    } catch (e) {
+        console.error("getSentFriendRequests error:", e);
+        return [];
+    }
+};
+
 export const getFriendRequests = async (userId: string) => {
     const q = query(
         collection(db, "friend_requests"),
@@ -1333,6 +1360,8 @@ export const getCurrentGOTM = async (clubId: string) => {
 
     return active || null;
 };
+
+export const getGameOfTheMonth = getCurrentGOTM;
 
 export const getUpcomingGOTM = async (clubId: string) => {
     const gotmRef = collection(db, "gotm");

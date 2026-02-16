@@ -1,155 +1,214 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useRef, FormEvent } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
     getClub,
     getClubMembers,
-    getActiveSessions, // Updated import
-    getSessionScores,
-    getSeasonStandings,
-    leaveClub,
+    getClubSessions,
+    getClubSessionScores,
+    joinClub,
     submitScore,
-    requestJoin,
-    checkPendingRequest,
-    getPastSessions,
-    subscribeToClubMessages,
+    leaveClub,
+    getClubMessages,
     sendClubMessage,
-    type Message,
-    deleteSession,
-    updateLastVisitedClub,
-    processSessionResults,
-    checkAndActivateUpcomingSession,
-    getCurrentGOTM,
-    getUserGOTMReview,
+    getGameOfTheMonth,
     submitGOTMReview,
-    getFriends,
+    getUserGOTMReview,
+    getSeasonStandings,
+    deleteSession,
     sendFriendRequest,
-    type GOTM,
-    type GOTMReview
+    getSentFriendRequests,
+    getFriends,
+    checkPendingRequest
 } from "@/lib/firestore-service";
-import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
-import { supabase } from "@/lib/supabase";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { CountdownTimer } from "@/components/CountdownTimer";
-import { Share } from "@capacitor/share";
-import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2, Share2, ArrowLeft, Star, ThumbsUp, ThumbsDown, UserPlus } from "lucide-react";
-import Link from "next/link";
+import {
+    Trophy,
+    Users,
+    Gamepad2,
+    Calendar,
+    MessageSquare,
+    Send,
+    Loader2,
+    Check,
+    LogOut,
+    Crown,
+    Trash2,
+    Shield,
+    Timer,
+    Edit,
+    ThumbsUp,
+    ThumbsDown,
+    UserPlus,
+    Share2
+} from "lucide-react";
 import Image from "next/image";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Share } from '@capacitor/share';
+
+// Add the missing getLibretroBoxartUrl helper
+const getLibretroBoxartUrl = (gameTitle: string, platform: string) => {
+    if (!gameTitle || !platform) return "";
+    const cleanTitle = gameTitle.replace(/[^\w\s-]/gi, '').replace(/\s+/g, '_');
+    const folderMap: { [key: string]: string } = {
+        'NES': 'Nintendo_-_Nintendo_Entertainment_System',
+        'SNES': 'Nintendo_-_Super_Nintendo_Entertainment_System',
+        'N64': 'Nintendo_-_Nintendo_64',
+        'GBC': 'Nintendo_-_Game_Boy_Color',
+        'GBA': 'Nintendo_-_Game_Boy_Advance',
+        'Genesis': 'Sega_-_Mega_Drive_-_Genesis',
+        'PS1': 'Sony_-_PlayStation'
+    };
+    const folder = folderMap[platform] || platform;
+    return `https://thumbnails.libretro.com/${folder}/Named_Boxarts/${cleanTitle}.png`;
+};
+
+const PLACEHOLDER_BOXART_URL = "https://images.igdb.com/igdb/image/upload/t_cover_big/nocover.png";
+
+function CountdownTimer({ targetDate }: { targetDate: any }) {
+    const [timeLeft, setTimeLeft] = useState("");
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = new Date().getTime();
+            const target = new Date(targetDate).getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                setTimeLeft("EXPIRED");
+                clearInterval(interval);
+                return;
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [targetDate]);
+
+    return (
+        <div className="font-mono text-xl font-black text-white bg-black/40 px-3 py-1 rounded inline-block">
+            {timeLeft}
+        </div>
+    );
+}
 
 function ClubContent() {
     const searchParams = useSearchParams();
-    const clubId = searchParams.get('id');
+    const clubId = searchParams.get("id");
     const { user } = useAuth();
     const router = useRouter();
+    const [isPendingJoin, setIsPendingJoin] = useState(false);
+
     const [club, setClub] = useState<any>(null);
-    const [activeSessions, setActiveSessions] = useState<any[]>([]); // Array of sessions
-    const [selectedSession, setSelectedSession] = useState<any>(null); // Currently selected session
-    const [game, setGame] = useState<any>(null);
-    const [weekScores, setWeekScores] = useState<any[]>([]);
-    const [pastSessions, setPastSessions] = useState<any[]>([]);
-    const [seasonStandings, setSeasonStandings] = useState<any[]>([]);
     const [members, setMembers] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history" | "chat" | "gotm">("overview");
+    const [activeSessions, setActiveSessions] = useState<any[]>([]);
+    const [pastSessions, setPastSessions] = useState<any[]>([]);
+    const [selectedSession, setSelectedSession] = useState<any>(null);
+    const [weekScores, setWeekScores] = useState<any[]>([]);
+    const [seasonStandings, setSeasonStandings] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [scoreInput, setScoreInput] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isPending, setIsPending] = useState(false);
-    const [isRequesting, setIsRequesting] = useState(false);
+    const [activeTab, setActiveTab] = useState("overview");
 
-    // Friend State
-    const [friendsList, setFriendsList] = useState<string[]>([]);
-    const [sentRequests, setSentRequests] = useState<string[]>([]);
-
-    // Chat State
-    const [messages, setMessages] = useState<Message[]>([]);
+    // Chat functionality
+    const [messages, setMessages] = useState<any[]>([]);
     const [chatInput, setChatInput] = useState("");
     const [isSending, setIsSending] = useState(false);
-
-    // GOTM State
-    const [gotm, setGotm] = useState<GOTM | null>(null);
-    const [userReview, setUserReview] = useState<GOTMReview | null>(null);
-    const [isReviewOpen, setIsReviewOpen] = useState(false);
-    const [reviewForm, setReviewForm] = useState({
-        text: "",
-        ratings: {
-            graphics: 5,
-            sound: 5,
-            gameplay: 5,
-            story: 5,
-            replayability: 5
-        },
-        recommend: true
-    });
-
-    useEffect(() => {
-        if (user) {
-            getFriends(user.uid).then(friends => {
-                setFriendsList(friends.map(f => f.uid));
-            });
-        }
-    }, [user]);
-
-    const currentUserMembership = members.find(m => m.userId === user?.uid);
-
-    const isOwner = currentUserMembership?.role === 'owner';
-    const isAdmin = currentUserMembership?.role === 'admin' || isOwner;
-    const isMember = !!currentUserMembership;
-
-    const formatScore = (val: number, type: 'score' | 'speed' | 'custom') => {
-        if (type === 'score' || type === 'custom' || !type) return val.toLocaleString();
-
-        // Format seconds to MM:SS for speed challenges
-        const minutes = Math.floor(val / 60);
-        const seconds = val % 60;
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    useEffect(() => {
-        if (user && clubId) {
-            checkPendingRequest(user.uid, clubId as string).then(setIsPending);
-            // Track last visited club
-            updateLastVisitedClub(user.uid, clubId as string).catch(err => console.error("Failed to track visit", err));
-        }
-    }, [user, clubId]);
-
-    const handleJoinRequest = async () => {
-        if (!user || !clubId) return;
-        setIsRequesting(true);
-        try {
-            await requestJoin(
-                clubId as string,
-                user.uid,
-                user.displayName || "Unknown User",
-                user.photoURL || undefined
-            );
-            setIsPending(true);
-            alert("Join request sent! Waiting for admin approval. 🕒");
-        } catch (error) {
-            console.error("Error requesting to join:", error);
-            alert("Failed to send join request.");
-        } finally {
-            setIsRequesting(false);
-        }
-    };
-
-    // Chat Logic
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
-    // Scroll to top on mount
-    useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
+    // GOTM functionality
+    const [gotm, setGotm] = useState<any>(null);
+    const [userReview, setUserReview] = useState<any>(null);
+    const [isReviewOpen, setIsReviewOpen] = useState(false);
+    const [reviewForm, setReviewForm] = useState({
+        ratings: { graphics: 5, sound: 5, gameplay: 5, story: 5, replayability: 5 },
+        recommend: true,
+        text: ""
+    });
+
+    const [isRequesting, setIsRequesting] = useState(false);
+    const [sentRequests, setSentRequests] = useState<string[]>([]);
+    const [friendsList, setFriendsList] = useState<string[]>([]);
 
     useEffect(() => {
-        if (clubId) {
-            const unsubscribe = subscribeToClubMessages(clubId as string, setMessages);
+        if (!clubId) {
+            setLoading(false);
+            return;
+        }
+
+        const fetchData = async () => {
+            try {
+                const clubData = await getClub(clubId);
+                setClub(clubData);
+
+                const membersData = await getClubMembers(clubId);
+                setMembers(membersData);
+
+                const sessions = await getClubSessions(clubId);
+                const now = new Date();
+                const active = sessions.filter(s => new Date(s.endDate) > now);
+                const past = sessions.filter(s => new Date(s.endDate) <= now).sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+
+                setActiveSessions(active);
+                setPastSessions(past);
+                if (active.length > 0) setSelectedSession(active[0]);
+
+                const standings = await getSeasonStandings(clubId);
+                setSeasonStandings(standings);
+
+                const gotmData = await getGameOfTheMonth(clubId);
+                setGotm(gotmData);
+
+                if (user && gotmData) {
+                    const review = await getUserGOTMReview(gotmData.id, user.uid);
+                    setUserReview(review);
+                }
+
+                if (user) {
+                    const pending = await checkPendingRequest(user.uid, clubId);
+                    setIsPendingJoin(pending);
+
+                    const sent = await getSentFriendRequests(user.uid);
+                    setSentRequests(sent);
+                    const friends = await getFriends(user.uid);
+                    setFriendsList(friends.map(f => f.uid));
+                }
+
+                setLoading(false);
+            } catch (error) {
+                console.error("Error fetching club data:", error);
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [clubId, user]);
+
+    useEffect(() => {
+        if (selectedSession) {
+            getClubSessionScores(selectedSession.id).then(setWeekScores);
+        }
+    }, [selectedSession, clubId]);
+
+    useEffect(() => {
+        if (clubId && activeTab === "overview") {
+            const unsubscribe = getClubMessages(clubId, (newMessages) => {
+                setMessages(newMessages);
+            });
             return () => unsubscribe();
         }
-    }, [clubId]);
+    }, [clubId, activeTab]);
 
     useEffect(() => {
         if (chatContainerRef.current) {
@@ -157,296 +216,141 @@ function ClubContent() {
         }
     }, [messages]);
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!chatInput.trim() || !user || !clubId) return;
+    const isMember = user && members.some(m => m.userId === user.uid);
+    const isAdmin = user && members.some(m => m.userId === user.uid && (m.role === 'admin' || m.role === 'owner'));
+    const isPending = isPendingJoin;
 
-        setIsSending(true);
+    const handleJoinRequest = async () => {
+        if (!user || !clubId) return;
+        setIsRequesting(true);
         try {
-            await sendClubMessage(clubId as string, user.uid, chatInput.trim(), {
-                displayName: user.displayName || "Unknown",
-                photoURL: user.photoURL || undefined
-            });
-            setChatInput("");
-        } catch (error: any) {
-            console.error("Failed to send message", error);
-            alert("Failed to send: " + error.message);
+            await joinClub(clubId, user.uid, user.displayName || "Unknown User", user.photoURL || "");
+            setIsPendingJoin(true);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to send request");
         } finally {
-            setIsSending(false);
+            setIsRequesting(false);
         }
     };
 
-    const handleScoreSubmit = async (e: React.FormEvent) => {
+    const handleScoreSubmit = async (e: FormEvent) => {
         e.preventDefault();
         if (!user || !selectedSession || !scoreInput) return;
 
-        const score = parseInt(scoreInput);
-        if (isNaN(score) || score <= 0) {
-            alert("Please enter a valid positive number.");
-            return;
-        }
-
         setIsSubmitting(true);
         try {
-            await submitScore(
-                selectedSession.id,
-                user.uid,
-                score,
-                user.displayName || "Unknown Member"
-            );
-
-            setScoreInput(""); // Clear input
-
-            // Refresh scores immediately
-            const updatedScores = await getSessionScores(selectedSession.id);
-            const sortedScores = [...updatedScores].sort((a, b) => {
-                if (selectedSession.challengeType === 'speed') {
-                    return a.scoreValue - b.scoreValue;
-                }
-                return b.scoreValue - a.scoreValue;
-            });
-            setWeekScores(sortedScores);
-
-            alert("Score submitted successfully! 🔥");
+            await submitScore(selectedSession.id, user.uid, parseInt(scoreInput), user.displayName || "Unknown User");
+            const updatedScores = await getClubSessionScores(selectedSession.id);
+            setWeekScores(updatedScores);
+            setScoreInput("");
+            alert("Score submitted successfully! 🎮");
         } catch (error) {
-            console.error("Error submitting score:", error);
-            alert("Failed to submit score.");
+            console.error(error);
+            alert("Failed to submit score");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleLeave = async () => {
-        if (!confirm("Are you sure you want to leave this club?")) return;
+    const handleSendMessage = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!user || !chatInput.trim() || isSending) return;
 
+        setIsSending(true);
         try {
-            await leaveClub(user!.uid, clubId as string);
-            alert("You have left the club.");
-            router.push("/profile");
+            await sendClubMessage(clubId!, user.uid, chatInput.trim(), {
+                displayName: user.displayName || "Unknown",
+                photoURL: user.photoURL || undefined
+            });
+            setChatInput("");
         } catch (error) {
-            console.error("Error leaving club:", error);
-            alert("Error: " + (error as any).message);
+            console.error(error);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleLeave = async () => {
+        if (!user || !window.confirm("Are you sure you want to leave this club?")) return;
+        try {
+            await leaveClub(user.uid, clubId!);
+            router.push('/');
+        } catch (error) {
+            console.error(error);
         }
     };
 
     const handleDeleteSession = async (sessionId: string) => {
-        if (!confirm("Are you sure you want to delete this challenge? This cannot be undone.")) return;
+        if (!window.confirm("Delete this session and all its scores?")) return;
         try {
             await deleteSession(sessionId);
-            // Refresh past sessions
-            const history = await getPastSessions(clubId as string);
-            const historyWithScores = await Promise.all(history.map(async (s) => {
-                const scores = await getSessionScores(s.id);
-                const sorted = [...scores].sort((a, b) => {
-                    if (s.challengeType === 'speed') return a.scoreValue - b.scoreValue;
-                    return b.scoreValue - a.scoreValue;
-                });
-                return { ...s, topScores: sorted.slice(0, 3) };
-            }));
-            setPastSessions(historyWithScores);
-            alert("Challenge deleted.");
+            setPastSessions(prev => prev.filter(s => s.id !== sessionId));
         } catch (error) {
-            console.error("Error deleting session:", error);
-            alert("Failed to delete challenge.");
+            console.error(error);
         }
     };
 
-    useEffect(() => {
-        if (!clubId) return;
-        const fetchClubData = async () => {
-            try {
-                // 1. Club Details
-                const clubData = await getClub(clubId as string);
-                setClub(clubData);
-
-                // 2. Members (for count and roster)
-                const membersData = await getClubMembers(clubId as string);
-                setMembers(membersData);
-
-                // 3. Active Sessions
-                const sessions = await getActiveSessions(clubId as string);
-                setActiveSessions(sessions);
-
-                // Default to the first session if available
-                if (sessions.length > 0) {
-                    setSelectedSession(sessions[0]);
-                }
-                // (Game and scores fetching moved to separate effect depending on selectedSession)
-
-                // 6. Season Standings
-                const standings = await getSeasonStandings(clubId as string);
-                setSeasonStandings(standings);
-
-                // 7. Past Challenges (History)
-                const history = await getPastSessions(clubId as string);
-                const historyWithScores = await Promise.all(history.map(async (s) => {
-                    const scores = await getSessionScores(s.id);
-                    const sorted = [...scores].sort((a, b) => {
-                        if (s.challengeType === 'speed') return a.scoreValue - b.scoreValue;
-                        return b.scoreValue - a.scoreValue;
-                    });
-                    return { ...s, topScores: sorted.slice(0, 3) };
-                }));
-                setPastSessions(historyWithScores);
-
-                // 8. GOTM
-                const activeGotm = await getCurrentGOTM(clubId as string);
-                setGotm(activeGotm);
-                if (activeGotm && user) {
-                    const review = await getUserGOTMReview(activeGotm.id, user.uid);
-                    setUserReview(review);
-                }
-
-            } catch (e) {
-                console.error("Failed to load club data:", e);
-            }
-        };
-
-        fetchClubData();
-    }, [clubId]);
-
-    // Welcome Message Logic
-    useEffect(() => {
-        if (clubId && user && isMember && club) {
-            const key = `welcome_${clubId}_${user.uid}`;
-            const hasSeenWelcome = localStorage.getItem(key);
-
-            if (!hasSeenWelcome) {
-                // Check if joined less than 24h ago
-                const membership = members.find(m => m.userId === user.uid);
-                if (membership && membership.joinedAt) {
-                    const joinedAt = new Date(membership.joinedAt);
-                    const now = new Date();
-                    const diffHours = (now.getTime() - joinedAt.getTime()) / (1000 * 60 * 60);
-
-                    if (diffHours < 24) {
-                        alert(`🎉 Welcome to ${club.name}! \n\nWe're glad to have you here. Check out the current challenge and introduce yourself in the chat!`);
-                        localStorage.setItem(key, 'true');
-                    }
-                }
-            }
+    const formatScore = (val: number, type: string) => {
+        if (type === 'speed') {
+            const mins = Math.floor(val / 60);
+            const secs = val % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
-    }, [clubId, user, isMember, club, members]);
+        return val.toLocaleString();
+    };
 
-    // Auto-Finish Logic: Check if Active Session is Expired
-    useEffect(() => {
-        const checkAndProcessExpired = async () => {
-            if (!clubId) return;
+    if (loading) return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+    );
 
-            // 1. Process Expired Active Sessions
-            if (activeSessions && activeSessions.length > 0) {
-                for (const session of activeSessions) {
-                    if (session.isActive && new Date(session.endDate) < new Date()) {
-                        console.log(`Session ${session.id} expired. Processing results...`);
-                        try {
-                            await processSessionResults(session.id, clubId);
-                            // After processing, check for upcoming sessions to activate
-                            await checkAndActivateUpcomingSession(clubId);
-                        } catch (e) {
-                            console.error("Auto-process failed", e);
-                        }
-                    }
-                }
-            } else {
-                // If no active session, check if we should activate one
-                await checkAndActivateUpcomingSession(clubId);
-            }
-        };
+    if (!club) return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tighter">Club Not Found</h1>
+            <Button onClick={() => router.push('/')}>Return Home</Button>
+        </div>
+    );
 
-        // Check on load and every minute
-        checkAndProcessExpired();
-        const interval = setInterval(checkAndProcessExpired, 60000);
-        return () => clearInterval(interval);
-    }, [activeSessions, clubId]);
-
-    // Update game and scores when selectedSession changes
-    useEffect(() => {
-        const updateSessionData = async () => {
-            if (!selectedSession) return;
-
-            // Fetch Game Details
-            if (selectedSession.gameId) {
-                const { data: gameData } = await supabase.from('games').select('*').eq('id', selectedSession.gameId).single();
-                if (gameData) setGame(gameData);
-            } else {
-                setGame({
-                    title: selectedSession.gameTitle,
-                    platform: selectedSession.platform,
-                    cover_image_url: selectedSession.cover_image_url || null
-                });
-            }
-
-            // Fetch Scores
-            const scores = await getSessionScores(selectedSession.id);
-            const sortedScores = [...scores].sort((a, b) => {
-                // Primary Sort: Score Value
-                if (selectedSession.challengeType === 'speed') {
-                    if (a.scoreValue !== b.scoreValue) {
-                        return a.scoreValue - b.scoreValue;
-                    }
-                } else {
-                    if (a.scoreValue !== b.scoreValue) {
-                        return b.scoreValue - a.scoreValue;
-                    }
-                }
-
-                // Secondary Sort: Submission Time (Earlier is better)
-                // If submittedAt is missing, treat as "infinity" (latest possible)
-                const timeA = a.submittedAt ? (a.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
-                const timeB = b.submittedAt ? (b.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
-
-                return timeA - timeB;
-            });
-            setWeekScores(sortedScores);
-        };
-
-        updateSessionData();
-    }, [selectedSession]);
-
-    if (!clubId) return <div className="text-white text-center py-20">No club selected</div>;
-    if (!club) return <div className="text-white text-center py-20">Loading Club...</div>;
+    const game = selectedSession;
 
     return (
-        <main className="min-h-screen pb-20">
-            {/* Header / Hero */}
-            <div className="relative bg-surface border-b border-white/10 pb-12 pt-24 px-4 overflow-hidden min-h-[300px] flex items-end">
+        <main className="min-h-screen bg-background pb-20">
+            {/* Hero / Header Section */}
+            <div className="relative h-[40vh] min-h-[300px] overflow-hidden">
                 <div className="absolute inset-0 z-0">
-                    <Image
-                        src="/images/retro-club-bg.png"
-                        alt="Background"
-                        fill
-                        className="object-cover opacity-30 grayscale-[0.5] contrast-125"
-                        priority
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
+                    <div className="absolute inset-0 bg-primary/10 mix-blend-overlay z-10" />
+                    {club.coverUrl ? (
+                        <Image
+                            src={club.coverUrl}
+                            alt={club.name}
+                            fill
+                            className="object-cover scale-105 blur-sm"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-surface" />
+                    )}
                 </div>
 
-                {/* Back Button */}
-                <div className="absolute top-4 left-4 z-20">
-                    <Link href="/" className="flex items-center text-white/70 hover:text-white transition-colors group bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 hover:border-white/30">
-                        <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Back to Dashboard</span>
-                    </Link>
-                </div>
-                <div className="container mx-auto max-w-4xl relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6">
-                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
-                        {club.logoUrl ? (
-                            <Image src={club.logoUrl} alt={club.name} width={128} height={128} className="object-cover w-full h-full" />
-                        ) : (
-                            <Shield className="w-12 h-12 text-gray-600" />
-                        )}
-                    </div>
-                    <div className="text-center md:text-left flex-1">
-                        <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter mb-2">{club.name}</h1>
-                        <div className="flex items-center justify-center md:justify-start gap-4 text-muted-foreground text-sm font-bold tracking-widest uppercase">
-                            <span className="flex items-center gap-1"><Users className="w-4 h-4 text-primary" /> {members.length} Members</span>
-                            <span className="w-1 h-1 bg-white/20 rounded-full" />
-                            <span className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4 text-primary" />
-                                EST. {club.createdAt ? new Date(club.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '2024'}
-                            </span>
+                <div className="relative z-20 h-full container mx-auto max-w-3xl px-6 flex flex-col justify-end pb-8">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform rotate-3">
+                            <Users className="w-8 h-8 text-black" />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic">
+                                {club.name}
+                            </h1>
+                            <div className="flex items-center gap-3 text-muted-foreground font-bold tracking-widest text-xs uppercase mt-1">
+                                <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {members.length} Members</span>
+                                <span className="w-1 h-1 bg-white/20 rounded-full" />
+                                <span>Est. {new Date(club.createdAt).getFullYear()}</span>
+                            </div>
                         </div>
                     </div>
+
                     <div className="flex gap-2">
                         {isAdmin ? (
                             <Link href={`/club/admin?id=${clubId}`}>
@@ -505,7 +409,6 @@ function ClubContent() {
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
                     <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Club Leaderboard</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -555,7 +458,6 @@ function ClubContent() {
                                                     fill
                                                     className="object-cover opacity-60 group-hover:opacity-100 transition-opacity"
                                                     onError={(e: any) => {
-                                                        // Fallback to a placeholder if image fails to load
                                                         e.target.srcset = PLACEHOLDER_BOXART_URL;
                                                         e.target.src = PLACEHOLDER_BOXART_URL;
                                                     }}
@@ -632,6 +534,201 @@ function ClubContent() {
                                     </CardContent>
                                 </Card>
 
+                                {/* Game of the Month Box (GOTM moved from tab) */}
+                                {gotm && (
+                                    <div className="animate-fade-in-up">
+                                        <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
+                                            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <CardHeader>
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs mb-1">Game of the Month</CardDescription>
+                                                        <CardTitle className="text-3xl md:text-4xl font-black text-white italic lowercase">{gotm.title}</CardTitle>
+                                                    </div>
+                                                    <Trophy className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
+                                                </div>
+                                            </CardHeader>
+
+                                            <CardContent className="relative z-10 space-y-6">
+                                                <div className="flex flex-col sm:flex-row gap-6">
+                                                    <div className="w-full sm:w-32 shrink-0">
+                                                        <div className="aspect-[3/4] relative rounded-xl overflow-hidden shadow-2xl border border-white/10 group">
+                                                            {gotm.coverUrl ? (
+                                                                <Image src={gotm.coverUrl} alt={gotm.title} fill className="object-cover transition-transform duration-700 group-hover:scale-105" />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                                                                    <Gamepad2 className="w-16 h-16 text-gray-600" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex-1 space-y-4">
+                                                        <h3 className="text-sm font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Mission Briefing</h3>
+                                                        <p className="text-gray-300 leading-relaxed text-sm">
+                                                            {gotm.description || "No specific briefing for this title. Explore the game and report back, soldier!"}
+                                                        </p>
+
+                                                        <div className="pt-2">
+                                                            {!userReview ? (
+                                                                (() => {
+                                                                    const now = new Date();
+                                                                    const end = new Date(gotm.endDate);
+                                                                    const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+                                                                    const isReviewPeriod = diffDays <= 10;
+
+                                                                    if (!isReviewPeriod) {
+                                                                        return (
+                                                                            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200 text-[10px]">
+                                                                                <strong className="block uppercase tracking-widest mb-1 text-primary">Status: Active Mission</strong>
+                                                                                Reviews will unlock during the final designated operational window (last 10 days of the month).
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    if (isReviewOpen) {
+                                                                        return (
+                                                                            <div className="bg-black/40 border border-white/10 rounded-xl p-4 animate-fade-in-up">
+                                                                                <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-center">Submit Your Report</h4>
+
+                                                                                <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
+                                                                                    {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                                                        <div key={cat} className="space-y-1">
+                                                                                            <div className="flex justify-between">
+                                                                                                <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{cat}</label>
+                                                                                                <span className="text-[8px] font-mono font-bold text-primary">{reviewForm.ratings[cat]}/11</span>
+                                                                                            </div>
+                                                                                            <input
+                                                                                                type="range"
+                                                                                                min="0"
+                                                                                                max="11"
+                                                                                                value={reviewForm.ratings[cat]}
+                                                                                                onChange={e => setReviewForm(prev => ({
+                                                                                                    ...prev,
+                                                                                                    ratings: { ...prev.ratings, [cat]: parseInt(e.target.value) }
+                                                                                                }))}
+                                                                                                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+                                                                                            />
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+
+                                                                                <div className="mb-4 space-y-2">
+                                                                                    <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground text-center block">Would you recommend this?</label>
+                                                                                    <div className="flex gap-2 justify-center">
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            size="sm"
+                                                                                            variant={reviewForm.recommend ? "default" : "outline"}
+                                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: true }))}
+                                                                                            className={reviewForm.recommend ? "bg-green-500 hover:bg-green-600 text-white text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
+                                                                                        >
+                                                                                            <ThumbsUp className="w-3 h-3 mr-1" /> YES
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            size="sm"
+                                                                                            variant={!reviewForm.recommend ? "destructive" : "outline"}
+                                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: false }))}
+                                                                                            className={!reviewForm.recommend ? "text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
+                                                                                        >
+                                                                                            <ThumbsDown className="w-3 h-3 mr-1" /> NO
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="mb-4 space-y-1">
+                                                                                    <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
+                                                                                    <textarea
+                                                                                        value={reviewForm.text}
+                                                                                        onChange={e => setReviewForm(prev => ({ ...prev, text: e.target.value }))}
+                                                                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-primary/50 h-16 resize-none"
+                                                                                        placeholder="Share your thoughts..."
+                                                                                    />
+                                                                                </div>
+
+                                                                                <div className="flex gap-2">
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        onClick={async () => {
+                                                                                            if (!reviewForm.text.trim()) return alert("Please write a short review.");
+                                                                                            try {
+                                                                                                setIsSubmitting(true);
+                                                                                                if (user && gotm) {
+                                                                                                    await submitGOTMReview(clubId as string, gotm.id, user.uid, {
+                                                                                                        ...reviewForm,
+                                                                                                        reviewText: reviewForm.text,
+                                                                                                        displayName: user.displayName || "Unknown",
+                                                                                                        photoURL: user.photoURL || undefined
+                                                                                                    });
+                                                                                                    alert("Review posted! 📝");
+                                                                                                    const r = await getUserGOTMReview(gotm.id, user.uid);
+                                                                                                    setUserReview(r);
+                                                                                                    setIsReviewOpen(false);
+                                                                                                }
+                                                                                            } catch (e) {
+                                                                                                console.error(e);
+                                                                                                alert("Failed to submit review");
+                                                                                            } finally {
+                                                                                                setIsSubmitting(false);
+                                                                                            }
+                                                                                        }}
+                                                                                        disabled={isSubmitting}
+                                                                                        className="flex-1 font-bold uppercase tracking-widest text-[10px]"
+                                                                                    >
+                                                                                        {isSubmitting ? <Loader2 className="animate-spin w-3 h-3 mr-1" /> : <Send className="w-3 h-3 mr-1" />}
+                                                                                        Submit
+                                                                                    </Button>
+                                                                                    <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => setIsReviewOpen(false)}>Cancel</Button>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    } else {
+                                                                        return (
+                                                                            <Button onClick={() => setIsReviewOpen(true)} className="w-full font-bold uppercase tracking-widest neon-border-static h-10 text-[10px]">
+                                                                                <Edit className="w-3 h-3 mr-2" /> Write a Review
+                                                                            </Button>
+                                                                        );
+                                                                    }
+                                                                })()
+                                                            ) : (
+                                                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+                                                                    <div className="flex justify-between items-start mb-3">
+                                                                        <div>
+                                                                            <h4 className="text-green-400 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                                                                <Check className="w-3 h-3" /> Review Submitted
+                                                                            </h4>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            {userReview.recommend ? (
+                                                                                <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-[9px]">
+                                                                                    <ThumbsUp className="w-2 h-2" /> Recommended
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="flex items-center gap-1 text-red-400 font-bold uppercase text-[9px]">
+                                                                                    <ThumbsDown className="w-2 h-2" /> Not Recommended
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-5 gap-1 mb-3 text-center">
+                                                                        {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                                            <div key={cat} className="bg-black/20 p-1.5 rounded">
+                                                                                <div className="text-[7px] uppercase font-bold text-muted-foreground mb-0.5">{cat.slice(0, 4)}</div>
+                                                                                <div className="text-[10px] font-mono font-bold text-white">{userReview.ratings[cat]}</div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                    <p className="text-[11px] text-gray-300 italic">"{userReview.reviewText}"</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Sidebar: Weekly Leaderboard (Members Only) */}
@@ -886,7 +983,7 @@ function ClubContent() {
                                                                 <div key={index} className="flex items-center justify-between text-sm">
                                                                     <div className="flex items-center gap-3">
                                                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                                                        ${index === 0 ? 'bg-yellow-500 text-black' :
+                                                                    ${index === 0 ? 'bg-yellow-500 text-black' :
                                                                                 index === 1 ? 'bg-gray-400 text-black' :
                                                                                     index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-white'}`}
                                                                         >
@@ -915,7 +1012,7 @@ function ClubContent() {
                     </div>
                 )}
 
-
+                {/* MEMBERS TAB */}
                 {activeTab === "members" && (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         {members.length === 0 ? (
@@ -983,232 +1080,6 @@ function ClubContent() {
                         )}
                     </div>
                 )}
-
-                {activeTab === "gotm" && gotm && (
-                    <div className="animate-fade-in-up space-y-6">
-                        <Card className="border-purple-500/20 bg-surface/40 backdrop-blur-md overflow-hidden">
-                            <div className="absolute inset-0 z-0">
-                                {gotm.coverUrl && (
-                                    <Image
-                                        src={gotm.coverUrl}
-                                        alt="Background"
-                                        fill
-                                        className="object-cover opacity-10 blur-xl scale-110"
-                                    />
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
-                            </div>
-
-                            <CardHeader className="relative z-10">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-[10px] font-bold uppercase tracking-widest border border-purple-500/30">
-                                        Game of the Month
-                                    </div>
-                                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                        <Calendar className="w-3 h-3" /> Ends {new Date(gotm.endDate).toLocaleDateString()}
-                                    </div>
-                                </div>
-                                <CardTitle className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2">{gotm.title}</CardTitle>
-                                <CardDescription className="flex items-center gap-4 text-lg">
-                                    <span className="text-white font-bold">{gotm.platform}</span>
-                                    <span className="w-1 h-1 bg-white/20 rounded-full" />
-                                    <span>{gotm.year}</span>
-                                    {gotm.developer && (
-                                        <>
-                                            <span className="w-1 h-1 bg-white/20 rounded-full" />
-                                            <span>{gotm.developer}</span>
-                                        </>
-                                    )}
-                                </CardDescription>
-                            </CardHeader>
-
-                            <CardContent className="relative z-10 space-y-8">
-                                <div className="flex flex-col md:flex-row gap-8">
-                                    <div className="w-full md:w-64 shrink-0">
-                                        <div className="aspect-[3/4] relative rounded-xl overflow-hidden shadow-2xl border border-white/10 group">
-                                            {gotm.coverUrl ? (
-                                                <Image src={gotm.coverUrl} alt={gotm.title} fill className="object-cover transition-transform duration-700 group-hover:scale-105" />
-                                            ) : (
-                                                <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                                                    <Gamepad2 className="w-16 h-16 text-gray-600" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-1 space-y-6">
-                                        <h3 className="text-xl font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Mission Briefing</h3>
-                                        <p className="text-gray-300 leading-relaxed text-lg">
-                                            {gotm.description || "No specific briefing for this title. Explore the game and report back, soldier!"}
-                                        </p>
-
-                                        <div className="pt-4">
-                                            {!userReview ? (
-                                                (() => {
-                                                    const now = new Date();
-                                                    const end = new Date(gotm.endDate);
-                                                    const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-                                                    // Allow review in last 10 days or after end data
-                                                    const isReviewPeriod = diffDays <= 10;
-
-                                                    if (!isReviewPeriod) {
-                                                        return (
-                                                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200 text-sm">
-                                                                <strong className="block uppercase tracking-widest text-xs mb-1">Status: Active Mission</strong>
-                                                                Reviews will unlock during the final designated operational window (last 10 days of the month).
-                                                            </div>
-                                                        );
-                                                    }
-
-                                                    if (isReviewOpen) {
-                                                        return (
-                                                            <div className="bg-black/40 border border-white/10 rounded-xl p-6 animate-fade-in-up">
-                                                                <h4 className="text-lg font-bold text-white mb-4 uppercase tracking-widest">Submit Your Report</h4>
-
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-6">
-                                                                    {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
-                                                                        <div key={cat} className="space-y-2">
-                                                                            <div className="flex justify-between">
-                                                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{cat}</label>
-                                                                                <span className="text-xs font-mono font-bold text-primary">{reviewForm.ratings[cat]}/11</span>
-                                                                            </div>
-                                                                            <input
-                                                                                type="range"
-                                                                                min="0"
-                                                                                max="11"
-                                                                                value={reviewForm.ratings[cat]}
-                                                                                onChange={e => setReviewForm(prev => ({
-                                                                                    ...prev,
-                                                                                    ratings: { ...prev.ratings, [cat]: parseInt(e.target.value) }
-                                                                                }))}
-                                                                                className="w-full accent-primary h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                                                                            />
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-
-                                                                <div className="mb-6 space-y-3">
-                                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Would you recommend this?</label>
-                                                                    <div className="flex gap-4">
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant={reviewForm.recommend ? "default" : "outline"}
-                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: true }))}
-                                                                            className={reviewForm.recommend ? "bg-green-500 hover:bg-green-600 text-white" : "border-white/10 text-muted-foreground"}
-                                                                        >
-                                                                            <ThumbsUp className="w-4 h-4 mr-2" /> YES
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant={!reviewForm.recommend ? "destructive" : "outline"}
-                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: false }))}
-                                                                            className={!reviewForm.recommend ? "" : "border-white/10 text-muted-foreground"}
-                                                                        >
-                                                                            <ThumbsDown className="w-4 h-4 mr-2" /> NO
-                                                                        </Button>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="mb-6 space-y-2">
-                                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
-                                                                    <textarea
-                                                                        value={reviewForm.text}
-                                                                        onChange={e => setReviewForm(prev => ({ ...prev, text: e.target.value }))}
-                                                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary/50 h-24 resize-none"
-                                                                        placeholder="Share your thoughts on this classic..."
-                                                                    />
-                                                                </div>
-
-                                                                <div className="flex gap-3">
-                                                                    <Button
-                                                                        onClick={async () => {
-                                                                            if (!reviewForm.text.trim()) return alert("Please write a short review.");
-                                                                            try {
-                                                                                setIsSubmitting(true);
-                                                                                if (user && gotm) { // Check both to satisfy TS
-                                                                                    await submitGOTMReview(clubId as string, gotm.id, user.uid, {
-                                                                                        ...reviewForm,
-                                                                                        reviewText: reviewForm.text,
-                                                                                        displayName: user.displayName || "Unknown",
-                                                                                        photoURL: user.photoURL || undefined
-                                                                                    });
-                                                                                    alert("Review posted! 📝");
-                                                                                    // Refresh
-                                                                                    const r = await getUserGOTMReview(gotm.id, user.uid);
-                                                                                    setUserReview(r);
-                                                                                    setIsReviewOpen(false);
-                                                                                }
-                                                                            } catch (e) {
-                                                                                console.error(e);
-                                                                                alert("Failed to submit review");
-                                                                            } finally {
-                                                                                setIsSubmitting(false);
-                                                                            }
-                                                                        }}
-                                                                        disabled={isSubmitting}
-                                                                        className="flex-1 font-bold uppercase tracking-widest"
-                                                                    >
-                                                                        {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                                                                        Submit Review
-                                                                    </Button>
-                                                                    <Button variant="ghost" onClick={() => setIsReviewOpen(false)}>Cancel</Button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    } else {
-                                                        return (
-                                                            <Button onClick={() => setIsReviewOpen(true)} className="w-full md:w-auto font-bold uppercase tracking-widest neon-border-static">
-                                                                <Edit className="w-4 h-4 mr-2" /> Write a Review
-                                                            </Button>
-                                                        );
-                                                    }
-                                                })()
-                                            ) : (
-                                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div>
-                                                            <h4 className="text-green-400 font-bold uppercase tracking-widest flex items-center gap-2">
-                                                                <Check className="w-4 h-4" /> Review Submitted
-                                                            </h4>
-                                                            <p className="text-xs text-muted-foreground mt-1">Thank you for your feedback!</p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            {userReview.recommend ? (
-                                                                <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-xs">
-                                                                    <ThumbsUp className="w-3 h-3" /> Recommended
-                                                                </span>
-                                                            ) : (
-                                                                <span className="flex items-center gap-1 text-red-400 font-bold uppercase text-xs">
-                                                                    <ThumbsDown className="w-3 h-3" /> Not Recommended
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-5 gap-2 mb-4 text-center">
-                                                        {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
-                                                            <div key={cat} className="bg-black/20 p-2 rounded">
-                                                                <div className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{cat.slice(0, 4)}</div>
-                                                                <div className="text-sm font-mono font-bold text-white">{userReview.ratings[cat]}</div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <p className="text-sm text-gray-300 italic">"{userReview.reviewText}"</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
-
-                {activeTab === "gotm" && !gotm && (
-                    <div className="text-center py-20 text-muted-foreground">
-                        <p>No Game of the Month is currently active.</p>
-                    </div>
-                )}
-
             </div>
         </main >
     );

@@ -17,11 +17,13 @@ import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import { useTheme, ThemeType, BgType } from "@/context/ThemeContext";
-import { Palette, Zap, ZapOff, Sparkles, Binary, Gamepad2, Layers, Move } from "lucide-react";
+import { Palette, Zap, ZapOff, Sparkles, Binary, Gamepad2, Layers, Move, HardDrive } from "lucide-react";
+import { useGamepad } from "@/hooks/useGamepad";
 
 export default function ProfilePage() {
     const { user } = useAuth();
     const { theme, setTheme, bgType, setBgType, rgbEnabled, setRgbEnabled } = useTheme();
+    const { testingMode, toggleTestingMode } = useGamepad();
     const [nickname, setNickname] = useState("");
     const [avatarUrl, setAvatarUrl] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -378,6 +380,25 @@ export default function ProfilePage() {
                                 >
                                     <span
                                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${rgbEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* Console Corner Testing Mode */}
+                            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-2 text-sm">
+                                        <HardDrive className={`w-4 h-4 ${testingMode ? 'text-primary' : 'text-muted-foreground'}`} />
+                                        Hardware Mode
+                                    </h4>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Enable Console Corner without a physical gamepad</p>
+                                </div>
+                                <button
+                                    onClick={toggleTestingMode}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${testingMode ? 'bg-primary' : 'bg-white/10'}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${testingMode ? 'translate-x-6' : 'translate-x-1'}`}
                                     />
                                 </button>
                             </div>

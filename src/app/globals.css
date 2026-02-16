@@ -357,3 +357,29 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-dim);
 }
+
+@keyframes pulsing-rgb {
+  0% {
+    color: #ff0000;
+    filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9));
+  }
+
+  33% {
+    color: #00ff00;
+    filter: drop-shadow(0 0 12px rgba(0, 255, 0, 0.9));
+  }
+
+  66% {
+    color: #0000ff;
+    filter: drop-shadow(0 0 12px rgba(0, 0, 255, 0.9));
+  }
+
+  100% {
+    color: #ff0000;
+    filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9));
+  }
+}
+
+.animate-pulsing-rgb {
+  animation: pulsing-rgb 3s linear infinite !important;
+}

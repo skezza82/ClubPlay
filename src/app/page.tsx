@@ -271,20 +271,20 @@ function HomeContent() {
 
                 {/* Game of the Month Card */}
                 <div className="md:col-span-1 animate-fade-in-up stagger-4">
-                  <Link href={gotm ? `/club?id=${gotm.clubId}&tab=gotm` : '#'}>
-                    <Card className="relative overflow-hidden border-purple-500/20 bg-surface/40 h-full min-h-[400px] hover:border-purple-500/50 transition-colors group cursor-pointer">
-                      <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-black/80 z-10" />
+                  <Link href={gotm ? `/club?id=${gotm.clubId}` : '#'}>
+                    <Card className="relative overflow-hidden border-primary/20 bg-surface/40 h-full min-h-[400px] hover:border-primary/50 transition-colors group cursor-pointer">
+                      <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-black/80 z-10" />
 
                       {gotm?.coverUrl ? (
                         <div className="absolute inset-0 opacity-50 group-hover:scale-105 transition-transform duration-700">
                           <img src={gotm.coverUrl} className="w-full h-full object-cover" />
                         </div>
                       ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-black opacity-50" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-black opacity-50" />
                       )}
 
                       <div className="relative z-20 p-6 h-full flex flex-col justify-end items-start text-left">
-                        <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-purple-500/20 mb-3 backdrop-blur-md">
+                        <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-primary/20 mb-3 backdrop-blur-md">
                           Game of the Month
                         </span>
 
@@ -292,10 +292,10 @@ function HomeContent() {
                           <>
                             <h3 className="text-3xl font-black text-white italic uppercase leading-tight mb-2 drop-shadow-xl">{gotm.title}</h3>
                             <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-6 flex items-center gap-2">
-                              <Gamepad2 className="w-3 h-3 text-purple-400" /> {gotm.platform}
+                              <Gamepad2 className="w-3 h-3 text-primary" /> {gotm.platform}
                             </p>
-                            <div className="w-full h-9 flex items-center justify-center rounded-md bg-purple-600/20 group-hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 font-bold uppercase tracking-widest backdrop-blur-md text-sm transition-colors">
-                              View & Review
+                            <div className="w-full h-9 flex items-center justify-center rounded-md bg-primary/20 group-hover:bg-primary/40 text-primary border border-primary/30 font-bold uppercase tracking-widest backdrop-blur-md text-sm transition-colors">
+                              View Overview
                             </div>
                           </>
                         ) : (
@@ -313,19 +313,31 @@ function HomeContent() {
               {/* Arcade Promo Banner */}
               <section className="mb-12 animate-fade-in-up stagger-4">
                 <Link href="/arcade">
-                  <Card className="border-white/10 bg-gradient-to-r from-purple-900/40 to-black hover:border-purple-500/50 transition-all cursor-pointer group relative overflow-hidden">
-                    <div className="absolute inset-0 bg-repeat opacity-5 pointer-events-none" style={{ backgroundImage: 'url("/images/grid-pattern.png")' }} />
-                    <CardContent className="p-8 flex items-center justify-between relative z-10">
+                  <Card className="border-white/10 bg-surface/40 hover:border-purple-500/50 transition-all cursor-pointer group relative overflow-hidden h-48 md:h-56">
+                    {/* Background Image with Opacity & Hover Effect */}
+                    <div className="absolute inset-0 opacity-40 group-hover:opacity-60 group-hover:scale-105 transition-all duration-700">
+                      <img
+                        src="/images/retro-club-bg.png"
+                        className="w-full h-full object-cover"
+                        alt="Retro Video Game Cabinets"
+                      />
+                    </div>
+
+                    {/* Gradient Overlays */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-purple-900/80 via-purple-900/40 to-black/80 z-10" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(168,85,247,0.2),transparent_70%)] z-10" />
+
+                    <CardContent className="h-full p-8 flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30 group-hover:scale-110 transition-transform shadow-[0_0_20px_rgba(168,85,247,0.3)]">
+                        <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30 group-hover:scale-110 group-hover:bg-purple-500/40 transition-all shadow-[0_0_20px_rgba(168,85,247,0.3)] backdrop-blur-sm">
                           <Gamepad2 className="w-8 h-8 text-purple-400 animate-pulse" />
                         </div>
                         <div>
-                          <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter group-hover:text-purple-400 transition-colors mb-2">The Arcade</h3>
-                          <p className="text-muted-foreground text-lg">No Club? No Problem. Play free classic games instantly.</p>
+                          <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter group-hover:text-purple-400 transition-colors mb-2 drop-shadow-md">The Arcade</h3>
+                          <p className="text-white/80 font-bold uppercase tracking-tight text-sm md:text-lg max-w-md">No Club? No Problem. Play free classic games instantly.</p>
                         </div>
                       </div>
-                      <Button variant="ghost" className="hidden md:flex items-center gap-2 text-purple-400 group-hover:text-purple-300 font-bold uppercase tracking-wider text-lg">
+                      <Button variant="ghost" className="hidden md:flex items-center gap-2 text-purple-400 group-hover:text-purple-300 font-black uppercase tracking-widest text-lg">
                         Enter Arcade <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                       </Button>
                     </CardContent>
