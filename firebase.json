@@ -18,6 +18,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
+    "site": "clubplay",
     "public": "out",
     "ignore": [
       "firebase.json",
