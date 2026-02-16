@@ -46,3 +46,9 @@ key.jks
 keystore.properties
 local.properties
 google-services.json
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+
