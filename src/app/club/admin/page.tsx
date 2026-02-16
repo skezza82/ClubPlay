@@ -1090,6 +1090,8 @@ function ClubAdminContent() {
                                                                     await endSessionEarly(session.id);
                                                                     try {
                                                                         const processedCount = await processSessionResults(session.id, clubId as string);
+                                                                        const updatedClub = await getClub(clubId as string);
+                                                                        setClub(updatedClub);
                                                                         alert(`Challenge ended! Processed ${processedCount} scores.`);
                                                                     } catch (procError) {
                                                                         alert(`Ended, but processing failed: ${(procError as any).message}`);

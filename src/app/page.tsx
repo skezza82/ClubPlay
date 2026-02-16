@@ -115,6 +115,86 @@ function HomeContent() {
     }
   }, [user, authLoading]);
 
+  // TEMPORARY FIX: Set Karlos as Champion
+  useEffect(() => {
+    if (!user) return;
+    const runFix = async () => {
+      try {
+        console.log("Running temporary fix for Karlos...");
+        const { collection, query, where, getDocs, updateDoc, doc } = await import("firebase/firestore");
+
+        // 1. Find Karlos
+        const q = query(collection(db, "users"), where("displayName", "==", "Karlos"));
+        const snap = await getDocs(q);
+        let karlosId = null;
+        let karlosName = "Karlos";
+
+        if (!snap.empty) {
+          karlosId = snap.docs[0].id;
+          karlosName = snap.docs[0].data().displayName;
+          console.log("Found Karlos:", karlosId);
+        } else {
+          console.log("Karlos not found by exact name, trying lowercase...");
+          const q2 = query(collection(db, "users"), where("displayNameLowercase", "==", "karlos"));
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) {
+            karlosId = snap2.docs[0].id;
+            karlosName = snap2.docs[0].data().displayName;
+            console.log("Found karlos (lowercase):", karlosId);
+          }
+        }
+
+        // 2. Find Porkchop Xpress
+        const clubsSnap = await getDocs(collection(db, "clubs"));
+        let clubId = null;
+        clubsSnap.forEach(d => {
+          if (d.data().name?.toLowerCase().includes("porkchop")) {
+            clubId = d.id;
+            console.log("Found Porkchop Xpress:", clubId);
+          }
+        });
+
+        if (karlosId && clubId) {
+          // Update Club
+          await updateDoc(doc(db, "clubs", clubId), {
+            latestWinnerId: karlosId,
+            latestWinnerName: karlosName
+          });
+          console.log("SUCCESS: Karlos set as Club Champion!");
+
+          // Update Latest Session
+          const sessionsQ = query(
+            collection(db, "weekly_sessions"),
+            where("clubId", "==", clubId),
+            where("isActive", "==", false)
+          );
+          const sessionsSnap = await getDocs(sessionsQ);
+          // Find most recent end date
+          let latestSession: any = null;
+          sessionsSnap.forEach(d => {
+            const data = d.data();
+            if (!latestSession || new Date(data.endDate) > new Date(latestSession.endDate)) {
+              latestSession = { id: d.id, ...data };
+            }
+          });
+
+          if (latestSession) {
+            await updateDoc(doc(db, "weekly_sessions", latestSession.id), {
+              winnerId: karlosId,
+              winnerName: karlosName
+            });
+            console.log("SUCCESS: Updated latest session winner:", latestSession.gameTitle);
+          }
+        } else {
+          console.log("Fix failed: Missing ID", { karlosId, clubId });
+        }
+      } catch (e) {
+        console.error("Fix error:", e);
+      }
+    };
+    runFix();
+  }, [user]);
+
   // Handle Loading State
   if (authLoading || loading) {
     return (
@@ -241,7 +321,7 @@ function HomeContent() {
 
                             <div className="flex gap-4">
                               <Link href={activeSession ? `/club?id=${activeSession.clubId}` : "/profile"}>
-                                <Button className="px-8 h-12 neon-border font-black uppercase italic tracking-widest">
+                                <Button className="px-10 h-12 neon-border font-black uppercase italic tracking-tight text-sm">
                                   {activeSession ? "Enter the Arena" : "View Club"}
                                 </Button>
                               </Link>

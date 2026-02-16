@@ -27,6 +27,8 @@ export interface Club {
     name: string;
     bio?: string;
     ownerId: string;
+    latestWinnerId?: string | null;
+    latestWinnerName?: string | null;
 }
 
 export interface Membership {
@@ -134,6 +136,7 @@ export interface GOTMReview {
         replayability: number;
     };
     recommend: boolean;
+    completed: boolean;
     createdAt: string;
 }
 
@@ -977,6 +980,13 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
         endDate: new Date().toISOString(),
         winnerId: winner ? winner.userId : null,
         winnerName: winner ? (winner.displayName || "Unknown") : null
+    });
+
+    // 6. Update Club with latest winner
+    const clubRef = doc(db, "clubs", clubId);
+    await updateDoc(clubRef, {
+        latestWinnerId: winner ? winner.userId : null,
+        latestWinnerName: winner ? (winner.displayName || "Unknown") : null
     });
 
     return updates.length;

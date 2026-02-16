@@ -134,6 +134,7 @@ function ClubContent() {
     const [reviewForm, setReviewForm] = useState({
         ratings: { graphics: 5, sound: 5, gameplay: 5, story: 5, replayability: 5 },
         recommend: true,
+        completed: false,
         text: ""
     });
 
@@ -162,7 +163,12 @@ function ClubContent() {
 
                 setActiveSessions(active);
                 setPastSessions(past);
-                if (active.length > 0) setSelectedSession(active[0]);
+                if (active.length > 0) {
+                    setSelectedSession(active[0]);
+                } else if (past.length > 0) {
+                    // Fallback to most recent past session for display
+                    setSelectedSession(past[0]);
+                }
 
                 const standings = await getSeasonStandings(clubId);
                 setSeasonStandings(standings);
@@ -219,6 +225,8 @@ function ClubContent() {
     const isMember = user && members.some(m => m.userId === user.uid);
     const isAdmin = user && members.some(m => m.userId === user.uid && (m.role === 'admin' || m.role === 'owner'));
     const isPending = isPendingJoin;
+
+    const isSessionActive = selectedSession && new Date(selectedSession.endDate) > new Date();
 
     const handleJoinRequest = async () => {
         if (!user || !clubId) return;
@@ -443,7 +451,9 @@ function ClubContent() {
                                 <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
                                     <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <CardHeader>
-                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">Current Challenge</CardDescription>
+                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">
+                                            {isSessionActive ? "Current Challenge" : "Previous Challenge"}
+                                        </CardDescription>
                                         <div className="flex justify-between items-start">
                                             <CardTitle className="text-3xl md:text-4xl font-black text-white italic">{game?.title || "No Active Game"}</CardTitle>
                                             <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
@@ -469,11 +479,13 @@ function ClubContent() {
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-gray-300 mb-6 font-medium italic">
-                                            {selectedSession?.challengeType === 'speed'
-                                                ? "Speed Trial: Submit your fastest time. Record setting runs required!"
-                                                : "High Score: Submit your best points total. Top the charts!"}
-                                        </p>
+                                        {selectedSession && (
+                                            <p className="text-gray-300 mb-6 font-medium italic">
+                                                {selectedSession.challengeType === 'speed'
+                                                    ? "Speed Trial: Submit your fastest time. Record setting runs required!"
+                                                    : "High Score: Submit your best points total. Top the charts!"}
+                                            </p>
+                                        )}
 
                                         {selectedSession?.rules && (
                                             <div className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -500,30 +512,42 @@ function ClubContent() {
                                         )}
 
                                         {isMember && selectedSession ? (
-                                            <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                                                        {selectedSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
-                                                    </label>
-                                                    <div className="flex gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            placeholder={selectedSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
-                                                            value={scoreInput}
-                                                            onChange={(e) => setScoreInput(e.target.value)}
-                                                            className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
-                                                            required
-                                                        />
-                                                        <Button
-                                                            disabled={isSubmitting}
-                                                            type="submit"
-                                                            className="h-14 px-8 neon-border transition-all active:scale-95"
-                                                        >
-                                                            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "SUBMIT"}
-                                                        </Button>
+                                            isSessionActive ? (
+                                                <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                                                            {selectedSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}
+                                                        </label>
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                type="number"
+                                                                placeholder={selectedSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
+                                                                value={scoreInput}
+                                                                onChange={(e) => setScoreInput(e.target.value)}
+                                                                className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
+                                                                required
+                                                            />
+                                                            <Button
+                                                                disabled={isSubmitting}
+                                                                type="submit"
+                                                                className="h-14 px-8 neon-border transition-all active:scale-95"
+                                                            >
+                                                                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "SUBMIT"}
+                                                            </Button>
+                                                        </div>
                                                     </div>
+                                                </form>
+                                            ) : (
+                                                <div className="bg-white/5 p-4 rounded-xl text-center border border-white/5">
+                                                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Challenge Has Ended</p>
+                                                    {/* Show Winner Here? */}
+                                                    {club?.latestWinnerName && (
+                                                        <p className="text-sm text-yellow-500 font-bold mt-2">
+                                                            Winner: {club.latestWinnerName} 🏆
+                                                        </p>
+                                                    )}
                                                 </div>
-                                            </form>
+                                            )
                                         ) : !isMember ? (
                                             <div className="bg-white/5 p-4 rounded-xl text-center border border-white/5">
                                                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Join this club to submit scores</p>
@@ -637,6 +661,26 @@ function ClubContent() {
                                                                                     </div>
                                                                                 </div>
 
+                                                                                <div className="mb-4">
+                                                                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                                                                        <div
+                                                                                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors
+                                                                                            ${reviewForm.completed ? 'bg-primary border-primary' : 'border-white/20 group-hover:border-primary/50'}`}
+                                                                                        >
+                                                                                            {reviewForm.completed && <Check className="w-3 h-3 text-black font-bold" />}
+                                                                                        </div>
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            className="hidden"
+                                                                                            checked={reviewForm.completed}
+                                                                                            onChange={(e) => setReviewForm(prev => ({ ...prev, completed: e.target.checked }))}
+                                                                                        />
+                                                                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                                                                                            Completed it mate?
+                                                                                        </span>
+                                                                                    </label>
+                                                                                </div>
+
                                                                                 <div className="mb-4 space-y-1">
                                                                                     <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
                                                                                     <textarea
@@ -659,7 +703,8 @@ function ClubContent() {
                                                                                                         ...reviewForm,
                                                                                                         reviewText: reviewForm.text,
                                                                                                         displayName: user.displayName || "Unknown",
-                                                                                                        photoURL: user.photoURL || undefined
+                                                                                                        photoURL: user.photoURL || undefined,
+                                                                                                        completed: reviewForm.completed
                                                                                                     });
                                                                                                     alert("Review posted! 📝");
                                                                                                     const r = await getUserGOTMReview(gotm.id, user.uid);
@@ -699,7 +744,12 @@ function ClubContent() {
                                                                                 <Check className="w-3 h-3" /> Review Submitted
                                                                             </h4>
                                                                         </div>
-                                                                        <div className="text-right">
+                                                                        <div className="flex flex-col items-end gap-1">
+                                                                            {userReview.completed && (
+                                                                                <span className="flex items-center gap-1 text-primary font-bold uppercase text-[9px] bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                                                                                    <Check className="w-2 h-2" /> Completed
+                                                                                </span>
+                                                                            )}
                                                                             {userReview.recommend ? (
                                                                                 <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-[9px]">
                                                                                     <ThumbsUp className="w-2 h-2" /> Recommended
@@ -812,6 +862,12 @@ function ClubContent() {
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
                                                         {msg.displayName?.[0]}
+                                                    </div>
+                                                )}
+                                                {/* Trophy for latest winner (ID match or Name fallback) */}
+                                                {(club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)) && (
+                                                    <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full p-0.5 border border-black shadow-lg z-10">
+                                                        <Trophy className="w-2 h-2 text-black" />
                                                     </div>
                                                 )}
                                             </div>
@@ -1034,6 +1090,12 @@ function ClubContent() {
                                                     <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
                                                 ) : (
                                                     <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
+                                                )}
+                                                {/* Trophy for latest winner (ID match or Name fallback) */}
+                                                {(club?.latestWinnerId === member.userId || (club?.latestWinnerName && club?.latestWinnerName === member.displayName)) && (
+                                                    <div className="absolute top-0 right-0 bg-yellow-500 text-black p-1.5 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.5)] border-2 border-surface z-10">
+                                                        <Trophy className="w-3 h-3" />
+                                                    </div>
                                                 )}
                                             </div>
                                             <h3 className="font-bold text-white mb-1 flex items-center gap-2 justify-center">

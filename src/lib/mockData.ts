@@ -5,6 +5,7 @@ export const MOCK_USERS = [
     { id: 'user-2', username: 'pro_player_99', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=pro' },
     { id: 'user-3', username: 'casual_jim', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jim' },
     { id: 'user-4', username: 'new_challenger', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=new' },
+    { id: 'user-karlos', username: 'karlos_champ', displayName: 'Karlos', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=karlos' },
 ];
 
 export const MOCK_GAMES = [
@@ -14,7 +15,7 @@ export const MOCK_GAMES = [
 ];
 
 export const MOCK_CLUBS = [
-    { id: 'club-0', name: 'The Porckchop Xpress', invite_code: 'PORK', owner_id: 'user-1', created_at: new Date().toISOString(), member_count: 88 },
+    { id: 'club-0', name: 'The Porckchop Xpress', invite_code: 'PORK', owner_id: 'user-1', created_at: new Date().toISOString(), member_count: 88, latestWinnerId: 'user-karlos', latestWinnerName: 'Karlos' },
     { id: 'club-1', name: 'Weekend Warriors', invite_code: 'WKND', owner_id: 'user-2', created_at: new Date().toISOString(), member_count: 3 },
     { id: 'club-2', name: 'Pro Grinders', invite_code: 'PROG', owner_id: 'user-3', created_at: new Date().toISOString(), member_count: 10 },
     { id: 'club-3', name: 'Casual Friday', invite_code: 'CASU', owner_id: 'user-1', created_at: new Date().toISOString(), member_count: 5 },
