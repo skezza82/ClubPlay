@@ -18,7 +18,15 @@ import {
     type Message,
     deleteSession,
     updateLastVisitedClub,
-    processSessionResults
+    processSessionResults,
+    checkAndActivateUpcomingSession,
+    getCurrentGOTM,
+    getUserGOTMReview,
+    submitGOTMReview,
+    getFriends,
+    sendFriendRequest,
+    type GOTM,
+    type GOTMReview
 } from "@/lib/firestore-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { supabase } from "@/lib/supabase";
@@ -27,7 +35,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { CountdownTimer } from "@/components/CountdownTimer";
 import { Share } from "@capacitor/share";
-import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2, Share2, ArrowLeft } from "lucide-react";
+import { Gamepad2, Trophy, Users, Calendar, Crown, Shield, LogOut, Loader2, Check, Edit, Send, MessageSquare, Timer, Trash2, Share2, ArrowLeft, Star, ThumbsUp, ThumbsDown, UserPlus } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
@@ -46,18 +54,47 @@ function ClubContent() {
     const [pastSessions, setPastSessions] = useState<any[]>([]);
     const [seasonStandings, setSeasonStandings] = useState<any[]>([]);
     const [members, setMembers] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history" | "chat">("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "history" | "chat" | "gotm">("overview");
     const [scoreInput, setScoreInput] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPending, setIsPending] = useState(false);
     const [isRequesting, setIsRequesting] = useState(false);
+
+    // Friend State
+    const [friendsList, setFriendsList] = useState<string[]>([]);
+    const [sentRequests, setSentRequests] = useState<string[]>([]);
 
     // Chat State
     const [messages, setMessages] = useState<Message[]>([]);
     const [chatInput, setChatInput] = useState("");
     const [isSending, setIsSending] = useState(false);
 
+    // GOTM State
+    const [gotm, setGotm] = useState<GOTM | null>(null);
+    const [userReview, setUserReview] = useState<GOTMReview | null>(null);
+    const [isReviewOpen, setIsReviewOpen] = useState(false);
+    const [reviewForm, setReviewForm] = useState({
+        text: "",
+        ratings: {
+            graphics: 5,
+            sound: 5,
+            gameplay: 5,
+            story: 5,
+            replayability: 5
+        },
+        recommend: true
+    });
+
+    useEffect(() => {
+        if (user) {
+            getFriends(user.uid).then(friends => {
+                setFriendsList(friends.map(f => f.uid));
+            });
+        }
+    }, [user]);
+
     const currentUserMembership = members.find(m => m.userId === user?.uid);
+
     const isOwner = currentUserMembership?.role === 'owner';
     const isAdmin = currentUserMembership?.role === 'admin' || isOwner;
     const isMember = !!currentUserMembership;
@@ -252,6 +289,14 @@ function ClubContent() {
                 }));
                 setPastSessions(historyWithScores);
 
+                // 8. GOTM
+                const activeGotm = await getCurrentGOTM(clubId as string);
+                setGotm(activeGotm);
+                if (activeGotm && user) {
+                    const review = await getUserGOTMReview(activeGotm.id, user.uid);
+                    setUserReview(review);
+                }
+
             } catch (e) {
                 console.error("Failed to load club data:", e);
             }
@@ -286,22 +331,25 @@ function ClubContent() {
     // Auto-Finish Logic: Check if Active Session is Expired
     useEffect(() => {
         const checkAndProcessExpired = async () => {
-            if (!activeSessions || activeSessions.length === 0 || !clubId) return;
+            if (!clubId) return;
 
-            for (const session of activeSessions) {
-                if (session.isActive && new Date(session.endDate) < new Date()) {
-                    console.log(`Session ${session.id} expired. Processing results...`);
-                    try {
-                        await processSessionResults(session.id, clubId);
-                        // Refresh data
-                        // For now we just reload page or let live listeners update? 
-                        // Live listeners might not catch "isProcessed" change affecting local state immediately if query doesn't match
-                        // But strictly, we should probably trigger a refresh.
-                        // Ideally checking if *I* processed it to show a toast.
-                    } catch (e) {
-                        console.error("Auto-process failed", e);
+            // 1. Process Expired Active Sessions
+            if (activeSessions && activeSessions.length > 0) {
+                for (const session of activeSessions) {
+                    if (session.isActive && new Date(session.endDate) < new Date()) {
+                        console.log(`Session ${session.id} expired. Processing results...`);
+                        try {
+                            await processSessionResults(session.id, clubId);
+                            // After processing, check for upcoming sessions to activate
+                            await checkAndActivateUpcomingSession(clubId);
+                        } catch (e) {
+                            console.error("Auto-process failed", e);
+                        }
                     }
                 }
+            } else {
+                // If no active session, check if we should activate one
+                await checkAndActivateUpcomingSession(clubId);
             }
         };
 
@@ -331,10 +379,23 @@ function ClubContent() {
             // Fetch Scores
             const scores = await getSessionScores(selectedSession.id);
             const sortedScores = [...scores].sort((a, b) => {
+                // Primary Sort: Score Value
                 if (selectedSession.challengeType === 'speed') {
-                    return a.scoreValue - b.scoreValue;
+                    if (a.scoreValue !== b.scoreValue) {
+                        return a.scoreValue - b.scoreValue;
+                    }
+                } else {
+                    if (a.scoreValue !== b.scoreValue) {
+                        return b.scoreValue - a.scoreValue;
+                    }
                 }
-                return b.scoreValue - a.scoreValue;
+
+                // Secondary Sort: Submission Time (Earlier is better)
+                // If submittedAt is missing, treat as "infinity" (latest possible)
+                const timeA = a.submittedAt ? (a.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+                const timeB = b.submittedAt ? (b.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+
+                return timeA - timeB;
             });
             setWeekScores(sortedScores);
         };
@@ -444,7 +505,7 @@ function ClubContent() {
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
                     <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Club Leaderboard</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-
+                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -854,7 +915,7 @@ function ClubContent() {
                     </div>
                 )}
 
-                {/* MEMBERS TAB */}
+
                 {activeTab === "members" && (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         {members.length === 0 ? (
@@ -863,30 +924,288 @@ function ClubContent() {
                                 <p>No members found.</p>
                             </div>
                         ) : (
-                            members.map((member) => (
-                                <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all">
-                                    <div className="p-6 flex flex-col items-center text-center">
-                                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
-                                            {member.photoURL ? (
-                                                <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
+                            members.map((member) => {
+                                const isMe = user?.uid === member.userId;
+                                const isFriend = friendsList.includes(member.userId);
+                                const isPending = sentRequests.includes(member.userId);
+
+                                return (
+                                    <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all relative">
+                                        <div className="p-6 flex flex-col items-center text-center">
+                                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
+                                                {member.photoURL ? (
+                                                    <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
+                                                ) : (
+                                                    <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
+                                                )}
+                                            </div>
+                                            <h3 className="font-bold text-white mb-1 flex items-center gap-2 justify-center">
+                                                {member.displayName}
+                                                {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
+                                                {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
+                                            </p>
+
+                                            {!isMe && !isFriend && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className={`h-7 text-[10px] font-bold uppercase tracking-wider mb-4 ${isPending ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary hover:text-black'}`}
+                                                    disabled={isPending}
+                                                    onClick={async () => {
+                                                        if (!user) return;
+                                                        try {
+                                                            await sendFriendRequest(user.uid, member.userId);
+                                                            setSentRequests(prev => [...prev, member.userId]);
+                                                            alert("Friend request sent!");
+                                                        } catch (e) {
+                                                            console.error(e);
+                                                            alert("Failed to send request");
+                                                        }
+                                                    }}
+                                                >
+                                                    {isPending ? (
+                                                        <span className="flex items-center gap-1">Request Sent</span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1"><UserPlus className="w-3 h-3" /> Add Friend</span>
+                                                    )}
+                                                </Button>
+                                            )}
+
+                                            <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
+                                                Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                    </Card>
+                                )
+                            })
+                        )}
+                    </div>
+                )}
+
+                {activeTab === "gotm" && gotm && (
+                    <div className="animate-fade-in-up space-y-6">
+                        <Card className="border-purple-500/20 bg-surface/40 backdrop-blur-md overflow-hidden">
+                            <div className="absolute inset-0 z-0">
+                                {gotm.coverUrl && (
+                                    <Image
+                                        src={gotm.coverUrl}
+                                        alt="Background"
+                                        fill
+                                        className="object-cover opacity-10 blur-xl scale-110"
+                                    />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                            </div>
+
+                            <CardHeader className="relative z-10">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-[10px] font-bold uppercase tracking-widest border border-purple-500/30">
+                                        Game of the Month
+                                    </div>
+                                    <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <Calendar className="w-3 h-3" /> Ends {new Date(gotm.endDate).toLocaleDateString()}
+                                    </div>
+                                </div>
+                                <CardTitle className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white mb-2">{gotm.title}</CardTitle>
+                                <CardDescription className="flex items-center gap-4 text-lg">
+                                    <span className="text-white font-bold">{gotm.platform}</span>
+                                    <span className="w-1 h-1 bg-white/20 rounded-full" />
+                                    <span>{gotm.year}</span>
+                                    {gotm.developer && (
+                                        <>
+                                            <span className="w-1 h-1 bg-white/20 rounded-full" />
+                                            <span>{gotm.developer}</span>
+                                        </>
+                                    )}
+                                </CardDescription>
+                            </CardHeader>
+
+                            <CardContent className="relative z-10 space-y-8">
+                                <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="w-full md:w-64 shrink-0">
+                                        <div className="aspect-[3/4] relative rounded-xl overflow-hidden shadow-2xl border border-white/10 group">
+                                            {gotm.coverUrl ? (
+                                                <Image src={gotm.coverUrl} alt={gotm.title} fill className="object-cover transition-transform duration-700 group-hover:scale-105" />
                                             ) : (
-                                                <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
+                                                <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                                                    <Gamepad2 className="w-16 h-16 text-gray-600" />
+                                                </div>
                                             )}
                                         </div>
-                                        <h3 className="font-bold text-white mb-1 flex items-center gap-2">
-                                            {member.displayName}
-                                            {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-4">
-                                            {member.role === 'owner' ? 'Club Owner' : member.role === 'admin' ? 'Admin' : 'Member'}
+                                    </div>
+
+                                    <div className="flex-1 space-y-6">
+                                        <h3 className="text-xl font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Mission Briefing</h3>
+                                        <p className="text-gray-300 leading-relaxed text-lg">
+                                            {gotm.description || "No specific briefing for this title. Explore the game and report back, soldier!"}
                                         </p>
-                                        <div className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full">
-                                            Joined {new Date(member.joinedAt).toLocaleDateString()}
+
+                                        <div className="pt-4">
+                                            {!userReview ? (
+                                                (() => {
+                                                    const now = new Date();
+                                                    const end = new Date(gotm.endDate);
+                                                    const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+                                                    // Allow review in last 10 days or after end data
+                                                    const isReviewPeriod = diffDays <= 10;
+
+                                                    if (!isReviewPeriod) {
+                                                        return (
+                                                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200 text-sm">
+                                                                <strong className="block uppercase tracking-widest text-xs mb-1">Status: Active Mission</strong>
+                                                                Reviews will unlock during the final designated operational window (last 10 days of the month).
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    if (isReviewOpen) {
+                                                        return (
+                                                            <div className="bg-black/40 border border-white/10 rounded-xl p-6 animate-fade-in-up">
+                                                                <h4 className="text-lg font-bold text-white mb-4 uppercase tracking-widest">Submit Your Report</h4>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-6">
+                                                                    {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                                        <div key={cat} className="space-y-2">
+                                                                            <div className="flex justify-between">
+                                                                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{cat}</label>
+                                                                                <span className="text-xs font-mono font-bold text-primary">{reviewForm.ratings[cat]}/11</span>
+                                                                            </div>
+                                                                            <input
+                                                                                type="range"
+                                                                                min="0"
+                                                                                max="11"
+                                                                                value={reviewForm.ratings[cat]}
+                                                                                onChange={e => setReviewForm(prev => ({
+                                                                                    ...prev,
+                                                                                    ratings: { ...prev.ratings, [cat]: parseInt(e.target.value) }
+                                                                                }))}
+                                                                                className="w-full accent-primary h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                                                            />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+
+                                                                <div className="mb-6 space-y-3">
+                                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Would you recommend this?</label>
+                                                                    <div className="flex gap-4">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant={reviewForm.recommend ? "default" : "outline"}
+                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: true }))}
+                                                                            className={reviewForm.recommend ? "bg-green-500 hover:bg-green-600 text-white" : "border-white/10 text-muted-foreground"}
+                                                                        >
+                                                                            <ThumbsUp className="w-4 h-4 mr-2" /> YES
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant={!reviewForm.recommend ? "destructive" : "outline"}
+                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: false }))}
+                                                                            className={!reviewForm.recommend ? "" : "border-white/10 text-muted-foreground"}
+                                                                        >
+                                                                            <ThumbsDown className="w-4 h-4 mr-2" /> NO
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="mb-6 space-y-2">
+                                                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
+                                                                    <textarea
+                                                                        value={reviewForm.text}
+                                                                        onChange={e => setReviewForm(prev => ({ ...prev, text: e.target.value }))}
+                                                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-primary/50 h-24 resize-none"
+                                                                        placeholder="Share your thoughts on this classic..."
+                                                                    />
+                                                                </div>
+
+                                                                <div className="flex gap-3">
+                                                                    <Button
+                                                                        onClick={async () => {
+                                                                            if (!reviewForm.text.trim()) return alert("Please write a short review.");
+                                                                            try {
+                                                                                setIsSubmitting(true);
+                                                                                if (user && gotm) { // Check both to satisfy TS
+                                                                                    await submitGOTMReview(clubId as string, gotm.id, user.uid, {
+                                                                                        ...reviewForm,
+                                                                                        reviewText: reviewForm.text,
+                                                                                        displayName: user.displayName || "Unknown",
+                                                                                        photoURL: user.photoURL || undefined
+                                                                                    });
+                                                                                    alert("Review posted! 📝");
+                                                                                    // Refresh
+                                                                                    const r = await getUserGOTMReview(gotm.id, user.uid);
+                                                                                    setUserReview(r);
+                                                                                    setIsReviewOpen(false);
+                                                                                }
+                                                                            } catch (e) {
+                                                                                console.error(e);
+                                                                                alert("Failed to submit review");
+                                                                            } finally {
+                                                                                setIsSubmitting(false);
+                                                                            }
+                                                                        }}
+                                                                        disabled={isSubmitting}
+                                                                        className="flex-1 font-bold uppercase tracking-widest"
+                                                                    >
+                                                                        {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                                                        Submit Review
+                                                                    </Button>
+                                                                    <Button variant="ghost" onClick={() => setIsReviewOpen(false)}>Cancel</Button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <Button onClick={() => setIsReviewOpen(true)} className="w-full md:w-auto font-bold uppercase tracking-widest neon-border-static">
+                                                                <Edit className="w-4 h-4 mr-2" /> Write a Review
+                                                            </Button>
+                                                        );
+                                                    }
+                                                })()
+                                            ) : (
+                                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <h4 className="text-green-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                                <Check className="w-4 h-4" /> Review Submitted
+                                                            </h4>
+                                                            <p className="text-xs text-muted-foreground mt-1">Thank you for your feedback!</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {userReview.recommend ? (
+                                                                <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-xs">
+                                                                    <ThumbsUp className="w-3 h-3" /> Recommended
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 text-red-400 font-bold uppercase text-xs">
+                                                                    <ThumbsDown className="w-3 h-3" /> Not Recommended
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-5 gap-2 mb-4 text-center">
+                                                        {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                            <div key={cat} className="bg-black/20 p-2 rounded">
+                                                                <div className="text-[8px] uppercase font-bold text-muted-foreground mb-1">{cat.slice(0, 4)}</div>
+                                                                <div className="text-sm font-mono font-bold text-white">{userReview.ratings[cat]}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-sm text-gray-300 italic">"{userReview.reviewText}"</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                </Card>
-                            ))
-                        )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {activeTab === "gotm" && !gotm && (
+                    <div className="text-center py-20 text-muted-foreground">
+                        <p>No Game of the Month is currently active.</p>
                     </div>
                 )}
 

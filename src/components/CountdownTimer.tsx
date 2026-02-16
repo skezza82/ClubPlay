@@ -37,7 +37,7 @@ export function CountdownTimer({ targetDate }: { targetDate?: string }) {
                 seconds: Math.floor((difference / 1000) % 60),
             };
         }
-        return null;
+        return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     };
 
     useEffect(() => {

@@ -167,3 +167,115 @@ exports.onJoinRequestCreated = functions.firestore
             return null;
         }
     });
+
+/**
+ * Notifies club members when a weekly session starts or ends.
+ */
+exports.onWeeklySessionUpdated = functions.firestore
+    .document("weekly_sessions/{sessionId}")
+    .onWrite(async (change, context) => {
+        if (!change.after.exists) return null; // Deleted
+
+        const before = change.before.exists ? change.before.data() : null;
+        const after = change.after.data();
+        const clubId = after.clubId;
+
+        // scenario 1: Session Started (Active changed to true)
+        const isNewStart = (!before || !before.isActive) && after.isActive === true;
+
+        // scenario 2: Session Ended (Active changed to false AND has winner)
+        // We check for winnerId to ensure it was processed successfully
+        const isJustEnded = (before && before.isActive === true) && after.isActive === false && after.winnerId;
+
+        if (!isNewStart && !isJustEnded) {
+            return null;
+        }
+
+        try {
+            // 1. Get Club Info
+            const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
+            const clubName = clubDoc.exists ? clubDoc.data().name : "Club";
+
+            // 2. Get All Members
+            const membershipsSnap = await admin.firestore()
+                .collection("memberships")
+                .where("clubId", "==", clubId)
+                .get();
+
+            const memberUserIds = membershipsSnap.docs.map(d => d.data().userId);
+            if (memberUserIds.length === 0) {
+                console.log(`No members found for club ${clubId}`);
+                return null;
+            }
+
+            // 3. Get FCM Tokens for all members
+            // Firestore 'in' query supports max 10 items. We must batch or loop.
+            // For simplicity/scale, let's fetch users individually or in batches of 10.
+            // Or better yet, since we have the IDs, let's just fetch all users who have tokens?
+            // Actually, querying users by ID is best.
+
+            const tokens = [];
+
+            // Batch fetch user docs (max 10 for 'in' queries, but we might have hundreds)
+            // Strategy: Iterate through IDs and fetch. Parallelise with Promise.all
+            // Limit concurrency to avoid blowing up.
+            const chunks = [];
+            const chunkSize = 10;
+            for (let i = 0; i < memberUserIds.length; i += chunkSize) {
+                chunks.push(memberUserIds.slice(i, i + chunkSize));
+            }
+
+            for (const chunk of chunks) {
+                const usersSnap = await admin.firestore().collection("users")
+                    .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                    .get();
+
+                usersSnap.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (data.fcmToken) {
+                        tokens.push(data.fcmToken);
+                    }
+                });
+            }
+
+            if (tokens.length === 0) {
+                console.log("No FCM tokens found for members.");
+                return null;
+            }
+
+            // 4. Construct Message
+            let title = "";
+            let body = "";
+            let type = "";
+
+            if (isNewStart) {
+                title = `New Challenge Started! 🎮`;
+                body = `The challenge for ${after.gameTitle} has begun in ${clubName}!`;
+                type = "CHALLENGE_START";
+            } else if (isJustEnded) {
+                title = `Challenge Winner! 🏆`;
+                body = `${after.winnerName || "Someone"} won the ${after.gameTitle} challenge in ${clubName}!`;
+                type = "CHALLENGE_END";
+            }
+
+            // 5. Send Multicast
+            const message = {
+                notification: { title, body },
+                tokens: tokens,
+                data: {
+                    clubId: clubId,
+                    sessionId: context.params.sessionId,
+                    type: type
+                }
+            };
+
+            const response = await admin.messaging().sendMulticast(message);
+            console.log(`Sent ${response.successCount} notifications for session update. Failed: ${response.failureCount}`);
+
+            return response;
+
+        } catch (error) {
+            console.error("Error sending session notification:", error);
+            return null;
+        }
+    });

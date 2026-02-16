@@ -6,18 +6,22 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { useAuth } from "@/context/AuthContext";
-import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2 } from "lucide-react";
+import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2, Users, Search, XCircle, Heart, PartyPopper } from "lucide-react";
 import Link from "next/link";
 import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-service";
-import { getUserClubs, updateUserProfile } from "@/lib/firestore-service";
+import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
 import { usePWA } from "@/context/PWAContext";
 import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { App } from "@capacitor/app";
+import { useTheme, ThemeType, BgType } from "@/context/ThemeContext";
+import { Palette, Zap, ZapOff, Sparkles, Binary, Gamepad2, Layers, Move } from "lucide-react";
 
 export default function ProfilePage() {
     const { user } = useAuth();
+    const { theme, setTheme, bgType, setBgType, rgbEnabled, setRgbEnabled } = useTheme();
     const [nickname, setNickname] = useState("");
     const [avatarUrl, setAvatarUrl] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -25,6 +29,9 @@ export default function ProfilePage() {
     const [saved, setSaved] = useState(false);
     const [userClubs, setUserClubs] = useState<any[]>([]);
     const [isLoadingClubs, setIsLoadingClubs] = useState(true);
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+    const [acceptedId, setAcceptedId] = useState<string | null>(null);
+    const [appInfo, setAppInfo] = useState<{ version: string; build: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -52,7 +59,34 @@ export default function ProfilePage() {
                 }
             };
             fetchFirestoreData();
+
+            // Real-time Friend Requests
+            const requestsQ = query(
+                collection(db, "friend_requests"),
+                where("receiverId", "==", user.uid),
+                where("status", "==", "pending")
+            );
+
+            const unsubscribeRequests = onSnapshot(requestsQ, (snapshot) => {
+                const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FriendRequest[];
+                setFriendRequests(requests);
+            });
+
+            return () => {
+                unsubscribeRequests();
+            };
         }
+
+        // Fetch App Version Info (Capacitor)
+        const fetchAppInfo = async () => {
+            try {
+                const info = await App.getInfo();
+                setAppInfo({ version: info.version, build: info.build });
+            } catch (e) {
+                console.log("Not running in Capacitor/Native environment");
+            }
+        };
+        fetchAppInfo();
     }, [user]);
 
     const router = useRouter();
@@ -119,6 +153,11 @@ export default function ProfilePage() {
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const handleRespondRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
+        await respondToFriendRequest(requestId, status);
+        setFriendRequests(prev => prev.filter(r => r.id !== requestId));
     };
 
     if (!user) {
@@ -259,6 +298,174 @@ export default function ProfilePage() {
 
                     <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
                         <CardHeader>
+                            <CardTitle className="text-2xl font-black uppercase tracking-tighter flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Users className="w-6 h-6 text-primary" />
+                                    Social <span className="text-primary">& Friends</span>
+                                </div>
+                                <Link href="/search">
+                                    <Button variant="ghost" size="sm" className="hover:bg-primary/10 text-primary gap-2">
+                                        <Search className="w-4 h-4" /> Find Players
+                                    </Button>
+                                </Link>
+                            </CardTitle>
+                            <CardDescription>Manage your connections and requests.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {friendRequests.length > 0 ? (
+                                <div className="space-y-3">
+                                    <p className="text-xs font-bold text-primary tracking-widest uppercase">Pending Requests ({friendRequests.length})</p>
+                                    {friendRequests.map((req) => (
+                                        <div key={req.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                                            <Link href={`/user?id=${req.senderId}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                                <div className="w-10 h-10 rounded-lg bg-surface border border-white/5 overflow-hidden">
+                                                    {req.senderPhoto ? (
+                                                        <img src={req.senderPhoto} alt={req.senderName} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                                                            <Users className="w-5 h-5 text-primary/30" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-sm">{req.senderName}</p>
+                                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Wants to be friends</p>
+                                                </div>
+                                            </Link>
+                                            <div className="flex items-center gap-2">
+                                                {acceptedId === req.id ? (
+                                                    <div className="flex items-center gap-1 text-green-400 font-bold text-[10px] uppercase animate-bounce-in">
+                                                        <PartyPopper className="w-4 h-4" /> Added!
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={async () => {
+                                                                setAcceptedId(req.id);
+                                                                await respondToFriendRequest(req.id, 'accepted');
+                                                                setTimeout(() => {
+                                                                    setFriendRequests(prev => prev.filter(r => r.id !== req.id));
+                                                                    setAcceptedId(null);
+                                                                }, 1500);
+                                                            }}
+                                                            className="p-2 bg-primary text-black rounded-lg hover:scale-110 transition-transform"
+                                                        >
+                                                            <CheckCircle className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => respondToFriendRequest(req.id, 'rejected').then(() => {
+                                                                setFriendRequests(prev => prev.filter(r => r.id !== req.id));
+                                                            })}
+                                                            className="p-2 bg-white/5 text-muted-foreground rounded-lg hover:bg-red-500/20 hover:text-red-500"
+                                                        >
+                                                            <XCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 border border-dashed border-white/10 rounded-2xl">
+                                    <Users className="w-10 h-10 text-white/5 mx-auto mb-2" />
+                                    <p className="text-xs text-muted-foreground italic uppercase tracking-widest">No pending friend requests</p>
+                                    <Link href="/search" className="inline-block mt-4 text-[10px] text-primary hover:underline font-bold uppercase tracking-widest">
+                                        Discover Players
+                                    </Link>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
+                        <CardHeader>
+                            <CardTitle className="text-2xl font-black uppercase tracking-tighter flex items-center gap-2">
+                                <Palette className="w-6 h-6 text-primary" />
+                                Appearance <span className="text-primary">Styles</span>
+                            </CardTitle>
+                            <CardDescription>Personalize your experience.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-8">
+                            {/* Theme Selection */}
+                            <div className="space-y-4">
+                                <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Select Colour Scheme</label>
+                                <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
+                                    {[
+                                        { id: 'cyber', name: 'Cyber', color: '#66FCF1' },
+                                        { id: 'sunset', name: 'Sunset', color: '#FF7E5F' },
+                                        { id: 'deepsea', name: 'Deep Sea', color: '#00D1FF' },
+                                        { id: 'matrix', name: 'Matrix', color: '#00FF41' },
+                                        { id: 'vampire', name: 'Vampire', color: '#FF2E2E' },
+                                        { id: 'midnight', name: 'Midnight', color: '#A084E8' }
+                                    ].map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setTheme(t.id as ThemeType)}
+                                            className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === t.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
+                                        >
+                                            <div
+                                                className="w-full aspect-video rounded-md mb-1 relative overflow-hidden"
+                                                style={{ background: `radial-gradient(circle at center, ${t.color}33 0%, #000 100%)` }}
+                                            >
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                                                    <div className="w-1 h-1 rounded-full bg-white animate-pulse" style={{ boxShadow: `0 0 10px ${t.color}` }} />
+                                                </div>
+                                            </div>
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`}>{t.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Motion Style Selection */}
+                            <div className="space-y-4 pt-6 border-t border-white/5">
+                                <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
+                                    <Move className="w-3 h-3" /> Select Motion Style
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                    {[
+                                        { id: 'connectivity', name: 'Nodes', icon: <Binary className="w-4 h-4" /> },
+                                        { id: 'galaxy', name: 'Galaxy', icon: <Sparkles className="w-4 h-4" /> },
+                                        { id: 'pacman', name: 'Arcade', icon: <Gamepad2 className="w-4 h-4" /> },
+                                        { id: 'aurora', name: 'Aurora', icon: <Layers className="w-4 h-4" /> },
+                                        { id: 'retrogrid', name: '80s Grid', icon: <Move className="w-4 h-4" /> }
+                                    ].map((b) => (
+                                        <button
+                                            key={b.id}
+                                            onClick={() => setBgType(b.id as BgType)}
+                                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${bgType === b.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
+                                        >
+                                            <div className={`${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.icon}</div>
+                                            <span className={`text-[8px] font-bold uppercase tracking-wider ${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* RGB Toggle */}
+                            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                                <div className="space-y-1">
+                                    <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-2 text-sm">
+                                        {rgbEnabled ? <Zap className="w-4 h-4 text-primary" /> : <ZapOff className="w-4 h-4 text-muted-foreground" />}
+                                        RGB Effects
+                                    </h4>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Enable or disable neon and glowing elements</p>
+                                </div>
+                                <button
+                                    onClick={() => setRgbEnabled(!rgbEnabled)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${rgbEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${rgbEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                    />
+                                </button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
+                        <CardHeader>
                             <CardTitle className="text-2xl font-black uppercase tracking-tighter">
                                 Club <span className="text-primary">Administration</span>
                             </CardTitle>
@@ -309,6 +516,21 @@ export default function ProfilePage() {
                     </Card>
 
                     <InstallAppButton />
+
+                    <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
+                        <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
+                            {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.6.3"}
+                        </p>
+                        <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
+                            Update: {new Date().toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                            })}
+                        </p>
+                    </div>
                 </div>
             </div>
         </main >

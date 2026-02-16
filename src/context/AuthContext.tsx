@@ -97,22 +97,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const createUserDocument = async (user: User) => {
-        const { doc, setDoc, getDoc } = await import("firebase/firestore");
+        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
 
         const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
 
-        if (!userSnap.exists()) {
-            await setDoc(userRef, {
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName,
-                photoURL: user.photoURL,
-                createdAt: new Date().toISOString(),
-                role: "user"
+        // Generate search keywords for case-insensitive indexing
+        const generateKeywords = (name: string | null) => {
+            if (!name) return [];
+            const parts = name.toLowerCase().split(/\s+/);
+            const keywords = new Set<string>();
+            parts.forEach(p => {
+                if (p.length > 1) keywords.add(p);
             });
-        }
+            keywords.add(name.toLowerCase());
+            return Array.from(keywords);
+        };
+
+        // Always update the document to ensure we have the latest profile info from Google/Auth
+        const name = user.displayName;
+        const normalizedName = name ? name.toLowerCase() : "";
+
+        await setDoc(userRef, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            displayNameLowercase: normalizedName,
+            photoURL: user.photoURL,
+            searchKeywords: generateKeywords(user.displayName),
+            lastLogin: serverTimestamp(),
+            role: "user"
+        }, { merge: true });
     };
 
     const logout = async () => {

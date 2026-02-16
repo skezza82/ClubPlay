@@ -43,9 +43,9 @@ import { PWAProvider } from "@/context/PWAContext";
 import { PWARegistrar } from "@/components/PWARegistrar";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { Navbar } from "@/components/Navbar";
-import { AdBanner } from "@/components/AdBanner";
 import { AndroidBackHandler } from "@/components/AndroidBackHandler";
 import { DynamicBackground } from "@/components/DynamicBackground";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export default function RootLayout({
   children,
@@ -70,21 +70,20 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col relative`}
       >
-        <DynamicBackground />
-        <AuthProvider>
-          <PWAProvider>
-            <PWARegistrar />
-            <InstallPrompt />
-            <AndroidBackHandler />
-            <Navbar />
-            <main className="pb-16 min-h-screen relative z-10">
-              {children}
-            </main>
-            <div className="fixed bottom-0 left-0 right-0 z-50">
-              <AdBanner />
-            </div>
-          </PWAProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <DynamicBackground />
+          <AuthProvider>
+            <PWAProvider>
+              <PWARegistrar />
+              <InstallPrompt />
+              <AndroidBackHandler />
+              <Navbar />
+              <main className="pb-16 min-h-screen relative z-10">
+                {children}
+              </main>
+            </PWAProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

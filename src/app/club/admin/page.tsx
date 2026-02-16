@@ -18,7 +18,11 @@ import {
     getSessionScores,
     processSessionResults,
     type ClubMember,
-    updateMemberStats
+    updateMemberStats,
+    createGOTM,
+    getCurrentGOTM,
+    getUpcomingGOTM,
+    type GOTM
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -40,7 +44,7 @@ function ClubAdminContent() {
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings">("requests");
+    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm">("requests");
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -78,6 +82,22 @@ function ClubAdminContent() {
         cover_image_url: ""
     });
     const [boxartFile, setBoxartFile] = useState<File | null>(null);
+
+    // GOTM State
+    const [currentGOTM, setCurrentGOTM] = useState<GOTM | null>(null);
+    const [upcomingGOTM, setUpcomingGOTM] = useState<GOTM | null>(null);
+    const [gotmForm, setGotmForm] = useState({
+        title: "",
+        platform: "",
+        startDate: "", // YYYY-MM-DD
+        endDate: "", // YYYY-MM-DD
+        developer: "",
+        publisher: "",
+        year: "",
+        description: "",
+        coverUrl: "",
+        igdbId: ""
+    });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const boxartInputRef = useRef<HTMLInputElement>(null);
@@ -283,6 +303,12 @@ function ClubAdminContent() {
                     setViewingScoresSessionId(sessions[0].id);
                 }
 
+                // 5. Fetch GOTM
+                const activeGotm = await getCurrentGOTM(clubId as string);
+                setCurrentGOTM(activeGotm);
+                const nextGotm = await getUpcomingGOTM(clubId as string);
+                setUpcomingGOTM(nextGotm);
+
             } catch (error) {
                 console.error("Error fetching admin data:", error);
             } finally {
@@ -439,7 +465,9 @@ function ClubAdminContent() {
                     <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")}>Requests</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
                     <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")}>Settings</TabButton>
+
                     <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")}>Game</TabButton>
+                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -687,15 +715,15 @@ function ClubAdminContent() {
                 activeTab === "game" && (
                     <div className="space-y-8 animate-fade-in-up">
 
-                        {/* Create New Challenge Section - Only show if not editing and < 3 active sessions */}
-                        {!editingSessionId && activeSessions.length < 3 && (
+                        {/* Create New Challenge Section - Only show if not editing and NO active session */}
+                        {!editingSessionId && activeSessions.length < 1 && (
                             <Card className="border-primary/20 bg-surface/40 backdrop-blur-md">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Trophy className="w-5 h-5 text-primary" />
                                         Create New Challenge
                                     </CardTitle>
-                                    <CardDescription>Start a new weekly competition. You can have up to 3 active challenges.</CardDescription>
+                                    <CardDescription>Start a new weekly competition. Only one challenge can be active at a time.</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <form onSubmit={handleManualSession} className="space-y-6">
@@ -1000,7 +1028,7 @@ function ClubAdminContent() {
                         {/* Active Sessions List */}
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                                <Gamepad2 className="w-5 h-5 text-primary" /> Active Challenges ({activeSessions.length}/3)
+                                <Gamepad2 className="w-5 h-5 text-primary" /> Active Challenge
                             </h3>
 
                             {activeSessions.length === 0 ? (
@@ -1160,6 +1188,168 @@ function ClubAdminContent() {
                                 </CardContent>
                             </Card>
                         )}
+                    </div>
+                )
+            }
+            {
+                activeTab === "gotm" && (
+                    <div className="space-y-8 animate-fade-in-up">
+                        {/* Status Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card className="border-purple-500/20 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle className="text-purple-400">Current GOTM</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {currentGOTM ? (
+                                        <div className="flex gap-4">
+                                            {currentGOTM.coverUrl && <img src={currentGOTM.coverUrl} alt="Cover" className="w-20 h-28 object-cover rounded shadow-lg" />}
+                                            <div>
+                                                <h3 className="font-bold text-lg text-white">{currentGOTM.title}</h3>
+                                                <p className="text-sm text-muted-foreground">{currentGOTM.platform} • {currentGOTM.year}</p>
+                                                <p className="text-xs text-muted-foreground mt-2">Ends: {new Date(currentGOTM.endDate).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 text-muted-foreground">No active Game of the Month.</div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-blue-500/20 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle className="text-blue-400">Upcoming GOTM</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {upcomingGOTM ? (
+                                        <div className="flex gap-4">
+                                            {upcomingGOTM.coverUrl && <img src={upcomingGOTM.coverUrl} alt="Cover" className="w-20 h-28 object-cover rounded shadow-lg" />}
+                                            <div>
+                                                <h3 className="font-bold text-lg text-white">{upcomingGOTM.title}</h3>
+                                                <p className="text-sm text-muted-foreground">{upcomingGOTM.platform} • {upcomingGOTM.year}</p>
+                                                <p className="text-xs text-muted-foreground mt-2">Starts: {new Date(upcomingGOTM.startDate).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 text-muted-foreground">No upcoming game scheduled.</div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Create Form */}
+                        <Card className="border-white/10 bg-surface/40 backdrop-blur-md">
+                            <CardHeader>
+                                <CardTitle>Schedule Game of the Month</CardTitle>
+                                <CardDescription>Select a game to feature for the month. Players can play at their own pace and leave reviews.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-6">
+                                    <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2 mb-2">
+                                            <Search className="w-3 h-3" /> Search IGDB
+                                        </label>
+                                        <GameSearch
+                                            onSelect={(game) => {
+                                                // Calculate default dates (Next month if active exists, else current month)
+                                                // Actually, let's default to "Starting 1st of next month" if current exists, or "1st of this month" if not.
+                                                // Or just let them pick.
+                                                const now = new Date();
+                                                const start = new Date(now.getFullYear(), now.getMonth(), 1); // 1st of current
+                                                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last of current
+
+                                                // If we have a current one, default to next month
+                                                if (currentGOTM) {
+                                                    start.setMonth(start.getMonth() + 1);
+                                                    end.setMonth(end.getMonth() + 2, 0); // Last of next
+                                                }
+
+                                                // Adjust for timezone offset for input type="date"
+                                                const toInputDate = (d: Date) => d.toISOString().split('T')[0];
+
+                                                setGotmForm({
+                                                    ...gotmForm,
+                                                    title: game.name,
+                                                    platform: game.platforms || "",
+                                                    coverUrl: game.coverUrl || "",
+                                                    year: game.releaseDate ? new Date(game.releaseDate * 1000).getFullYear().toString() : "",
+                                                    description: "", // Summary not in Game interface
+                                                    igdbId: game.id.toString(),
+                                                    startDate: toInputDate(start),
+                                                    endDate: toInputDate(end)
+                                                    // Developer/Publisher not easily avail from simple search result, skip or manual
+                                                });
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </div>
+
+                                    {gotmForm.title && (
+                                        <div className="space-y-4 animate-fade-in-up">
+                                            <div className="flex gap-6">
+                                                {gotmForm.coverUrl && (
+                                                    <img src={gotmForm.coverUrl} className="w-32 h-48 object-cover rounded-lg shadow-xl" />
+                                                )}
+                                                <div className="flex-1 space-y-4">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-bold uppercase tracking-widest">Title</label>
+                                                            <Input value={gotmForm.title} onChange={e => setGotmForm({ ...gotmForm, title: e.target.value })} className="bg-background/50" />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-bold uppercase tracking-widest">Platform</label>
+                                                            <Input value={gotmForm.platform} onChange={e => setGotmForm({ ...gotmForm, platform: e.target.value })} className="bg-background/50" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-bold uppercase tracking-widest">Start Date</label>
+                                                            <Input type="date" value={gotmForm.startDate} onChange={e => setGotmForm({ ...gotmForm, startDate: e.target.value })} className="bg-background/50" />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-bold uppercase tracking-widest">End Date</label>
+                                                            <Input type="date" value={gotmForm.endDate} onChange={e => setGotmForm({ ...gotmForm, endDate: e.target.value })} className="bg-background/50" />
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        className="w-full bg-primary text-black font-bold uppercase tracking-widest hover:bg-primary/90"
+                                                        onClick={async () => {
+                                                            try {
+                                                                setIsUpdating(true);
+                                                                await createGOTM(clubId as string, {
+                                                                    ...gotmForm,
+                                                                    clubId: clubId as string,
+                                                                    developer: gotmForm.developer || "Unknown",
+                                                                    publisher: gotmForm.publisher || "Unknown"
+                                                                });
+                                                                alert("Game of the Month Scheduled!");
+                                                                // Refresh
+                                                                const active = await getCurrentGOTM(clubId as string);
+                                                                setCurrentGOTM(active);
+                                                                const next = await getUpcomingGOTM(clubId as string);
+                                                                setUpcomingGOTM(next);
+                                                                setGotmForm({
+                                                                    title: "", platform: "", startDate: "", endDate: "", developer: "", publisher: "", year: "", description: "", coverUrl: "", igdbId: ""
+                                                                });
+                                                            } catch (e: any) {
+                                                                console.error(e);
+                                                                alert(`Failed to schedule GOTM: ${e.message}`);
+                                                            } finally {
+                                                                setIsUpdating(false);
+                                                            }
+                                                        }}
+                                                        disabled={isUpdating}
+                                                    >
+                                                        {isUpdating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Calendar className="w-4 h-4 mr-2" />}
+                                                        Confirm Schedule
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 )
             }

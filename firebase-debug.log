@@ -1,0 +1,182 @@
+[debug] [2026-02-16T14:38:48.648Z] ----------------------------------------------------------------------
+[debug] [2026-02-16T14:38:48.650Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\skezz\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy
+[debug] [2026-02-16T14:38:48.650Z] CLI Version:   15.5.1
+[debug] [2026-02-16T14:38:48.650Z] Platform:      win32
+[debug] [2026-02-16T14:38:48.650Z] Node Version:  v24.13.0
+[debug] [2026-02-16T14:38:48.650Z] Time:          Mon Feb 16 2026 14:38:48 GMT+0000 (Greenwich Mean Time)
+[debug] [2026-02-16T14:38:48.650Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-16T14:38:49.509Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-16T14:38:49.509Z] > authorizing via signed-in user (skezza19@googlemail.com)
+[debug] [2026-02-16T14:38:49.509Z] [iam] checking project club-play-app for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]
+[debug] [2026-02-16T14:38:49.509Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:49.510Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions [none]
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions  x-goog-user-project=club-play-app
+[debug] [2026-02-16T14:38:49.510Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[debug] [2026-02-16T14:38:50.171Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions 200
+[debug] [2026-02-16T14:38:50.171Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update","firebaserules.releases.create","firebaserules.releases.update","firebaserules.rulesets.create"]}
+[debug] [2026-02-16T14:38:50.171Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.171Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.171Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/club-play-app/serviceAccounts/club-play-app@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-02-16T14:38:50.171Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/club-play-app/serviceAccounts/club-play-app@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-02-16T14:38:50.378Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/club-play-app/serviceAccounts/club-play-app@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2026-02-16T14:38:50.378Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/club-play-app/serviceAccounts/club-play-app@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-02-16T14:38:50.378Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.378Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.378Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app [none]
+[debug] [2026-02-16T14:38:50.665Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app 200
+[debug] [2026-02-16T14:38:50.665Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app {"projectId":"club-play-app","projectNumber":"160859763710","displayName":"club-play-app","name":"projects/club-play-app","resources":{"hostingSite":"club-play-app"},"state":"ACTIVE","etag":"1_34498f0d-ce9a-44e6-adcf-a22599cd03b6"}
+[info] 
+[info] === Deploying to 'club-play-app'...
+[info] 
+[info] i  deploying storage, firestore, functions, hosting 
+[info] i  storage: ensuring required API firebasestorage.googleapis.com is enabled... 
+[debug] [2026-02-16T14:38:50.668Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.668Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:50.668Z] >>> [apiv2][query] GET https://firebasestorage.googleapis.com/v1alpha/projects/club-play-app/defaultBucket [none]
+[debug] [2026-02-16T14:38:51.173Z] <<< [apiv2][status] GET https://firebasestorage.googleapis.com/v1alpha/projects/club-play-app/defaultBucket 200
+[debug] [2026-02-16T14:38:51.173Z] <<< [apiv2][body] GET https://firebasestorage.googleapis.com/v1alpha/projects/club-play-app/defaultBucket {"name":"projects/club-play-app/defaultBucket","location":"EU","bucket":{"name":"projects/club-play-app/buckets/club-play-app.firebasestorage.app"},"storageClass":"MULTI_REGIONAL"}
+[info] i  firebase.storage: checking storage.rules for compilation errors... 
+[debug] [2026-02-16T14:38:51.174Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:51.175Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:51.175Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test [none]
+[debug] [2026-02-16T14:38:51.175Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test [omitted]
+[debug] [2026-02-16T14:38:51.875Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test 200
+[debug] [2026-02-16T14:38:51.875Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test {}
+[info] +  firebase.storage: rules file storage.rules compiled successfully 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-02-16T14:38:51.876Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:51.877Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:51.877Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) [none]
+[debug] [2026-02-16T14:38:52.069Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) 200
+[debug] [2026-02-16T14:38:52.069Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) {"name":"projects/club-play-app/databases/(default)","uid":"9dcc4160-d615-432f-acd6-18ff2f01e665","createTime":"2026-02-02T10:53:31.554817Z","updateTime":"2026-02-02T10:53:31.554817Z","locationId":"europe-west2","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-02-16T13:38:50.990251Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"g","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IMWU2s6e3pIDMIK1jIeh15ID"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-02-16T14:38:52.070Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.070Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.070Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test [none]
+[debug] [2026-02-16T14:38:52.070Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test [omitted]
+[debug] [2026-02-16T14:38:52.358Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test 200
+[debug] [2026-02-16T14:38:52.358Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/club-play-app:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-02-16T14:38:52.359Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.359Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.360Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app [none]
+[debug] [2026-02-16T14:38:52.521Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app 200
+[debug] [2026-02-16T14:38:52.521Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app {"projectNumber":"160859763710","projectId":"club-play-app","lifecycleState":"ACTIVE","name":"club-play-app","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-02-02T10:47:22.857034Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-02-16T14:38:52.523Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.523Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.523Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app/adminSdkConfig [none]
+[debug] [2026-02-16T14:38:52.865Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app/adminSdkConfig 200
+[debug] [2026-02-16T14:38:52.865Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/club-play-app/adminSdkConfig {"projectId":"club-play-app","storageBucket":"club-play-app.firebasestorage.app"}
+[debug] [2026-02-16T14:38:52.865Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.865Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:52.865Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/club-play-app/configs [none]
+[debug] [2026-02-16T14:38:53.144Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/club-play-app/configs 200
+[debug] [2026-02-16T14:38:53.144Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/club-play-app/configs {}
+[debug] [2026-02-16T14:38:53.145Z] Validating nodejs source
+[warn] !  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory. 
+[warn] !  functions: Please note that there will be breaking changes when you upgrade. 
+[debug] [2026-02-16T14:38:53.708Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for ClubPlay",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0"
+  },
+  "private": true
+}
+[debug] [2026-02-16T14:38:53.708Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[info] i  functions: You are using a version of firebase-functions SDK (4.9.0) that does not have support for the newest Firebase Extensions features. Please update firebase-functions SDK to >=5.1.0 to use them correctly 
+[debug] [2026-02-16T14:38:53.709Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-02-16T14:38:53.714Z] Found firebase-functions binary at 'C:\Users\skezz\.gemini\antigravity\scratch\club-play-web\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8055
+
+[debug] [2026-02-16T14:38:53.997Z] Got response from /__/functions.yaml {"endpoints":{"searchGames":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"httpsTrigger":{},"entryPoint":"searchGames"},"onJoinRequestCreated":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.write","eventFilters":{"resource":"projects/club-play-app/databases/(default)/documents/join_requests/{requestId}"},"retry":false},"labels":{},"entryPoint":"onJoinRequestCreated"},"onWeeklySessionUpdated":{"platform":"gcfv1","availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"serviceAccountEmail":null,"vpc":null,"eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.write","eventFilters":{"resource":"projects/club-play-app/databases/(default)/documents/weekly_sessions/{sessionId}"},"retry":false},"labels":{},"entryPoint":"onWeeklySessionUpdated"}},"specVersion":"v1alpha1","requiredAPIs":[]}
+[info] i  functions: preparing functions directory for uploading... 
+[info] i  functions: packaged C:\Users\skezz\.gemini\antigravity\scratch\club-play-web\functions (78.51 KB) for uploading 
+[debug] [2026-02-16T14:38:58.033Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:58.033Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:58.033Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v1/projects/club-play-app/locations/-/functions [none]
+[debug] [2026-02-16T14:38:58.574Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v1/projects/club-play-app/locations/-/functions 200
+[debug] [2026-02-16T14:38:58.574Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v1/projects/club-play-app/locations/-/functions {"functions":[{"name":"projects/club-play-app/locations/us-central1/functions/onJoinRequestCreated","eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.write","resource":"projects/club-play-app/databases/(default)/documents/join_requests/{requestId}","service":"firestore.googleapis.com","failurePolicy":{}},"status":"ACTIVE","entryPoint":"onJoinRequestCreated","timeout":"60s","availableMemoryMb":256,"serviceAccountEmail":"club-play-app@appspot.gserviceaccount.com","updateTime":"2026-02-16T14:24:37.907Z","versionId":"5","labels":{"deployment-tool":"cli-firebase","firebase-functions-hash":"07224f9c2805fde0f271a1efe7fbdec504586894"},"sourceUploadUrl":"https://storage.googleapis.com/uploads-539904735938.us-central1.cloudfunctions.appspot.com/f13a8754-3e65-43ba-8014-51b870292c9d.zip","environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"club-play-app\",\"storageBucket\":\"club-play-app.firebasestorage.app\"}","GCLOUD_PROJECT":"club-play-app","EVENTARC_CLOUD_EVENT_SOURCE":"projects/club-play-app/locations/us-central1/functions/onJoinRequestCreated"},"runtime":"nodejs22","maxInstances":3000,"ingressSettings":"ALLOW_ALL","buildId":"956d6e11-6a9b-4773-b016-61347e59b0d6","buildEnvironmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"buildName":"projects/160859763710/locations/us-central1/builds/956d6e11-6a9b-4773-b016-61347e59b0d6","dockerRegistry":"ARTIFACT_REGISTRY","automaticUpdatePolicy":{},"buildServiceAccount":"projects/club-play-app/serviceAccounts/160859763710-compute@developer.gserviceaccount.com","satisfiesPzi":true},{"name":"projects/club-play-app/locations/us-central1/functions/searchGames","httpsTrigger":{"url":"https://us-central1-club-play-app.cloudfunctions.net/searchGames","securityLevel":"SECURE_ALWAYS"},"status":"ACTIVE","entryPoint":"searchGames","timeout":"60s","availableMemoryMb":256,"serviceAccountEmail":"club-play-app@appspot.gserviceaccount.com","updateTime":"2026-02-16T14:24:40.420Z","versionId":"5","labels":{"deployment-tool":"cli-firebase","firebase-functions-hash":"07224f9c2805fde0f271a1efe7fbdec504586894"},"sourceUploadUrl":"https://storage.googleapis.com/uploads-539904735938.us-central1.cloudfunctions.appspot.com/f13a8754-3e65-43ba-8014-51b870292c9d.zip","environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"club-play-app\",\"storageBucket\":\"club-play-app.firebasestorage.app\"}","GCLOUD_PROJECT":"club-play-app","EVENTARC_CLOUD_EVENT_SOURCE":"projects/club-play-app/locations/us-central1/functions/searchGames"},"runtime":"nodejs22","ingressSettings":"ALLOW_ALL","buildId":"956d6e11-6a9b-4773-b016-61347e59b0d6","buildEnvironmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"buildName":"projects/160859763710/locations/us-central1/builds/956d6e11-6a9b-4773-b016-61347e59b0d6","dockerRegistry":"ARTIFACT_REGISTRY","automaticUpdatePolicy":{},"buildServiceAccount":"projects/club-play-app/serviceAccounts/160859763710-compute@developer.gserviceaccount.com","satisfiesPzi":true},{"name":"projects/club-play-app/locations/us-central1/functions/onWeeklySessionUpdated","eventTrigger":{"eventType":"providers/cloud.firestore/eventTypes/document.write","resource":"projects/club-play-app/databases/(default)/documents/weekly_sessions/{sessionId}","service":"firestore.googleapis.com","failurePolicy":{}},"status":"ACTIVE","entryPoint":"onWeeklySessionUpdated","timeout":"60s","availableMemoryMb":256,"serviceAccountEmail":"club-play-app@appspot.gserviceaccount.com","updateTime":"2026-02-16T14:24:46.039407611Z","versionId":"1","labels":{"deployment-tool":"cli-firebase","firebase-functions-hash":"07224f9c2805fde0f271a1efe7fbdec504586894"},"sourceUploadUrl":"https://storage.googleapis.com/uploads-539904735938.us-central1.cloudfunctions.appspot.com/f13a8754-3e65-43ba-8014-51b870292c9d.zip","environmentVariables":{"FIREBASE_CONFIG":"{\"projectId\":\"club-play-app\",\"storageBucket\":\"club-play-app.firebasestorage.app\"}","GCLOUD_PROJECT":"club-play-app","EVENTARC_CLOUD_EVENT_SOURCE":"projects/club-play-app/locations/us-central1/functions/onWeeklySessionUpdated"},"runtime":"nodejs22","maxInstances":3000,"ingressSettings":"ALLOW_ALL","buildId":"956d6e11-6a9b-4773-b016-61347e59b0d6","buildEnvironmentVariables":{"GOOGLE_NODE_RUN_SCRIPTS":""},"buildName":"projects/160859763710/locations/us-central1/builds/956d6e11-6a9b-4773-b016-61347e59b0d6","dockerRegistry":"ARTIFACT_REGISTRY","automaticUpdatePolicy":{},"buildServiceAccount":"projects/club-play-app/serviceAccounts/160859763710-compute@developer.gserviceaccount.com","satisfiesPzi":true}]}
+[debug] [2026-02-16T14:38:58.575Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:58.575Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:58.575Z] >>> [apiv2][query] GET https://cloudfunctions.googleapis.com/v2/projects/club-play-app/locations/-/functions filter=environment%3D%22GEN_2%22
+[debug] [2026-02-16T14:38:59.414Z] <<< [apiv2][status] GET https://cloudfunctions.googleapis.com/v2/projects/club-play-app/locations/-/functions 200
+[debug] [2026-02-16T14:38:59.414Z] <<< [apiv2][body] GET https://cloudfunctions.googleapis.com/v2/projects/club-play-app/locations/-/functions {}
+[debug] [2026-02-16T14:38:59.416Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:59.416Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:38:59.416Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app [none]
+[debug] [2026-02-16T14:39:00.929Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app 200
+[debug] [2026-02-16T14:39:00.929Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/club-play-app {"projectNumber":"160859763710","projectId":"club-play-app","lifecycleState":"ACTIVE","name":"club-play-app","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-02-02T10:47:22.857034Z"}
+[debug] [2026-02-16T14:39:00.930Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:00.930Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:00.930Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/club-play-app/versions [none]
+[debug] [2026-02-16T14:39:00.930Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/club-play-app/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-02-16T14:39:03.464Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/club-play-app/versions 200
+[debug] [2026-02-16T14:39:03.464Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/club-play-app/versions {"name":"projects/160859763710/sites/club-play-app/versions/289210bcd3dcc38d","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-02-16T14:39:03.464Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:03.464Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:03.465Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases pageSize=10&pageToken=
+[debug] [2026-02-16T14:39:04.178Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases 200
+[debug] [2026-02-16T14:39:04.178Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases {"releases":[{"name":"projects/club-play-app/releases/cloud.firestore","rulesetName":"projects/club-play-app/rulesets/5c1a81a5-e1a9-4d5e-ab8f-a8e3386583f1","createTime":"2026-02-02T10:53:36.110936Z","updateTime":"2026-02-16T14:14:33.582573Z"},{"name":"projects/club-play-app/releases/firebase.storage/club-play-app.firebasestorage.app","rulesetName":"projects/club-play-app/rulesets/c18349cf-671b-4334-97ba-2d909843e24a","createTime":"2026-02-03T13:19:17.979876Z","updateTime":"2026-02-10T15:15:00.559591Z"}]}
+[debug] [2026-02-16T14:39:04.183Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:04.183Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:04.183Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/c18349cf-671b-4334-97ba-2d909843e24a [none]
+[debug] [2026-02-16T14:39:05.433Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/c18349cf-671b-4334-97ba-2d909843e24a 200
+[debug] [2026-02-16T14:39:05.433Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/c18349cf-671b-4334-97ba-2d909843e24a [omitted]
+[info] i  storage: latest version of storage.rules already up to date, skipping upload... 
+[debug] [2026-02-16T14:39:05.434Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:05.434Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:05.434Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases pageSize=10&pageToken=
+[debug] [2026-02-16T14:39:05.674Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases 200
+[debug] [2026-02-16T14:39:05.674Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/releases {"releases":[{"name":"projects/club-play-app/releases/cloud.firestore","rulesetName":"projects/club-play-app/rulesets/5c1a81a5-e1a9-4d5e-ab8f-a8e3386583f1","createTime":"2026-02-02T10:53:36.110936Z","updateTime":"2026-02-16T14:14:33.582573Z"},{"name":"projects/club-play-app/releases/firebase.storage/club-play-app.firebasestorage.app","rulesetName":"projects/club-play-app/rulesets/c18349cf-671b-4334-97ba-2d909843e24a","createTime":"2026-02-03T13:19:17.979876Z","updateTime":"2026-02-10T15:15:00.559591Z"}]}
+[debug] [2026-02-16T14:39:05.674Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:05.674Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:05.674Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/5c1a81a5-e1a9-4d5e-ab8f-a8e3386583f1 [none]
+[debug] [2026-02-16T14:39:06.341Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/5c1a81a5-e1a9-4d5e-ab8f-a8e3386583f1 200
+[debug] [2026-02-16T14:39:06.341Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/club-play-app/rulesets/5c1a81a5-e1a9-4d5e-ab8f-a8e3386583f1 [omitted]
+[info] i  firestore: latest version of firestore.rules already up to date, skipping upload... 
+[info] i  firestore: deploying indexes... 
+[debug] [2026-02-16T14:39:06.342Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.342Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.342Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2026-02-16T14:39:06.492Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2026-02-16T14:39:06.492Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/club-play-app/databases/(default)/collectionGroups/season_standings/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"clubId","order":"ASCENDING"},{"fieldPath":"points","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/club-play-app/databases/(default)/collectionGroups/memberships/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"userId","order":"ASCENDING"},{"fieldPath":"joinedAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/club-play-app/databases/(default)/collectionGroups/weekly_sessions/indexes/CICAgJj7z4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"clubId","order":"ASCENDING"},{"fieldPath":"isActive","order":"ASCENDING"},{"fieldPath":"endDate","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/club-play-app/databases/(default)/collectionGroups/weekly_sessions/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"clubId","order":"ASCENDING"},{"fieldPath":"isActive","order":"ASCENDING"},{"fieldPath":"endDate","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/club-play-app/databases/(default)/collectionGroups/scores/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"sessionId","order":"ASCENDING"},{"fieldPath":"scoreValue","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/club-play-app/databases/(default)/collectionGroups/scores/indexes/CICAgJiH2JAK","queryScope":"COLLECTION","fields":[{"fieldPath":"gameId","order":"ASCENDING"},{"fieldPath":"score","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2026-02-16T14:39:06.492Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.492Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.492Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2026-02-16T14:39:06.541Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2026-02-16T14:39:06.541Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/club-play-app/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[debug] [2026-02-16T14:39:06.541Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.541Z] Checked if tokens are valid: true, expires at: 1771254870469
+[debug] [2026-02-16T14:39:06.541Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) [none]
+[debug] [2026-02-16T14:39:06.573Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) 200
+[debug] [2026-02-16T14:39:06.573Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/club-play-app/databases/(default) {"name":"projects/club-play-app/databases/(default)","uid":"9dcc4160-d615-432f-acd6-18ff2f01e665","createTime":"2026-02-02T10:53:31.554817Z","updateTime":"2026-02-02T10:53:31.554817Z","locationId":"europe-west2","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-02-16T13:39:05.495083Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"g","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IJS8z9We3pIDMIK1jIeh15ID"}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(season_standings) -- (clubId,ASCENDING) (points,DESCENDING)  -- Density:SPARSE_ALL 
+	(memberships) -- (userId,ASCENDING) (joinedAt,DESCENDING)  -- Density:SPARSE_ALL 
+	(scores) -- (sessionId,ASCENDING) (scoreValue,DESCENDING)  -- Density:SPARSE_ALL  

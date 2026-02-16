@@ -15,7 +15,9 @@ import { useAuth } from "@/context/AuthContext";
 import {
   getLatestClubMembership,
   getActiveSession,
-  getUserClubs
+  getUserClubs,
+  getCurrentGOTM,
+  type GOTM
 } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -28,6 +30,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const [game, setGame] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
+  const [gotm, setGotm] = useState<GOTM | null>(null);
   const [loading, setLoading] = useState(true);
   const [userClubs, setUserClubs] = useState<any[]>([]);
 
@@ -86,6 +89,19 @@ function HomeContent() {
           } else {
             setGame(null);
           }
+
+          // 3. Fetch GOTM for the Target Club
+          // Priority: Active Session's Club -> Last Visited Club -> First Club
+          let targetClubId = soonestSession?.clubId;
+          if (!targetClubId && sortedClubs.length > 0) {
+            targetClubId = sortedClubs[0].id;
+          }
+
+          if (targetClubId) {
+            const activeGotm = await getCurrentGOTM(targetClubId);
+            setGotm(activeGotm);
+          }
+
         } catch (err) {
           console.error("Error fetching homepage data:", err);
         }
@@ -250,9 +266,48 @@ function HomeContent() {
                     </div>
                   </Card>
 
+
                 </div>
 
-                {/* Stats / Countdown removed as per request */}
+                {/* Game of the Month Card */}
+                <div className="md:col-span-1 animate-fade-in-up stagger-4">
+                  <Link href={gotm ? `/club?id=${gotm.clubId}&tab=gotm` : '#'}>
+                    <Card className="relative overflow-hidden border-purple-500/20 bg-surface/40 h-full min-h-[400px] hover:border-purple-500/50 transition-colors group cursor-pointer">
+                      <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-black/80 z-10" />
+
+                      {gotm?.coverUrl ? (
+                        <div className="absolute inset-0 opacity-50 group-hover:scale-105 transition-transform duration-700">
+                          <img src={gotm.coverUrl} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-black opacity-50" />
+                      )}
+
+                      <div className="relative z-20 p-6 h-full flex flex-col justify-end items-start text-left">
+                        <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-purple-500/20 mb-3 backdrop-blur-md">
+                          Game of the Month
+                        </span>
+
+                        {gotm ? (
+                          <>
+                            <h3 className="text-3xl font-black text-white italic uppercase leading-tight mb-2 drop-shadow-xl">{gotm.title}</h3>
+                            <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-6 flex items-center gap-2">
+                              <Gamepad2 className="w-3 h-3 text-purple-400" /> {gotm.platform}
+                            </p>
+                            <div className="w-full h-9 flex items-center justify-center rounded-md bg-purple-600/20 group-hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 font-bold uppercase tracking-widest backdrop-blur-md text-sm transition-colors">
+                              View & Review
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <h3 className="text-2xl font-black text-white/50 italic uppercase mb-2">Not Active</h3>
+                            <p className="text-muted-foreground text-xs mb-6">No monthly game selected yet.</p>
+                          </>
+                        )}
+                      </div>
+                    </Card>
+                  </Link>
+                </div>
               </div>
 
               {/* Arcade Promo Banner */}
@@ -293,6 +348,13 @@ function HomeContent() {
                     <span className="text-xs text-muted-foreground">Start your own legacy</span>
                   </Button>
                 </Link>
+                <Link href="/search" className="contents">
+                  <Button variant="ghost" className="h-auto py-6 flex flex-col gap-2 border border-white/5 hover:border-blue-500/50 bg-surface/50 cursor-pointer transition-transform hover:scale-105 active:scale-95">
+                    <Search className="w-8 h-8 text-blue-500" />
+                    <span className="font-bold">Find Players</span>
+                    <span className="text-xs text-muted-foreground">Discover other gamers</span>
+                  </Button>
+                </Link>
               </div>
             </>
           ) : (
@@ -319,6 +381,11 @@ function HomeContent() {
                     <Link href="/clubs">
                       <Button variant="ghost" className="w-full h-14 border border-white/10 text-white font-bold hover:bg-white/10">
                         Join an Existing Club
+                      </Button>
+                    </Link>
+                    <Link href="/search">
+                      <Button variant="ghost" className="w-full h-14 border border-white/10 text-muted-foreground font-bold hover:text-blue-400 hover:bg-white/5 flex items-center justify-center gap-2">
+                        <Search className="w-4 h-4 text-blue-400" /> Discover Players
                       </Button>
                     </Link>
                   </div>
