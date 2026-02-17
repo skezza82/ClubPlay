@@ -17,7 +17,9 @@ import {
   getActiveSession,
   getUserClubs,
   getCurrentGOTM,
-  type GOTM
+  getSessionLeader, // Added import
+  type GOTM,
+  type Score // Added import
 } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -30,6 +32,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const [game, setGame] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
+  const [topScore, setTopScore] = useState<Score | null>(null); // Added state
   const [gotm, setGotm] = useState<GOTM | null>(null);
   const [loading, setLoading] = useState(true);
   const [userClubs, setUserClubs] = useState<any[]>([]);
@@ -76,6 +79,10 @@ function HomeContent() {
           setActiveSession(soonestSession);
 
           if (soonestSession) {
+            // Fetch Top Score for this session
+            const leader = await getSessionLeader(soonestSession.id);
+            setTopScore(leader);
+
             if (soonestSession.gameId) {
               const { data: gameData } = await supabase.from('games').select('*').eq('id', soonestSession.gameId).single();
               if (gameData) setGame(gameData);
@@ -88,6 +95,7 @@ function HomeContent() {
             }
           } else {
             setGame(null);
+            setTopScore(null);
           }
 
           // 3. Fetch GOTM for the Target Club
@@ -318,6 +326,21 @@ function HomeContent() {
                                 </span>
                               )}
                             </div>
+
+                            {topScore && (
+                              <div className="mb-6 flex items-center gap-3 bg-black/40 backdrop-blur-md p-2 pr-4 rounded-xl border border-yellow-500/20 max-w-fit animate-fade-in">
+                                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]">
+                                  <Trophy className="w-5 h-5 text-yellow-400" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest leading-tight">Current Leader</p>
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-white font-black text-xl italic tracking-tight">{topScore.scoreValue.toLocaleString()}</span>
+                                    <span className="text-xs text-white/50 truncate max-w-[100px]">{topScore.displayName || "Unknown"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
                             <div className="flex gap-4">
                               <Link href={activeSession ? `/club?id=${activeSession.clubId}` : "/profile"}>
