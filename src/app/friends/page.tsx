@@ -83,7 +83,7 @@ export default function FriendsPage() {
             <div className="flex flex-col gap-2">
                 <h1 className="text-4xl font-black italic tracking-tighter uppercase flex items-center gap-4">
                     <Users className="w-10 h-10 text-primary" />
-                    Social Network
+                    Gamer Network
                 </h1>
                 <p className="text-muted-foreground ml-1 text-lg">Manage your connections and pending alliances.</p>
             </div>
