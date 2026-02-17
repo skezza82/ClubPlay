@@ -13,8 +13,8 @@ import Link from "next/link";
 import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-service";
 import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, query, where, collection, onSnapshot, getDocs, setDoc } from "firebase/firestore";
-import { getXpLevel, getXpProgress, addXp, setXp, syncRetroactiveXp, bulkSyncAllUsersXp } from "@/lib/firestore-service";
+import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
+import { getXpLevel, getXpProgress, addXp, setXp } from "@/lib/firestore-service";
 import { usePWA } from "@/context/PWAContext";
 import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -553,69 +553,6 @@ export default function ProfilePage() {
                                         }}
                                     >
                                         Jump to Level...
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-primary/30 text-primary hover:bg-primary/10 col-span-2"
-                                        onClick={async () => {
-                                            if (confirm("This will calculate XP for all your previous wins, club joins, and challenges. Proceed?")) {
-                                                const newXp = await syncRetroactiveXp(user!.uid);
-                                                alert(`XP Synced! You now have ${newXp} XP.`);
-                                            }
-                                        }}
-                                    >
-                                        Sync My Legacy XP
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-amber-500 text-amber-500 hover:bg-amber-500/10 col-span-2 font-black"
-                                        onClick={async () => {
-                                            const targets = [
-                                                { name: "Wolverwulf", xp: 625 },
-                                                { name: "Karlos", xp: 600 }
-                                            ];
-
-                                            let fixed = 0;
-                                            for (const target of targets) {
-                                                const q = query(collection(db, "memberships"), where("displayName", "==", target.name));
-                                                const snap = await getDocs(q);
-
-                                                if (!snap.empty) {
-                                                    const uid = snap.docs[0].data().userId;
-                                                    if (uid) {
-                                                        const userRef = doc(db, "users", uid);
-                                                        await setDoc(userRef, {
-                                                            xp: target.xp,
-                                                            displayName: target.name,
-                                                            displayNameLowercase: target.name.toLowerCase()
-                                                        }, { merge: true });
-                                                        fixed++;
-                                                    }
-                                                }
-                                            }
-                                            alert(`Fixed ${fixed} specific users.`);
-                                        }}
-                                    >
-                                        🛠️ FORCE FIX WOLVERWULF & KARLOS
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-red-500 text-red-500 hover:bg-red-500/10 col-span-2 font-black"
-                                        onClick={async () => {
-                                            if (confirm("⚠️ WARNING: This will recalibrate XP for EVERY single registered user based on their history. This could take a while. Continue?")) {
-                                                try {
-                                                    const count = await bulkSyncAllUsersXp();
-                                                    alert(`Success! Recalibrated XP for ${count} users.`);
-                                                } catch (e) {
-                                                    alert("Bulk sync failed. Check console.");
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        🔥 BULK RECALIBRATE ALL USERS
                                     </Button>
                                 </div>
                             </CardContent>
