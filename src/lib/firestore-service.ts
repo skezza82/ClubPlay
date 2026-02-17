@@ -22,6 +22,13 @@ import {
 import { db, auth } from "./firebase";
 import { updateProfile } from "firebase/auth";
 
+export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("displayNameLowercase", "==", username.toLowerCase()));
+    const snapshot = await getDocs(q);
+    return snapshot.empty;
+};
+
 export interface Club {
     id: string;
     name: string;

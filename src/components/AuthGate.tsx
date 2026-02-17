@@ -9,6 +9,7 @@ import { LogIn, UserPlus, Loader2, Mail, Lock, User as UserIcon, ArrowLeft, Send
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { checkUsernameAvailability } from "@/lib/firestore-service";
 
 export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "register" }) {
     const [mode, setMode] = useState<"login" | "register" | "reset">(initialMode);
@@ -33,6 +34,12 @@ export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "r
             if (mode === "login") {
                 await signIn(email, password);
             } else if (mode === "register") {
+                // Check username availability first
+                const isAvailable = await checkUsernameAvailability(displayName);
+                if (!isAvailable) {
+                    throw new Error("Username is already taken. Please choose another.");
+                }
+
                 await signUp(email, password, displayName);
                 // Redirect to profile to set avatar
                 router.push("/profile");
@@ -41,8 +48,9 @@ export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "r
                 setSuccessMessage("Password reset email sent! Check your inbox.");
                 setResetEmail("");
             }
-        } catch (err: any) {
-            setError(err.message || "An error occurred");
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "An error occurred";
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
