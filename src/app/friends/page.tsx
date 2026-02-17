@@ -7,7 +7,8 @@ import {
     getFriendRequests,
     respondToFriendRequest,
     UserPublicProfile,
-    FriendRequest
+    FriendRequest,
+    getXpLevel
 } from "@/lib/firestore-service";
 import {
     Users,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { UserAvatar } from "@/components/UserAvatar";
 
 export default function FriendsPage() {
     const { user } = useAuth();
@@ -103,15 +105,13 @@ export default function FriendsPage() {
                         {requests.map((req) => (
                             <div key={req.id} className="glass-panel p-4 rounded-2xl flex items-center justify-between group border-yellow-500/20 bg-yellow-500/5">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-surface border border-yellow-500/20 overflow-hidden">
-                                        {req.senderPhoto ? (
-                                            <img src={req.senderPhoto} alt={req.senderName} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-yellow-500/10 text-yellow-500/40">
-                                                <UserCircle className="w-6 h-6" />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <UserAvatar
+                                        photoURL={req.senderPhoto}
+                                        displayName={req.senderName}
+                                        xp={req.senderXp || 0}
+                                        size="md"
+                                        className="rounded-xl"
+                                    />
                                     <div>
                                         <h3 className="font-bold text-lg text-white">{req.senderName}</h3>
                                         <p className="text-[10px] text-yellow-500/70 uppercase font-bold tracking-widest">Wants to connect</p>
@@ -169,18 +169,18 @@ export default function FriendsPage() {
                             <div key={friend.uid} className="glass-panel p-5 rounded-2xl flex flex-col gap-4 group hover:border-primary/30 transition-all hover:scale-[1.02]">
                                 <div className="flex items-start justify-between">
                                     <Link href={`/user?id=${friend.uid}`} className="flex items-center gap-4">
-                                        <div className="w-14 h-14 rounded-xl bg-surface border border-white/5 overflow-hidden">
-                                            {friend.photoURL ? (
-                                                <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-primary/5 text-primary/30">
-                                                    <UserCircle className="w-8 h-8" />
-                                                </div>
-                                            )}
-                                        </div>
+                                        <UserAvatar
+                                            photoURL={friend.photoURL}
+                                            displayName={friend.displayName}
+                                            xp={friend.xp || 0}
+                                            size="lg"
+                                        />
                                         <div>
                                             <h3 className="font-black text-xl group-hover:text-primary transition-colors">{friend.displayName}</h3>
                                             <div className="flex flex-col gap-0.5 mt-0.5">
+                                                <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-0.5">
+                                                    Level {getXpLevel(friend.xp || 0)}
+                                                </p>
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5">
                                                     <Users className="w-3 h-3 text-primary" /> {friend.friendsCount || 0} Friends
                                                 </p>

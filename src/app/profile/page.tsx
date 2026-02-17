@@ -1,5 +1,7 @@
 "use client";
 
+import { LevelUpCelebration } from "@/components/LevelUpCelebration";
+
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +14,7 @@ import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-ser
 import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
+import { getXpLevel, getXpProgress, addXp, setXp, syncRetroactiveXp, bulkSyncAllUsersXp } from "@/lib/firestore-service";
 import { usePWA } from "@/context/PWAContext";
 import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -33,6 +36,10 @@ export default function ProfilePage() {
     const [acceptedId, setAcceptedId] = useState<string | null>(null);
     const [appInfo, setAppInfo] = useState<{ version: string; build: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [xp, setXpAmount] = useState(0);
+    const [lastLevel, setLastLevel] = useState<number | null>(null);
+    const [showLevelUp, setShowLevelUp] = useState(false);
+    const [levelUpInfo, setLevelUpInfo] = useState({ level: 1 });
 
     useEffect(() => {
         if (user) {
@@ -72,8 +79,27 @@ export default function ProfilePage() {
                 setFriendRequests(requests);
             });
 
+            // Listen for XP
+            const unsubXp = onSnapshot(doc(db, "users", user.uid), (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    const currentXp = data.xp || 0;
+                    setXpAmount(currentXp);
+
+                    const currentLevel = getXpLevel(currentXp);
+                    setLastLevel(prev => {
+                        if (prev !== null && currentLevel > prev) {
+                            setLevelUpInfo({ level: currentLevel });
+                            setShowLevelUp(true);
+                        }
+                        return currentLevel;
+                    });
+                }
+            });
+
             return () => {
                 unsubscribeRequests();
+                unsubXp();
             };
         }
 
@@ -172,288 +198,414 @@ export default function ProfilePage() {
     }
 
     return (
-        <main className="container mx-auto px-4 py-8 max-w-4xl">
-            <Link href="/" className="flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors group">
-                <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-                Back to Dashboard
-            </Link>
+        <>
+            {showLevelUp && (
+                <LevelUpCelebration
+                    level={levelUpInfo.level}
+                    onClose={() => setShowLevelUp(false)}
+                />
+            )}
+            <main className="container mx-auto px-4 py-8 max-w-4xl">
+                <Link href="/" className="flex items-center text-muted-foreground hover:text-primary mb-8 transition-colors group">
+                    <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+                    Back to Dashboard
+                </Link>
 
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-                <div className="w-full md:w-1/3 space-y-6">
-                    <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden">
-                        <div className="aspect-square relative group bg-black/20 flex items-center justify-center">
-                            {avatarUrl ? (
-                                <img
-                                    src={avatarUrl}
-                                    alt="Profile Avatar"
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <User className="w-32 h-32 text-white/10" />
-                            )}
-                            {isUploading && (
-                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
-                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                                </div>
-                            )}
-                        </div>
-                        <CardHeader className="text-center">
-                            <CardTitle className="text-xl">{nickname || "Adventurer"}</CardTitle>
-                            <CardDescription className="flex items-center justify-center gap-1">
-                                <Shield className="w-3 h-3 text-primary" />
-                                Club Member
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-
-                    <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
-                        <p className="text-xs font-bold text-primary tracking-widest uppercase">Choose Avatar</p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {PRESET_AVATARS.map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    type="button"
-                                    onClick={() => handleAvatarSelect(preset.url)}
-                                    disabled={isSaving || isUploading}
-                                    className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${avatarUrl === preset.url ? "border-primary scale-95" : "border-white/5 hover:border-white/20"
-                                        } ${(isSaving || isUploading) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
-                                </button>
-                            ))}
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-primary/50 flex flex-col items-center justify-center gap-1 transition-all group"
-                            >
-                                <Upload className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
-                                <span className="text-[10px] text-muted-foreground group-hover:text-primary">Upload</span>
-                            </button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                                className="hidden"
-                                accept="image/*"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex-1 space-y-6 w-full">
-                    <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
-                        <CardHeader>
-                            <CardTitle className="text-2xl font-black uppercase tracking-tighter">
-                                Account <span className="text-primary">Settings</span>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleSave} className="space-y-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-primary tracking-widest uppercase flex items-center gap-2">
-                                        <User className="w-4 h-4" /> Nickname
-                                    </label>
-                                    <Input
-                                        value={nickname}
-                                        onChange={(e) => setNickname(e.target.value)}
-                                        placeholder="Enter your gaming handle"
-                                        className="bg-background/30 border-white/10"
+                <div className="flex flex-col md:flex-row gap-8 items-start">
+                    <div className="w-full md:w-1/3 space-y-6">
+                        <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden">
+                            <div className="aspect-square relative group bg-black/20 flex items-center justify-center">
+                                {avatarUrl ? (
+                                    <img
+                                        src={avatarUrl}
+                                        alt="Profile Avatar"
+                                        className="w-full h-full object-cover"
                                     />
-                                </div>
-
-                                <div className="space-y-2 opacity-70">
-                                    <label className="text-sm font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
-                                        <Mail className="w-4 h-4" /> Email Address
-                                    </label>
-                                    <Input
-                                        value={user.email || ""}
-                                        readOnly
-                                        className="bg-background/10 border-white/5 cursor-not-allowed text-muted-foreground"
-                                    />
-                                </div>
-
-                                <Button className="w-full neon-border font-black text-lg h-12" disabled={isSaving || isUploading}>
-                                    {isSaving ? "Saving..." : saved ? (
-                                        <span className="flex items-center gap-2 text-green-400">
-                                            <CheckCircle className="w-5 h-5" /> Changes Saved
-                                        </span>
-                                    ) : "Update Profile"}
-                                </Button>
-
-                                <div className="pt-6 border-t border-white/5">
-                                    <Link href="/delete-account">
-                                        <Button variant="ghost" type="button" className="w-full text-red-500 hover:text-red-400 hover:bg-red-500/10 h-12">
-                                            Delete Account
-                                        </Button>
-                                    </Link>
-                                </div>
-
-                                <div className="text-center pt-2">
-                                    <Link href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">
-                                        Privacy Policy
-                                    </Link>
-                                </div>
-                            </form>
-                        </CardContent>
-                    </Card>
-
-
-
-                    <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
-                        <CardHeader>
-                            <CardTitle className="text-2xl font-black uppercase tracking-tighter flex items-center gap-2">
-                                <Palette className="w-6 h-6 text-primary" />
-                                Appearance <span className="text-primary">Styles</span>
-                            </CardTitle>
-                            <CardDescription>Personalize your experience.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-8">
-                            {/* Theme Selection */}
-                            <div className="space-y-4">
-                                <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Select Colour Scheme</label>
-                                <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
-                                    {[
-                                        { id: 'cyber', name: 'Cyber', color: '#66FCF1' },
-                                        { id: 'sunset', name: 'Sunset', color: '#FF7E5F' },
-                                        { id: 'deepsea', name: 'Deep Sea', color: '#00D1FF' },
-                                        { id: 'matrix', name: 'Matrix', color: '#00FF41' },
-                                        { id: 'vampire', name: 'Vampire', color: '#FF2E2E' },
-                                        { id: 'midnight', name: 'Midnight', color: '#A084E8' }
-                                    ].map((t) => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => setTheme(t.id as ThemeType)}
-                                            className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === t.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
-                                        >
-                                            <div
-                                                className="w-full aspect-video rounded-md mb-1 relative overflow-hidden"
-                                                style={{ background: `radial-gradient(circle at center, ${t.color}33 0%, #000 100%)` }}
-                                            >
-                                                <div className="absolute inset-0 flex items-center justify-center opacity-30">
-                                                    <div className="w-1 h-1 rounded-full bg-white animate-pulse" style={{ boxShadow: `0 0 10px ${t.color}` }} />
-                                                </div>
-                                            </div>
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`}>{t.name}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Motion Style Selection */}
-                            <div className="space-y-4 pt-6 border-t border-white/5">
-                                <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
-                                    <Move className="w-3 h-3" /> Select Motion Style
-                                </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                    {[
-                                        { id: 'connectivity', name: 'Nodes', icon: <Binary className="w-4 h-4" /> },
-                                        { id: 'galaxy', name: 'Galaxy', icon: <Sparkles className="w-4 h-4" /> },
-                                        { id: 'pacman', name: 'Arcade', icon: <Gamepad2 className="w-4 h-4" /> },
-                                        { id: 'aurora', name: 'Aurora', icon: <Layers className="w-4 h-4" /> },
-                                        { id: 'retrogrid', name: '80s Grid', icon: <Move className="w-4 h-4" /> }
-                                    ].map((b) => (
-                                        <button
-                                            key={b.id}
-                                            onClick={() => setBgType(b.id as BgType)}
-                                            className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${bgType === b.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
-                                        >
-                                            <div className={`${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.icon}</div>
-                                            <span className={`text-[8px] font-bold uppercase tracking-wider ${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.name}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* RGB Toggle */}
-                            <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-2 text-sm">
-                                        {rgbEnabled ? <Zap className="w-4 h-4 text-primary" /> : <ZapOff className="w-4 h-4 text-muted-foreground" />}
-                                        RGB Effects
-                                    </h4>
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Enable or disable neon and glowing elements</p>
-                                </div>
-                                <button
-                                    onClick={() => setRgbEnabled(!rgbEnabled)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${rgbEnabled ? 'bg-primary' : 'bg-white/10'}`}
-                                >
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${rgbEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                                    />
-                                </button>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
-                        <CardHeader>
-                            <CardTitle className="text-2xl font-black uppercase tracking-tighter">
-                                Club <span className="text-primary">Administration</span>
-                            </CardTitle>
-                            <CardDescription>Manage the communities you lead.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                <Link href="/clubs/create" className="block mb-6">
-                                    <Button variant="ghost" className="w-full border border-dashed border-white/10 hover:border-primary/30 hover:bg-primary/5 text-muted-foreground hover:text-primary">
-                                        <PlusCircle className="w-4 h-4 mr-2" /> Start a New Club
-                                    </Button>
-                                </Link>
-
-                                {isLoadingClubs ? (
-                                    <div className="flex justify-center py-4">
-                                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                                    </div>
-                                ) : userClubs.length > 0 ? (
-                                    <div className="grid gap-3">
-                                        {userClubs.map(club => (
-                                            <Link key={club.id} href={`/club/admin?id=${club.id}`}>
-                                                <div className="flex items-center p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all cursor-pointer group">
-                                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3 overflow-hidden">
-                                                        {club.logoUrl ? (
-                                                            <img src={club.logoUrl} alt={club.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <Shield className="w-5 h-5 text-primary" />
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <h4 className="font-bold text-white group-hover:text-primary transition-colors">{club.name}</h4>
-                                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-white/10 px-1.5 py-0.5 rounded-full">
-                                                            {club.role}
-                                                        </span>
-                                                    </div>
-                                                    <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180 group-hover:translate-x-1 transition-transform" />
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
                                 ) : (
-                                    <p className="text-sm text-muted-foreground italic text-center py-4">
-                                        You haven't joined any clubs yet.
-                                    </p>
+                                    <User className="w-32 h-32 text-white/10" />
+                                )}
+                                {isUploading && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
+                                        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                    </div>
                                 )}
                             </div>
-                        </CardContent>
-                    </Card>
+                            <CardHeader className="text-center">
+                                <CardTitle className="text-xl">{nickname || "Adventurer"}</CardTitle>
+                                <CardDescription className="flex items-center justify-center gap-1">
+                                    <Shield className="w-3 h-3 text-primary" />
+                                    Club Member
+                                </CardDescription>
+                            </CardHeader>
+                        </Card>
 
-                    <InstallAppButton />
+                        <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
+                            <div className="flex justify-between items-end mb-2">
+                                <div>
+                                    <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase mb-1">Current Level</p>
+                                    <h2 className="text-3xl font-black text-primary">LVL {getXpLevel(xp)}</h2>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-bold text-white mb-1">{getXpProgress(xp).current} / {getXpProgress(xp).needed} XP</p>
+                                </div>
+                            </div>
+                            <div className="h-3 bg-black/50 rounded-full overflow-hidden border border-white/5 relative">
+                                <div
+                                    className="h-full bg-gradient-to-r from-primary/50 to-primary transition-all duration-1000 shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]"
+                                    style={{ width: `${getXpProgress(xp).percentage}%` }}
+                                />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground text-center">
+                                {1000 - getXpProgress(xp).current} XP until Level {getXpLevel(xp) + 1}
+                            </p>
+                        </div>
 
-                    <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
-                        <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
-                            {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.6.3"}
-                        </p>
-                        <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
-                            Update: {new Date().toLocaleString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                            })}
-                        </p>
+                        <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
+                            <p className="text-xs font-bold text-primary tracking-widest uppercase">Choose Avatar</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {PRESET_AVATARS.map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        type="button"
+                                        onClick={() => handleAvatarSelect(preset.url)}
+                                        disabled={isSaving || isUploading}
+                                        className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${avatarUrl === preset.url ? "border-primary scale-95" : "border-white/5 hover:border-white/20"
+                                            } ${(isSaving || isUploading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        <img src={preset.url} alt={preset.name} className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-primary/50 flex flex-col items-center justify-center gap-1 transition-all group"
+                                >
+                                    <Upload className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                                    <span className="text-[10px] text-muted-foreground group-hover:text-primary">Upload</span>
+                                </button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    accept="image/*"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 space-y-6 w-full">
+                        <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
+                            <CardHeader>
+                                <CardTitle className="text-2xl font-black uppercase tracking-tighter">
+                                    Account <span className="text-primary">Settings</span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={handleSave} className="space-y-6">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-primary tracking-widest uppercase flex items-center gap-2">
+                                            <User className="w-4 h-4" /> Nickname
+                                        </label>
+                                        <Input
+                                            value={nickname}
+                                            onChange={(e) => setNickname(e.target.value)}
+                                            placeholder="Enter your gaming handle"
+                                            className="bg-background/30 border-white/10"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2 opacity-70">
+                                        <label className="text-sm font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
+                                            <Mail className="w-4 h-4" /> Email Address
+                                        </label>
+                                        <Input
+                                            value={user.email || ""}
+                                            readOnly
+                                            className="bg-background/10 border-white/5 cursor-not-allowed text-muted-foreground"
+                                        />
+                                    </div>
+
+                                    <Button className="w-full neon-border font-black text-lg h-12" disabled={isSaving || isUploading}>
+                                        {isSaving ? "Saving..." : saved ? (
+                                            <span className="flex items-center gap-2 text-green-400">
+                                                <CheckCircle className="w-5 h-5" /> Changes Saved
+                                            </span>
+                                        ) : "Update Profile"}
+                                    </Button>
+
+                                    <div className="pt-6 border-t border-white/5">
+                                        <Link href="/delete-account">
+                                            <Button variant="ghost" type="button" className="w-full text-red-500 hover:text-red-400 hover:bg-red-500/10 h-12">
+                                                Delete Account
+                                            </Button>
+                                        </Link>
+                                    </div>
+
+                                    <div className="text-center pt-2">
+                                        <Link href="/privacy" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                                            Privacy Policy
+                                        </Link>
+                                    </div>
+                                </form>
+                            </CardContent>
+                        </Card>
+
+
+
+                        <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
+                            <CardHeader>
+                                <CardTitle className="text-2xl font-black uppercase tracking-tighter flex items-center gap-2">
+                                    <Palette className="w-6 h-6 text-primary" />
+                                    Appearance <span className="text-primary">Styles</span>
+                                </CardTitle>
+                                <CardDescription>Personalize your experience.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-8">
+                                {/* Theme Selection */}
+                                <div className="space-y-4">
+                                    <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Select Colour Scheme</label>
+                                    <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
+                                        {[
+                                            { id: 'cyber', name: 'Cyber', color: '#66FCF1' },
+                                            { id: 'sunset', name: 'Sunset', color: '#FF7E5F' },
+                                            { id: 'deepsea', name: 'Deep Sea', color: '#00D1FF' },
+                                            { id: 'matrix', name: 'Matrix', color: '#00FF41' },
+                                            { id: 'vampire', name: 'Vampire', color: '#FF2E2E' },
+                                            { id: 'midnight', name: 'Midnight', color: '#A084E8' }
+                                        ].map((t) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setTheme(t.id as ThemeType)}
+                                                className={`group relative flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${theme === t.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
+                                            >
+                                                <div
+                                                    className="w-full aspect-video rounded-md mb-1 relative overflow-hidden"
+                                                    style={{ background: `radial-gradient(circle at center, ${t.color}33 0%, #000 100%)` }}
+                                                >
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                                                        <div className="w-1 h-1 rounded-full bg-white animate-pulse" style={{ boxShadow: `0 0 10px ${t.color}` }} />
+                                                    </div>
+                                                </div>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`}>{t.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Motion Style Selection */}
+                                <div className="space-y-4 pt-6 border-t border-white/5">
+                                    <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
+                                        <Move className="w-3 h-3" /> Select Motion Style
+                                    </label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                        {[
+                                            { id: 'connectivity', name: 'Nodes', icon: <Binary className="w-4 h-4" /> },
+                                            { id: 'galaxy', name: 'Galaxy', icon: <Sparkles className="w-4 h-4" /> },
+                                            { id: 'pacman', name: 'Arcade', icon: <Gamepad2 className="w-4 h-4" /> },
+                                            { id: 'aurora', name: 'Aurora', icon: <Layers className="w-4 h-4" /> },
+                                            { id: 'retrogrid', name: '80s Grid', icon: <Move className="w-4 h-4" /> }
+                                        ].map((b) => (
+                                            <button
+                                                key={b.id}
+                                                onClick={() => setBgType(b.id as BgType)}
+                                                className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${bgType === b.id ? 'border-primary bg-primary/5' : 'border-white/10 bg-black/20 hover:border-white/30'}`}
+                                            >
+                                                <div className={`${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.icon}</div>
+                                                <span className={`text-[8px] font-bold uppercase tracking-wider ${bgType === b.id ? 'text-primary' : 'text-muted-foreground'}`}>{b.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* RGB Toggle */}
+                                <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <h4 className="font-bold text-white uppercase tracking-wider flex items-center gap-2 text-sm">
+                                            {rgbEnabled ? <Zap className="w-4 h-4 text-primary" /> : <ZapOff className="w-4 h-4 text-muted-foreground" />}
+                                            RGB Effects
+                                        </h4>
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Enable or disable neon and glowing elements</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setRgbEnabled(!rgbEnabled)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${rgbEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${rgbEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                                        />
+                                    </button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
+                            <CardHeader>
+                                <CardTitle className="text-2xl font-black uppercase tracking-tighter">
+                                    Club <span className="text-primary">Administration</span>
+                                </CardTitle>
+                                <CardDescription>Manage the communities you lead.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-4">
+                                    <Link href="/clubs/create" className="block mb-6">
+                                        <Button variant="ghost" className="w-full border border-dashed border-white/10 hover:border-primary/30 hover:bg-primary/5 text-muted-foreground hover:text-primary">
+                                            <PlusCircle className="w-4 h-4 mr-2" /> Start a New Club
+                                        </Button>
+                                    </Link>
+
+                                    {isLoadingClubs ? (
+                                        <div className="flex justify-center py-4">
+                                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                                        </div>
+                                    ) : userClubs.length > 0 ? (
+                                        <div className="grid gap-3">
+                                            {userClubs.map(club => (
+                                                <Link key={club.id} href={`/club/admin?id=${club.id}`}>
+                                                    <div className="flex items-center p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all cursor-pointer group">
+                                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3 overflow-hidden">
+                                                            {club.logoUrl ? (
+                                                                <img src={club.logoUrl} alt={club.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <Shield className="w-5 h-5 text-primary" />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h4 className="font-bold text-white group-hover:text-primary transition-colors">{club.name}</h4>
+                                                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-white/10 px-1.5 py-0.5 rounded-full">
+                                                                {club.role}
+                                                            </span>
+                                                        </div>
+                                                        <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180 group-hover:translate-x-1 transition-transform" />
+                                                    </div>
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic text-center py-4">
+                                            You haven't joined any clubs yet.
+                                        </p>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <InstallAppButton />
+
+                        {/* Developer Console (Test Buttons) */}
+                        <Card className="border-red-500/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up stagger-5">
+                            <CardHeader className="pb-2">
+                                <div className="flex items-center gap-2">
+                                    <Binary className="w-4 h-4 text-red-500" />
+                                    <CardTitle className="text-xs uppercase tracking-[0.3em] font-black text-white/50">Developer Console</CardTitle>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-4 space-y-3">
+                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2">XP Injection (Testing Only)</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-white/10 hover:bg-primary/20"
+                                        onClick={() => addXp(user!.uid, 100, "Dev Bonus")}
+                                    >
+                                        +100 XP
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-white/10 hover:bg-primary/20"
+                                        onClick={() => addXp(user!.uid, 500, "Dev Bonus")}
+                                    >
+                                        +500 XP
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-white/10 hover:bg-primary/20 text-primary"
+                                        onClick={() => addXp(user!.uid, 1000, "Dev Bonus")}
+                                    >
+                                        +1000 XP
+                                    </Button>
+                                </div>
+
+                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-2">Level Management</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-red-500/30 text-red-500 hover:bg-red-500/10"
+                                        onClick={() => setXp(user!.uid, 0)}
+                                    >
+                                        Reset to Level 1
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-white/10 hover:bg-primary/20"
+                                        onClick={() => {
+                                            const lvl = prompt("Enter target level:");
+                                            if (lvl && !isNaN(Number(lvl))) {
+                                                const levelNum = Math.max(1, Number(lvl));
+                                                // Formula: 500 * L * (L-1)
+                                                const xpNeeded = 500 * levelNum * (levelNum - 1);
+                                                setXp(user!.uid, xpNeeded);
+                                            }
+                                        }}
+                                    >
+                                        Jump to Level...
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-primary/30 text-primary hover:bg-primary/10 col-span-2"
+                                        onClick={async () => {
+                                            if (confirm("This will calculate XP for all your previous wins, club joins, and challenges. Proceed?")) {
+                                                const newXp = await syncRetroactiveXp(user!.uid);
+                                                alert(`XP Synced! You now have ${newXp} XP.`);
+                                            }
+                                        }}
+                                    >
+                                        Sync My Legacy XP
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-red-500 text-red-500 hover:bg-red-500/10 col-span-2 font-black"
+                                        onClick={async () => {
+                                            if (confirm("⚠️ WARNING: This will recalibrate XP for EVERY single registered user based on their history. This could take a while. Continue?")) {
+                                                try {
+                                                    const count = await bulkSyncAllUsersXp();
+                                                    alert(`Success! Recalibrated XP for ${count} users.`);
+                                                } catch (e) {
+                                                    alert("Bulk sync failed. Check console.");
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        🔥 BULK RECALIBRATE ALL USERS
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
+                            <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
+                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.6.3"}
+                            </p>
+                            <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
+                                Update: {new Date().toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                })}
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </main >
+            </main >
+        </>
     );
 }
 

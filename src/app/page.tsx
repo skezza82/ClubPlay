@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { GameActions } from "@/components/GameActions";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserProfile } from "@/components/UserProfile";
+import { UserAvatar } from "@/components/UserAvatar";
 import { AuthGate } from "@/components/AuthGate";
 import { supabase } from "@/lib/supabase";
 import { Trophy, Gamepad2, Users, Loader2, Shield, Plus, ArrowRight, Info, Search } from "lucide-react";
@@ -328,15 +329,19 @@ function HomeContent() {
                             </div>
 
                             {topScore && (
-                              <div className="mb-6 flex items-center gap-3 bg-black/40 backdrop-blur-md p-2 pr-4 rounded-xl border border-yellow-500/20 max-w-fit animate-fade-in">
-                                <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]">
-                                  <Trophy className="w-5 h-5 text-yellow-400" />
-                                </div>
+                              <div className="mb-6 flex items-center gap-4 bg-black/40 backdrop-blur-md p-3 pr-6 rounded-2xl border border-yellow-500/20 max-w-fit animate-fade-in group/leader">
+                                <UserAvatar
+                                  photoURL={topScore.photoURL}
+                                  displayName={topScore.displayName || ""}
+                                  xp={topScore.xp || 0}
+                                  size="md"
+                                  isWinner={true}
+                                />
                                 <div>
                                   <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest leading-tight">Current Leader</p>
                                   <div className="flex items-baseline gap-2">
-                                    <span className="text-white font-black text-xl italic tracking-tight">{topScore.scoreValue.toLocaleString()}</span>
-                                    <span className="text-xs text-white/50 truncate max-w-[100px]">{topScore.displayName || "Unknown"}</span>
+                                    <span className="text-white font-black text-2xl italic tracking-tight">{topScore.scoreValue.toLocaleString()}</span>
+                                    <span className="text-sm text-white/50 truncate max-w-[120px]">{topScore.displayName || "Unknown"}</span>
                                   </div>
                                 </div>
                               </div>

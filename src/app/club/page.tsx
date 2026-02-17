@@ -21,9 +21,11 @@ import {
     sendFriendRequest,
     getSentFriendRequests,
     getFriends,
-    checkPendingRequest
+    checkPendingRequest,
+    getXpLevel
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import {
@@ -203,7 +205,15 @@ function ClubContent() {
 
     useEffect(() => {
         if (selectedSession) {
-            getClubSessionScores(selectedSession.id).then(setWeekScores);
+            getClubSessionScores(selectedSession.id).then(scores => {
+                const sorted = [...scores].sort((a, b) => {
+                    if (selectedSession.challengeType === 'speed') {
+                        return a.scoreValue - b.scoreValue;
+                    }
+                    return b.scoreValue - a.scoreValue;
+                });
+                setWeekScores(sorted);
+            });
         }
     }, [selectedSession, clubId]);
 
@@ -250,7 +260,13 @@ function ClubContent() {
         try {
             await submitScore(selectedSession.id, user.uid, parseInt(scoreInput), user.displayName || "Unknown User");
             const updatedScores = await getClubSessionScores(selectedSession.id);
-            setWeekScores(updatedScores);
+            const sorted = [...updatedScores].sort((a, b) => {
+                if (selectedSession.challengeType === 'speed') {
+                    return a.scoreValue - b.scoreValue;
+                }
+                return b.scoreValue - a.scoreValue;
+            });
+            setWeekScores(sorted);
             setScoreInput("");
             alert("Score submitted successfully! 🎮");
         } catch (error) {
@@ -558,6 +574,78 @@ function ClubContent() {
                                     </CardContent>
                                 </Card>
 
+                                {isMember ? (
+                                    <Card className="border-white/10 bg-gradient-to-b from-surface to-background overflow-hidden mb-6">
+                                        <CardHeader className="bg-black/20 pb-4">
+                                            <CardTitle className="text-sm font-black uppercase tracking-[0.2em] text-primary flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-2">
+                                                    <Trophy className="w-4 h-4 text-yellow-500" /> Leaderboard
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground font-bold">{weekScores.length} Submissions</span>
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="p-0">
+                                            <div className="divide-y divide-white/5">
+                                                {weekScores.slice(0, 10).map((score, i) => {
+                                                    const member = members.find(m => m.userId === score.userId);
+                                                    const displayName = member?.displayName || score.displayName;
+
+                                                    return (
+                                                        <div key={score.id} className={`flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/5 ${i === 0 ? 'bg-yellow-500/5' : ''}`}>
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border
+                                                                ${i === 0 ? 'bg-yellow-500 border-yellow-400 text-black shadow-[0_0_15px_rgba(234,179,8,0.4)]' :
+                                                                        i === 1 ? 'bg-slate-400 border-slate-300 text-black' :
+                                                                            i === 2 ? 'bg-amber-700 border-amber-600 text-white' : 'bg-black/40 border-white/10 text-muted-foreground'}`}>
+                                                                    {i + 1}
+                                                                </div>
+                                                                <UserAvatar
+                                                                    photoURL={member?.photoURL || score.photoURL}
+                                                                    displayName={displayName}
+                                                                    xp={member?.xp || score.xp || 0}
+                                                                    size="md"
+                                                                    isWinner={i === 0 && weekScores.length > 0}
+                                                                />
+                                                                <div>
+                                                                    <div className="text-sm font-black text-white">{displayName}</div>
+                                                                    <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Level {getXpLevel(member?.xp || score.xp || 0)}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className={`font-mono font-black text-lg ${i === 0 ? 'text-yellow-500' : 'text-primary'}`}>
+                                                                    {formatScore(score.scoreValue, selectedSession?.challengeType)}
+                                                                </div>
+                                                                <div className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter">
+                                                                    {score.submittedAt ? new Date(score.submittedAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                                {weekScores.length === 0 && (
+                                                    <div className="px-6 py-12 text-center">
+                                                        <Gamepad2 className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                                                        <p className="text-sm text-muted-foreground italic font-medium">The arena is empty. Submit the first score!</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                        {weekScores.length > 10 && (
+                                            <div className="p-4 bg-black/20 text-center border-t border-white/5">
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">+ {weekScores.length - 10} more players in the chase</p>
+                                            </div>
+                                        )}
+                                    </Card>
+                                ) : (
+                                    <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20 text-center mb-6">
+                                        <Trophy className="w-8 h-8 text-primary/40 mx-auto mb-3" />
+                                        <h4 className="font-black text-white uppercase tracking-wider mb-2">Members Only Arena</h4>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                            Join this club to see the full live leaderboard and compete for the weekly crown!
+                                        </p>
+                                    </div>
+                                )}
+
                                 {/* Game of the Month Box (GOTM moved from tab) */}
                                 {gotm && (
                                     <div className="animate-fade-in-up">
@@ -781,53 +869,27 @@ function ClubContent() {
                                 )}
                             </div>
 
-                            {/* Sidebar: Weekly Leaderboard (Members Only) */}
-                            <div className="space-y-6">
-                                {isMember ? (
-                                    <Card className="border-white/5 bg-gradient-to-b from-surface to-black">
-                                        <CardHeader>
-                                            <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center justify-between w-full">
-                                                <div className="flex items-center gap-2">
-                                                    <Trophy className="w-4 h-4 text-yellow-500" /> Current Challenge
-                                                </div>
-                                                {isAdmin && (
-                                                    <Link href={`/club/admin?id=${clubId}&tab=game`}>
-                                                        <Edit className="w-3 h-3 hover:text-white cursor-pointer transition-colors" />
-                                                    </Link>
-                                                )}
-                                            </CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            {weekScores.slice(0, 5).map((score, i) => {
-                                                const member = members.find(m => m.userId === score.userId);
-                                                const displayName = member?.displayName || score.displayName;
-
-                                                return (
-                                                    <div key={score.id} className="flex items-center justify-between text-sm">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`font-bold ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>{i + 1}.</span>
-                                                            <span className="text-white truncate max-w-[120px]">{displayName}</span>
-                                                        </div>
-                                                        <span className="font-mono text-primary font-bold">
-                                                            {formatScore(score.scoreValue, selectedSession?.challengeType)}
-                                                        </span>
-                                                    </div>
-                                                )
-                                            })}
-                                            {(weekScores.length === 0) && <div className="text-xs text-muted-foreground italic">No scores yet. Be the first!</div>}
-                                        </CardContent>
-                                    </Card>
-                                ) : (
-                                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary/80">
-                                        <p className="font-bold mb-1 flex items-center gap-2"><Trophy className="w-3 h-3" /> Members Only</p>
-                                        Sign in and join the club to see the live leaderboard and submit your scores!
-                                    </div>
-                                )}
-
-                                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
-                                    <p className="font-bold mb-1 flex items-center gap-2"><Crown className="w-3 h-3" /> How to win points?</p>
-                                    Finish in the top 3 at the end of a challenge to earn <span className="text-white font-bold">Club Points</span>.
+                            <div className="p-6 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 shadow-lg relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <Crown className="w-12 h-12 text-blue-400" />
                                 </div>
+                                <p className="font-black mb-3 flex items-center gap-2 uppercase tracking-widest text-blue-400 italic">
+                                    <Crown className="w-4 h-4" /> How to win?
+                                </p>
+                                <ul className="space-y-3 relative z-10">
+                                    <li className="flex gap-3">
+                                        <span className="w-5 h-5 rounded-full bg-yellow-500 text-black flex items-center justify-center font-black shrink-0 text-[10px]">1</span>
+                                        <span>Finish <span className="text-white font-bold">1st</span> for maximum Club Points and the Weekly Trophy.</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="w-5 h-5 rounded-full bg-slate-400 text-black flex items-center justify-center font-black shrink-0 text-[10px]">2</span>
+                                        <span>Secure <span className="text-white font-bold">2nd</span> place for a significant points boost.</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center font-black shrink-0 text-[10px]">3</span>
+                                        <span>Hold <span className="text-white font-bold">3rd</span> place for consistent season progression.</span>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
 
@@ -856,21 +918,13 @@ function ClubContent() {
                                 ) : (
                                     messages.map((msg) => (
                                         <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.uid ? 'flex-row-reverse' : ''}`}>
-                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-700 overflow-hidden mt-1 border border-white/10">
-                                                {msg.photoURL ? (
-                                                    <Image src={msg.photoURL} alt={msg.displayName} width={32} height={32} className="object-cover w-full h-full" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
-                                                        {msg.displayName?.[0]}
-                                                    </div>
-                                                )}
-                                                {/* Trophy for latest winner (ID match or Name fallback) */}
-                                                {(club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)) && (
-                                                    <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full p-0.5 border border-black shadow-lg z-10">
-                                                        <Trophy className="w-2 h-2 text-black" />
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <UserAvatar
+                                                photoURL={msg.photoURL}
+                                                displayName={msg.displayName}
+                                                xp={msg.xp || 0}
+                                                size="sm"
+                                                isWinner={club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)}
+                                            />
                                             <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-1">
                                                     <span className="font-bold text-white/80">{msg.displayName}</span>
@@ -950,13 +1004,12 @@ function ClubContent() {
                                                         <td className="p-3 md:p-4 font-bold text-gray-500 text-xs md:text-sm">#{index + 1}</td>
                                                         <td className="p-3 md:p-4">
                                                             <div className="flex items-center gap-2 md:gap-3">
-                                                                <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gray-800 flex items-center justify-center text-[10px] md:text-xs overflow-hidden shrink-0">
-                                                                    {photoURL ? (
-                                                                        <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        displayName?.[0]
-                                                                    )}
-                                                                </div>
+                                                                <UserAvatar
+                                                                    photoURL={photoURL}
+                                                                    displayName={displayName}
+                                                                    xp={player.xp || 0}
+                                                                    size="sm"
+                                                                />
                                                                 <span className="font-bold text-white text-xs md:text-sm truncate max-w-[80px] sm:max-w-none">{displayName}</span>
                                                             </div>
                                                         </td>
@@ -1085,19 +1138,14 @@ function ClubContent() {
                                 return (
                                     <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all relative">
                                         <div className="p-6 flex flex-col items-center text-center">
-                                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-800 to-black border-2 border-white/10 mb-4 flex items-center justify-center overflow-hidden">
-                                                {member.photoURL ? (
-                                                    <Image src={member.photoURL} alt={member.displayName} width={80} height={80} className="object-cover w-full h-full" />
-                                                ) : (
-                                                    <span className="text-2xl font-bold text-gray-500">{member.displayName?.[0] || "?"}</span>
-                                                )}
-                                                {/* Trophy for latest winner (ID match or Name fallback) */}
-                                                {(club?.latestWinnerId === member.userId || (club?.latestWinnerName && club?.latestWinnerName === member.displayName)) && (
-                                                    <div className="absolute top-0 right-0 bg-yellow-500 text-black p-1.5 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.5)] border-2 border-surface z-10">
-                                                        <Trophy className="w-3 h-3" />
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <UserAvatar
+                                                photoURL={member.photoURL}
+                                                displayName={member.displayName}
+                                                xp={member.xp || 0}
+                                                size="2xl"
+                                                isWinner={club?.latestWinnerId === member.userId || (club?.latestWinnerName && club?.latestWinnerName === member.displayName)}
+                                                className="mb-4"
+                                            />
                                             <h3 className="font-bold text-white mb-1 flex items-center gap-2 justify-center">
                                                 {member.displayName}
                                                 {member.role === 'owner' && <Crown className="w-3 h-3 text-yellow-500" />}

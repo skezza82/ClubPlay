@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Search, UserPlus, Check, Users, ArrowRight, X, Trophy, Compass, Shield, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { UserAvatar } from "@/components/UserAvatar";
 
 export default function SearchPage() {
     const { user: currentUser } = useAuth();
@@ -110,8 +111,8 @@ export default function SearchPage() {
                 <button
                     onClick={() => setActiveTab("players")}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === "players"
-                            ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.3)]'
-                            : 'text-muted-foreground hover:text-white'
+                        ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.3)]'
+                        : 'text-muted-foreground hover:text-white'
                         }`}
                 >
                     <Users className="w-4 h-4" />
@@ -120,8 +121,8 @@ export default function SearchPage() {
                 <button
                     onClick={() => setActiveTab("clubs")}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === "clubs"
-                            ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.3)]'
-                            : 'text-muted-foreground hover:text-white'
+                        ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.3)]'
+                        : 'text-muted-foreground hover:text-white'
                         }`}
                 >
                     <Compass className="w-4 h-4" />
@@ -145,15 +146,12 @@ export default function SearchPage() {
                                     className="glass-panel p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30"
                                 >
                                     <Link href={`/user?id=${user.uid}`} className="flex items-center gap-4 flex-1">
-                                        <div className="w-12 h-12 rounded-xl bg-surface border border-white/5 overflow-hidden">
-                                            {user.photoURL ? (
-                                                <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-primary/5">
-                                                    <Users className="w-6 h-6 text-primary/30" />
-                                                </div>
-                                            )}
-                                        </div>
+                                        <UserAvatar
+                                            photoURL={user.photoURL}
+                                            displayName={user.displayName}
+                                            xp={user.xp || 0}
+                                            size="md"
+                                        />
                                         <div>
                                             <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{user.displayName}</h3>
                                             <div className="flex flex-col gap-1">

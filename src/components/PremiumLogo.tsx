@@ -31,9 +31,6 @@ export function PremiumLogo() {
                 <h1 className="text-4xl font-black tracking-tighter text-white drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]">
                     CLUB<span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400 group-hover:to-primary transition-all duration-300">PLAY</span>
                 </h1>
-                <span className="text-[0.65rem] font-bold uppercase tracking-[0.3em] text-primary-dim/80 group-hover:text-primary transition-colors">
-                    {hasGamepadAccess ? "Hardware Connected" : "Competitive Leagues"}
-                </span>
             </Link>
         </div>
     );

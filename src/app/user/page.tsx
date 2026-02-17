@@ -2,9 +2,11 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUserPublicProfile, UserPublicProfile, sendFriendRequest, checkFriendshipStatus } from "@/lib/firestore-service";
+import { getUserPublicProfile, UserPublicProfile, sendFriendRequest, checkFriendshipStatus, getXpLevel, getXpProgress } from "@/lib/firestore-service";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Users, Trophy, Target, Award, UserPlus, Check, ExternalLink, Heart, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Users, Trophy, Target, Award, UserPlus, Check, ExternalLink, Heart, Loader2, AlertCircle, Shield } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
 
 function UserProfileContent() {
@@ -91,15 +93,13 @@ function UserProfileContent() {
 
                 <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
                     <div className="relative group">
-                        <div className="w-32 h-32 rounded-3xl bg-surface border-2 border-primary/20 p-1 overflow-hidden transition-transform duration-500 group-hover:scale-105">
-                            {profile.photoURL ? (
-                                <img src={profile.photoURL} alt={profile.displayName} className="w-full h-full object-cover rounded-2xl" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                                    <Users className="w-12 h-12 text-primary/40" />
-                                </div>
-                            )}
-                        </div>
+                        <UserAvatar
+                            photoURL={profile.photoURL}
+                            displayName={profile.displayName}
+                            xp={profile.xp || 0}
+                            size="2xl"
+                            className="transition-transform duration-500 group-hover:scale-105"
+                        />
                     </div>
 
                     <div className="flex-1 text-center md:text-left space-y-4">
@@ -112,6 +112,20 @@ function UserProfileContent() {
                                         🎮 Playing: <span className="text-primary">{profile.currentChallenge}</span>
                                     </p>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* Level & XP */}
+                        <div className="flex flex-col items-center md:items-start space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="bg-primary text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">LVL {getXpLevel(profile.xp)}</span>
+                                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{profile.xp} TOTAL XP</span>
+                            </div>
+                            <div className="w-48 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                <div
+                                    className="h-full bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)] transition-all duration-1000"
+                                    style={{ width: `${getXpProgress(profile.xp).percentage}%` }}
+                                />
                             </div>
                         </div>
 
@@ -181,6 +195,41 @@ function UserProfileContent() {
                         <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Clubs</p>
                     </div>
                 </div>
+            </div>
+
+            {/* Clubs Joined */}
+            <div className="space-y-4">
+                <h3 className="text-sm font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-primary" /> Clubs & Memberships
+                </h3>
+                {profile.clubs.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {profile.clubs.map(club => (
+                            <Link
+                                key={club.id}
+                                href={`/club?id=${club.id}`}
+                                className="glass-panel p-4 rounded-2xl flex items-center gap-4 hover:border-primary/40 transition-all group"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden">
+                                    {club.logoUrl ? (
+                                        <img src={club.logoUrl} alt={club.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <Shield className="w-6 h-6 text-primary/40" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-white group-hover:text-primary transition-colors truncate">{club.name}</h4>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{club.role}</p>
+                                </div>
+                                <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                            </Link>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="glass-panel p-8 rounded-3xl text-center border-dashed">
+                        <p className="text-muted-foreground italic">This player hasn't joined any clubs yet.</p>
+                    </div>
+                )}
             </div>
 
             {/* Main Club & Leaderboard */}

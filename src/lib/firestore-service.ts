@@ -45,6 +45,7 @@ export interface Membership {
     role: 'owner' | 'admin' | 'member';
     displayName?: string;
     photoURL?: string | null;
+    xp?: number;
 }
 
 export interface ClubMember extends Membership {
@@ -75,6 +76,7 @@ export interface ClubStanding {
     wins: number;
     displayName: string;
     photoURL?: string | null;
+    xp?: number;
 }
 
 export interface Score {
@@ -82,6 +84,8 @@ export interface Score {
     sessionId: string;
     scoreValue: number;
     displayName?: string;
+    photoURL?: string | null;
+    xp?: number;
     submittedAt?: any;
 }
 
@@ -90,6 +94,7 @@ export interface FriendRequest {
     senderId: string;
     senderName: string;
     senderPhoto?: string | null;
+    senderXp?: number;
     receiverId: string;
     status: 'pending' | 'accepted' | 'rejected';
     createdAt: string;
@@ -110,6 +115,8 @@ export interface UserPublicProfile {
         rank: number;
         totalMembers: number;
     } | null;
+    xp: number;
+    clubs: (Club & { role: string, logoUrl?: string })[];
 }
 
 export interface GOTM {
@@ -202,17 +209,32 @@ export const getSessionLeader = async (sessionId: string) => {
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) return null;
 
-    const scoreData = querySnapshot.docs[0].data() as Score;
+    const docSnap = querySnapshot.docs[0];
+    const scoreData = docSnap.data();
 
-    // Optionally fetch the user's display name if not in score
-    if (!scoreData.displayName) {
-        const userDoc = await getDoc(doc(db, "users", scoreData.userId));
-        if (userDoc.exists()) {
-            scoreData.displayName = userDoc.data().displayName;
-        }
+    // Fetch the user's latest profile
+    const userDoc = await getDoc(doc(db, "users", scoreData.userId));
+    let displayName = scoreData.displayName;
+    let photoURL = scoreData.photoURL;
+    let xp = scoreData.xp;
+
+    if (userDoc.exists()) {
+        const userData = userDoc.data();
+        displayName = userData.displayName || displayName;
+        photoURL = userData.photoURL || photoURL;
+        xp = userData.xp || xp;
     }
 
-    return scoreData;
+    return {
+        id: docSnap.id,
+        userId: scoreData.userId,
+        sessionId: scoreData.sessionId,
+        scoreValue: scoreData.scoreValue,
+        displayName: displayName || "Unknown",
+        photoURL: photoURL,
+        xp: xp || 0,
+        submittedAt: scoreData.submittedAt
+    } as Score;
 };
 
 export const getPastSessions = async (clubId: string, limitCount: number = 3) => {
@@ -284,6 +306,10 @@ export const createClub = async (
             transaction.set(clubRef, newClub);
             transaction.set(membershipRef, newMembership);
 
+            // Award XP to creator (100 XP)
+            const userRef = doc(db, "users", ownerId);
+            transaction.update(userRef, { xp: increment(100) });
+
             return clubId;
         });
     } catch (e) {
@@ -333,6 +359,7 @@ export const getSessionScores = async (sessionId: string) => {
             userId: data.userId,
             displayName: displayName || "Unknown",
             photoURL: photoURL,
+            xp: userDoc.exists() ? userDoc.data().xp : 0,
             submittedAt: data.submittedAt
         };
     }));
@@ -369,7 +396,8 @@ export const getSeasonStandings = async (clubId: string) => {
             id: docSnap.id,
             ...data,
             displayName: userDisplayName || storedDisplayName || "Unknown Member",
-            photoURL: userData.photoURL
+            photoURL: userData.photoURL,
+            xp: userData.xp || 0
         };
     }));
 
@@ -504,7 +532,8 @@ export const getClubMembers = async (clubId: string) => {
             id: docSnap.id,
             ...data,
             displayName: userData.displayName || data.displayName || "Unknown User",
-            photoURL: userData.photoURL || data.photoURL || null
+            photoURL: userData.photoURL || data.photoURL || null,
+            xp: userData.xp || 0
         };
     }));
 
@@ -529,6 +558,7 @@ export const getJoinRequests = async (clubId: string) => {
             ...data,
             displayName: userData.displayName || data.displayName || "Unknown User",
             photoURL: userData.photoURL || data.photoURL || null,
+            xp: userData.xp || 0,
             createdAt: data.createdAt
         };
     }));
@@ -583,7 +613,149 @@ export const respondToJoinRequest = async (requestId: string, clubId: string, us
                 const currentCount = clubDoc.data().memberCount || 0;
                 transaction.update(clubRef, { memberCount: currentCount + 1 });
             }
+
+            // XP Rewards
+            // New Member: 50 XP
+            // Club Owner: 10 XP
+            const memberRef = doc(db, "users", userId);
+            transaction.update(memberRef, { xp: increment(50) });
+
+            if (clubDoc.exists()) {
+                const ownerId = clubDoc.data().ownerId;
+                if (ownerId && ownerId !== userId) {
+                    const ownerRef = doc(db, "users", ownerId);
+                    transaction.update(ownerRef, { xp: increment(10) });
+                }
+            }
         });
+    }
+};
+
+// XP System
+/**
+ * Calculates level based on a quadratic curve:
+ * L1: 0 XP
+ * L2: 1000 XP (needs 1000)
+ * L3: 3000 XP (needs 2000 more)
+ * L4: 6000 XP (needs 3000 more)
+ * Formula for cumulative XP to reach level L: 500 * L * (L-1)
+ */
+export const getXpLevel = (xp: number) => {
+    if (!xp || xp < 1000) return 1;
+    // Reverse of 500 * L * (L-1)
+    // L = (1 + sqrt(1 + 4*XP/500)) / 2
+    return Math.floor((1 + Math.sqrt(1 + xp / 125)) / 2);
+};
+
+export const getXpProgress = (xp: number) => {
+    const currentXp = xp || 0;
+    const level = getXpLevel(currentXp);
+
+    const xpToReachCurrent = 500 * level * (level - 1);
+    const xpToReachNext = 500 * (level + 1) * level;
+
+    const progressInLevel = currentXp - xpToReachCurrent;
+    const neededForNext = xpToReachNext - xpToReachCurrent; // This will be 1000 * level
+
+    return {
+        current: progressInLevel,
+        needed: neededForNext,
+        percentage: Math.min(100, (progressInLevel / neededForNext) * 100)
+    };
+};
+
+export const addXp = async (userId: string, amount: number, source: string) => {
+    if (!userId) return;
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+            xp: increment(amount)
+        });
+        console.log(`[XP] Awarded ${amount} XP to ${userId} for ${source}`);
+    } catch (e) {
+        console.error("Error awarding XP:", e);
+    }
+};
+
+export const setXp = async (userId: string, amount: number) => {
+    if (!userId) return;
+    try {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+            xp: amount
+        });
+        console.log(`[XP] Manually set XP to ${amount} for ${userId}`);
+    } catch (e) {
+        console.error("Error setting XP:", e);
+    }
+};
+
+export const calculateRetroactiveXp = async (userId: string) => {
+    // 1. Get wins and participation from season_standings
+    const standingsRef = collection(db, "season_standings");
+    const qStandings = query(standingsRef, where("userId", "==", userId));
+    const standingsSnap = await getDocs(qStandings);
+
+    let totalWins = 0;
+    let totalParticipation = standingsSnap.size;
+    standingsSnap.forEach(d => {
+        totalWins += d.data().wins || 0;
+    });
+
+    // 2. Get clubs joined
+    const clubs = await getUserClubs(userId);
+    const clubsCount = clubs.length;
+
+    // 3. Get friends count
+    const friendsSnap = await getDocs(query(collection(db, "users", userId, "friends"), limit(500)));
+    const friendsCount = friendsSnap.size;
+
+    // 4. Calculate extra XP for owned clubs (100 total vs 50 for regular members)
+    const ownedClubsCount = clubs.filter(c => c.role === 'owner').length;
+
+    // Calculation Logic:
+    // 500 XP per Win
+    // 100 XP per Participation
+    // 50 XP per Club Joined
+    // 50 XP Bonus per Club Created (Owner)
+    // 25 XP per Friend
+    const calculatedXp = (totalWins * 500) + (totalParticipation * 100) + (clubsCount * 50) + (ownedClubsCount * 50) + (friendsCount * 25);
+
+    return {
+        totalXp: calculatedXp,
+        breakdown: {
+            wins: totalWins,
+            participation: totalParticipation,
+            clubs: clubsCount,
+            friends: friendsCount
+        }
+    };
+};
+
+export const syncRetroactiveXp = async (userId: string) => {
+    const { totalXp } = await calculateRetroactiveXp(userId);
+    await setXp(userId, totalXp);
+    return totalXp;
+};
+
+export const bulkSyncAllUsersXp = async () => {
+    try {
+        const usersRef = collection(db, "users");
+        const snapshot = await getDocs(usersRef);
+        console.log(`[Bulk XP Sync] Starting for ${snapshot.size} users...`);
+
+        let count = 0;
+        for (const userDoc of snapshot.docs) {
+            const userId = userDoc.id;
+            await syncRetroactiveXp(userId);
+            count++;
+            console.log(`[Bulk XP Sync] ${count}/${snapshot.size} complete (${userId})`);
+        }
+
+        return count;
+    } catch (e) {
+        console.error("Bulk XP Sync failed:", e);
+        throw e;
     }
 };
 
@@ -704,6 +876,17 @@ export const submitScore = async (sessionId: string, userId: string, scoreValue:
         displayName,
         submittedAt: Timestamp.now()
     }, { merge: true }); // Merge true allows updating the score if it already exists
+
+    // Check if this is the FIRST score for this session to award bonus XP
+    // Note: This is an optimistic check. Race conditions might occur but acceptable for XP.
+    const scoresRef = collection(db, "scores");
+    const q = query(scoresRef, where("sessionId", "==", sessionId), limit(2)); // Check if more than 1 (ours + maybe another)
+    const snap = await getDocs(q);
+
+    // If only 1 score exists (ours, just added), then we are first!
+    if (snap.size === 1) {
+        await addXp(userId, 20, "First Score Posted");
+    }
 };
 
 export const updateMemberRole = async (clubId: string, userId: string, newRole: 'admin' | 'member') => {
@@ -888,6 +1071,7 @@ export interface Message {
     userId: string;
     displayName: string;
     photoURL?: string;
+    xp?: number;
     createdAt: string; // ISO string
     clubId: string;
 }
@@ -909,13 +1093,22 @@ export const subscribeToClubMessages = (clubId: string, callback: (messages: Mes
 
 export const getClubMessages = subscribeToClubMessages;
 
-export const sendClubMessage = async (clubId: string, userId: string, text: string, userProfile: { displayName: string, photoURL?: string }) => {
+export const sendClubMessage = async (clubId: string, userId: string, text: string, userProfile: { displayName: string, photoURL?: string, xp?: number }) => {
     const messagesRef = collection(db, "clubs", clubId, "messages");
+
+    // Fetch latest XP if not provided
+    let xp = userProfile.xp;
+    if (xp === undefined) {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        xp = userDoc.exists() ? userDoc.data().xp : 0;
+    }
+
     await addDoc(messagesRef, {
         text,
         userId,
         displayName: userProfile.displayName,
         photoURL: userProfile.photoURL || null,
+        xp: xp || 0,
         createdAt: new Date().toISOString(),
         clubId
     });
@@ -995,6 +1188,11 @@ export const processSessionResults = async (sessionId: string, clubId: string) =
         latestWinnerId: winner ? winner.userId : null,
         latestWinnerName: winner ? (winner.displayName || "Unknown") : null
     });
+
+    // 7. Award XP to Winner (250 XP)
+    if (winner && winner.userId) {
+        await addXp(winner.userId, 250, "Won Weekly Challenge");
+    }
 
     return updates.length;
 };
@@ -1178,6 +1376,7 @@ export const sendFriendRequest = async (senderId: string, receiverId: string) =>
             senderId,
             senderName: senderData?.displayName || auth.currentUser?.displayName || "Player",
             senderPhoto: senderData?.photoURL || auth.currentUser?.photoURL || null,
+            senderXp: senderData?.xp || 0,
             receiverId,
             status: 'pending',
             createdAt: new Date().toISOString()
@@ -1239,6 +1438,12 @@ export const respondToFriendRequest = async (requestId: string, status: 'accepte
                 friendId: data.senderId,
                 addedAt: serverTimestamp()
             });
+
+            // XP Rewards: 25 XP for both
+            const sRef = doc(db, "users", data.senderId);
+            const rRef = doc(db, "users", data.receiverId);
+            transaction.update(sRef, { xp: increment(25) });
+            transaction.update(rRef, { xp: increment(25) });
         });
     }
 };
@@ -1322,7 +1527,9 @@ export const getUserPublicProfile = async (userId: string) => {
         wins: totalWins,
         friendsCount,
         currentChallenge,
-        mainClub
+        mainClub,
+        xp: userData.xp || 0,
+        clubs
     } as UserPublicProfile;
 };
 
@@ -1413,6 +1620,9 @@ export const submitGOTMReview = async (clubId: string, gotmId: string, userId: s
         clubId, // Denormalize for easier querying if needed
         createdAt: new Date().toISOString()
     }, { merge: true });
+
+    // Award XP
+    await addXp(userId, 50, "Reviewed GOTM");
 };
 
 export const getGOTMReviews = async (gotmId: string) => {

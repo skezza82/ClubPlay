@@ -28,6 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search } from "lucide-react";
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
@@ -491,13 +492,12 @@ function ClubAdminContent() {
                                     {requests.map((req) => (
                                         <div key={req.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg bg-background/50 border border-white/5 gap-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                                                    {req.photoURL ? (
-                                                        <Image src={req.photoURL} alt={req.displayName} width={40} height={40} />
-                                                    ) : (
-                                                        <Users className="w-5 h-5 text-primary" />
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    photoURL={req.photoURL}
+                                                    displayName={req.displayName}
+                                                    xp={req.xp || 0}
+                                                    size="sm"
+                                                />
                                                 <div>
                                                     <p className="font-bold text-white">{req.displayName}</p>
                                                     <p className="text-xs text-muted-foreground">Requested {new Date(req.createdAt).toLocaleDateString()}</p>
@@ -536,9 +536,13 @@ function ClubAdminContent() {
                                 {members.map((member) => (
                                     <div key={member.id} className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5 gap-4">
                                         <div className="flex items-center gap-3 w-full sm:w-auto">
-                                            <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center font-bold text-blue-400 shrink-0">
-                                                {member.displayName?.[0] || "M"}
-                                            </div>
+                                            <UserAvatar
+                                                photoURL={member.photoURL}
+                                                displayName={member.displayName}
+                                                xp={member.xp || 0}
+                                                size="sm"
+                                                isWinner={club?.latestWinnerId === member.userId || (club?.latestWinnerName === member.displayName)}
+                                            />
                                             <div>
                                                 <p className="font-bold text-white flex items-center gap-2">
                                                     {member.displayName}

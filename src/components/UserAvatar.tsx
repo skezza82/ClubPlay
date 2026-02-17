@@ -1,0 +1,82 @@
+
+"use client";
+
+import { User, Trophy } from "lucide-react";
+import { getXpLevel } from "@/lib/firestore-service";
+
+interface UserAvatarProps {
+    uid?: string;
+    photoURL?: string | null;
+    displayName?: string;
+    xp?: number;
+    size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
+    showLevel?: boolean;
+    isWinner?: boolean;
+    className?: string;
+}
+
+export function UserAvatar({
+    photoURL,
+    displayName,
+    xp = 0,
+    size = "md",
+    showLevel = true,
+    isWinner = false,
+    className = ""
+}: UserAvatarProps) {
+    const level = getXpLevel(xp);
+
+    const sizeClasses = {
+        xs: "w-6 h-6",
+        sm: "w-8 h-8",
+        md: "w-10 h-10",
+        lg: "w-14 h-14",
+        xl: "w-16 h-16",
+        "2xl": "w-24 h-24"
+    };
+
+    const bubbleSizeClasses = {
+        xs: "w-3.5 h-3.5 text-[7px] -bottom-0.5 -right-0.5 border",
+        sm: "w-4.5 h-4.5 text-[8px] -bottom-1 -right-1 border",
+        md: "w-6 h-6 text-[10px] -bottom-1 -right-1 border-2",
+        lg: "w-7 h-7 text-[11px] -bottom-1 -right-1 border-2",
+        xl: "w-8 h-8 text-[13px] -bottom-1 -right-1 border-2",
+        "2xl": "w-11 h-11 text-[18px] -bottom-2 -right-2 border-4"
+    };
+
+    const trophySizeClasses = {
+        xs: "w-3 h-3 p-0.5 -top-0.5 -right-0.5",
+        sm: "w-4.5 h-4.5 p-0.5 -top-1 -right-1",
+        md: "w-6 h-6 p-1 -top-1 -right-1",
+        lg: "w-7 h-7 p-1 -top-1 -right-1",
+        xl: "w-9 h-9 p-1.5 -top-1.5 -right-1.5",
+        "2xl": "w-14 h-14 p-2 -top-3 -right-3"
+    };
+
+    return (
+        <div className={`relative shrink-0 ${className}`}>
+            {/* Avatar Circle */}
+            <div className={`${sizeClasses[size]} rounded-xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden transition-colors`}>
+                {photoURL ? (
+                    <img src={photoURL} alt={displayName || "User"} className="w-full h-full object-cover" />
+                ) : (
+                    <User className={`${size === 'xs' ? 'w-3 h-3' : size === 'sm' ? 'w-4 h-4' : 'w-6 h-6'} text-primary/40`} />
+                )}
+            </div>
+
+            {/* Level Badge Bubble */}
+            {showLevel && (
+                <div className={`absolute ${bubbleSizeClasses[size]} bg-primary text-black font-black rounded-full flex items-center justify-center border-surface z-20 shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]`}>
+                    {level}
+                </div>
+            )}
+
+            {/* Winner Trophy */}
+            {isWinner && (
+                <div className={`absolute ${trophySizeClasses[size]} bg-yellow-500 rounded-full border border-surface shadow-lg z-10 flex items-center justify-center`}>
+                    <Trophy className="w-full h-full text-black" />
+                </div>
+            )}
+        </div>
+    );
+}
