@@ -13,7 +13,7 @@ import Link from "next/link";
 import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-service";
 import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, query, where, collection, onSnapshot, getDocs, setDoc } from "firebase/firestore";
 import { getXpLevel, getXpProgress, addXp, setXp, syncRetroactiveXp, bulkSyncAllUsersXp } from "@/lib/firestore-service";
 import { usePWA } from "@/context/PWAContext";
 import { Download } from "lucide-react";
@@ -566,6 +566,39 @@ export default function ProfilePage() {
                                         }}
                                     >
                                         Sync My Legacy XP
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-[10px] border-amber-500 text-amber-500 hover:bg-amber-500/10 col-span-2 font-black"
+                                        onClick={async () => {
+                                            const targets = [
+                                                { name: "Wolverwulf", xp: 625 },
+                                                { name: "Karlos", xp: 600 }
+                                            ];
+
+                                            let fixed = 0;
+                                            for (const target of targets) {
+                                                const q = query(collection(db, "memberships"), where("displayName", "==", target.name));
+                                                const snap = await getDocs(q);
+
+                                                if (!snap.empty) {
+                                                    const uid = snap.docs[0].data().userId;
+                                                    if (uid) {
+                                                        const userRef = doc(db, "users", uid);
+                                                        await setDoc(userRef, {
+                                                            xp: target.xp,
+                                                            displayName: target.name,
+                                                            displayNameLowercase: target.name.toLowerCase()
+                                                        }, { merge: true });
+                                                        fixed++;
+                                                    }
+                                                }
+                                            }
+                                            alert(`Fixed ${fixed} specific users.`);
+                                        }}
+                                    >
+                                        🛠️ FORCE FIX WOLVERWULF & KARLOS
                                     </Button>
                                     <Button
                                         variant="outline"
