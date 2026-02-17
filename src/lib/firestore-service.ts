@@ -691,31 +691,36 @@ export const setXp = async (userId: string, amount: number) => {
 };
 
 export const calculateRetroactiveXp = async (userId: string) => {
-    // 1. Get wins and participation from season_standings
+    // 1. Get wins from season_standings
     const standingsRef = collection(db, "season_standings");
     const qStandings = query(standingsRef, where("userId", "==", userId));
     const standingsSnap = await getDocs(qStandings);
 
     let totalWins = 0;
-    let totalParticipation = standingsSnap.size;
     standingsSnap.forEach(d => {
         totalWins += d.data().wins || 0;
     });
 
-    // 2. Get clubs joined
+    // 2. Get true participation count from scores (one per session)
+    const scoresRef = collection(db, "scores");
+    const qScores = query(scoresRef, where("userId", "==", userId));
+    const scoresSnap = await getDocs(qScores);
+    const totalParticipation = scoresSnap.size;
+
+    // 3. Get clubs joined
     const clubs = await getUserClubs(userId);
     const clubsCount = clubs.length;
 
-    // 3. Get friends count
+    // 4. Get friends count
     const friendsSnap = await getDocs(query(collection(db, "users", userId, "friends"), limit(500)));
     const friendsCount = friendsSnap.size;
 
-    // 4. Calculate extra XP for owned clubs (100 total vs 50 for regular members)
+    // 5. Calculate extra XP for owned clubs (100 total vs 50 for regular members)
     const ownedClubsCount = clubs.filter(c => c.role === 'owner').length;
 
     // Calculation Logic:
     // 500 XP per Win
-    // 100 XP per Participation
+    // 100 XP per Participation (Distinct Session Score)
     // 50 XP per Club Joined
     // 50 XP Bonus per Club Created (Owner)
     // 25 XP per Friend
@@ -727,7 +732,8 @@ export const calculateRetroactiveXp = async (userId: string) => {
             wins: totalWins,
             participation: totalParticipation,
             clubs: clubsCount,
-            friends: friendsCount
+            friends: friendsCount,
+            ownedClubs: ownedClubsCount
         }
     };
 };
@@ -746,10 +752,14 @@ export const bulkSyncAllUsersXp = async () => {
 
         let count = 0;
         for (const userDoc of snapshot.docs) {
-            const userId = userDoc.id;
-            await syncRetroactiveXp(userId);
-            count++;
-            console.log(`[Bulk XP Sync] ${count}/${snapshot.size} complete (${userId})`);
+            try {
+                const userId = userDoc.id;
+                await syncRetroactiveXp(userId);
+                count++;
+                console.log(`[Bulk XP Sync] ${count}/${snapshot.size} complete (${userId})`);
+            } catch (userErr) {
+                console.error(`[Bulk XP Sync] Failed for ${userDoc.id}:`, userErr);
+            }
         }
 
         return count;
