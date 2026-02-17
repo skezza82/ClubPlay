@@ -697,8 +697,11 @@ export const calculateRetroactiveXp = async (userId: string) => {
     const standingsSnap = await getDocs(qStandings);
 
     let totalWins = 0;
+    let foundDisplayName: string | null = null;
     standingsSnap.forEach(d => {
-        totalWins += d.data().wins || 0;
+        const data = d.data();
+        totalWins += data.wins || 0;
+        if (!foundDisplayName && data.displayName) foundDisplayName = data.displayName;
     });
 
     // 2. Get true participation count from scores (one per session)
@@ -706,10 +709,18 @@ export const calculateRetroactiveXp = async (userId: string) => {
     const qScores = query(scoresRef, where("userId", "==", userId));
     const scoresSnap = await getDocs(qScores);
     const totalParticipation = scoresSnap.size;
+    scoresSnap.forEach(d => {
+        const data = d.data();
+        if (!foundDisplayName && data.displayName) foundDisplayName = data.displayName;
+    });
 
     // 3. Get clubs joined
     const clubs = await getUserClubs(userId);
     const clubsCount = clubs.length;
+    // Note: Membership interface has displayName
+    clubs.forEach((c: any) => {
+        if (!foundDisplayName && c.displayName) foundDisplayName = c.displayName;
+    });
 
     // 4. Get friends count
     const friendsSnap = await getDocs(query(collection(db, "users", userId, "friends"), limit(500)));
@@ -728,6 +739,7 @@ export const calculateRetroactiveXp = async (userId: string) => {
 
     return {
         totalXp: calculatedXp,
+        bestDisplayName: foundDisplayName,
         breakdown: {
             wins: totalWins,
             participation: totalParticipation,
@@ -739,26 +751,53 @@ export const calculateRetroactiveXp = async (userId: string) => {
 };
 
 export const syncRetroactiveXp = async (userId: string) => {
-    const { totalXp } = await calculateRetroactiveXp(userId);
-    await setXp(userId, totalXp);
+    if (!userId) return 0;
+    const { totalXp, bestDisplayName } = await calculateRetroactiveXp(userId);
+
+    // Use setDoc with merge to ensure the user document exists and has a name if possible
+    const userRef = doc(db, "users", userId);
+    const updateData: any = { xp: totalXp };
+    if (bestDisplayName) {
+        updateData.displayName = bestDisplayName;
+        updateData.displayNameLowercase = (bestDisplayName as string).toLowerCase();
+    }
+
+    await setDoc(userRef, updateData, { merge: true });
     return totalXp;
 };
 
 export const bulkSyncAllUsersXp = async () => {
     try {
-        const usersRef = collection(db, "users");
-        const snapshot = await getDocs(usersRef);
-        console.log(`[Bulk XP Sync] Starting for ${snapshot.size} users...`);
+        // We iterate through MEMBERSHIPS instead of users to find players who may lack a user profile document
+        const membershipsRef = collection(db, "memberships");
+        const snapshot = await getDocs(membershipsRef);
+        console.log(`[Bulk XP Sync] Scanning ${snapshot.size} memberships...`);
+
+        const uniqueUserIds = new Set<string>();
+        snapshot.docs.forEach(d => {
+            const uid = d.data().userId;
+            if (uid) uniqueUserIds.add(uid);
+        });
+
+        // Also check scores for users who might not be in a club anymore
+        const scoresRef = collection(db, "scores");
+        const scoresSnap = await getDocs(query(scoresRef, limit(1000)));
+        scoresSnap.docs.forEach(d => {
+            const uid = d.data().userId;
+            if (uid) uniqueUserIds.add(uid);
+        });
+
+        console.log(`[Bulk XP Sync] Starting sync for ${uniqueUserIds.size} unique players...`);
 
         let count = 0;
-        for (const userDoc of snapshot.docs) {
+        const uids = Array.from(uniqueUserIds);
+        for (const userId of uids) {
             try {
-                const userId = userDoc.id;
                 await syncRetroactiveXp(userId);
                 count++;
-                console.log(`[Bulk XP Sync] ${count}/${snapshot.size} complete (${userId})`);
+                if (count % 5 === 0) console.log(`[Bulk XP Sync] ${count}/${uniqueUserIds.size} complete...`);
             } catch (userErr) {
-                console.error(`[Bulk XP Sync] Failed for ${userDoc.id}:`, userErr);
+                console.error(`[Bulk XP Sync] Failed for ${userId}:`, userErr);
             }
         }
 
