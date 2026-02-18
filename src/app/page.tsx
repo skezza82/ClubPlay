@@ -363,7 +363,7 @@ function HomeContent() {
 
                             <div className="flex gap-4">
                               <Link href={activeSession ? `/club?id=${activeSession.clubId}` : "/profile"}>
-                                <Button className="px-10 h-12 neon-border font-black uppercase italic tracking-tight text-sm">
+                                <Button className="w-full shadow-none">
                                   {activeSession ? "Enter the Arena" : "View Club"}
                                 </Button>
                               </Link>
@@ -393,7 +393,7 @@ function HomeContent() {
 
                 {/* Game of the Month Card */}
                 <div className="md:col-span-1 animate-fade-in-up stagger-4">
-                  <Link href={gotm ? `/club?id=${gotm.clubId}` : '#'}>
+                  <Link href={gotm ? `/club?id=${gotm.clubId}&tab=gotm` : '#'}>
                     <Card className="relative overflow-hidden border-primary/20 bg-surface/40 h-full min-h-[400px] hover:border-primary/50 transition-colors group cursor-pointer">
                       <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-black/80 z-10" />
 

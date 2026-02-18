@@ -4,27 +4,27 @@ import { cn } from '@/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center rounded-full text-sm font-black uppercase tracking-[0.15em] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 cursor-pointer relative z-30",
+    "inline-flex items-center justify-center rounded-md text-sm font-bold uppercase tracking-widest transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 cursor-pointer relative z-30 backdrop-blur-md",
     {
         variants: {
             variant: {
-                default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(102,252,241,0.3)]",
-                destructive: "bg-red-500 text-white hover:bg-red-600",
-                outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-                secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-                ghost: "hover:bg-accent hover:text-accent-foreground",
+                default: "bg-primary/20 text-primary border border-primary/30 hover:bg-primary/40 group-hover:bg-primary/40 shadow-[0_0_15px_rgba(102,252,241,0.1)]",
+                destructive: "bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/40",
+                outline: "border border-white/10 bg-transparent hover:bg-primary/20 hover:text-primary hover:border-primary/30",
+                secondary: "bg-secondary/20 text-secondary-foreground border border-secondary/30 hover:bg-secondary/40",
+                ghost: "hover:bg-primary/20 hover:text-primary",
                 link: "text-primary underline-offset-4 hover:underline",
-                glass: "glass-button text-primary",
+                glass: "bg-primary/20 text-primary border border-primary/30 hover:bg-primary/40 group-hover:bg-primary/40",
             },
             size: {
-                default: "h-10 px-12 py-2",
-                sm: "h-9 px-10",
-                lg: "h-11 px-16",
-                icon: "h-10 w-10",
+                default: "h-9 px-6 py-2",
+                sm: "h-8 px-4 text-xs",
+                lg: "h-11 px-8",
+                icon: "h-9 w-9",
             },
         },
         defaultVariants: {
-            variant: "glass",
+            variant: "default",
             size: "default",
         },
     }

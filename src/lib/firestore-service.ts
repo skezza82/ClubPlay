@@ -63,6 +63,7 @@ export interface Club {
     latestWinnerName?: string | null;
     createdAt: string;
     isHidden?: boolean;
+    chatEnabled?: boolean;
 }
 
 export interface Membership {
@@ -593,6 +594,20 @@ export const getJoinRequests = async (clubId: string) => {
     }));
 
     return requests;
+};
+
+export const subscribeToJoinRequests = (clubId: string, callback: (requests: any[]) => void) => {
+    const q = query(
+        collection(db, "join_requests"),
+        where("clubId", "==", clubId),
+        where("status", "==", "pending")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        // Simple map first to get IDs, enrichment can happen in callback or here
+        const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(requests);
+    });
 };
 
 export const updateClub = async (clubId: string, data: Partial<Club> & { logoUrl?: string, bannerUrl?: string }) => {

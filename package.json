@@ -1,6 +1,6 @@
 {
   "name": "club-play-web",
-  "version": "1.71",
+  "version": "1.8",
   "private": true,
   "scripts": {
     "dev": "next dev",

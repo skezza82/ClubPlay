@@ -260,7 +260,7 @@ export default function CreateClubPage() {
                             <p className="text-[10px] text-muted-foreground text-right">{bio.length}/200</p>
                         </div>
 
-                        <Button className="w-full neon-border font-black text-lg h-14 rounded-2xl" disabled={isLoading}>
+                        <Button className="w-full h-14 text-lg shadow-none" disabled={isLoading}>
                             {isLoading ? (
                                 <Loader2 className="w-6 h-6 animate-spin" />
                             ) : (

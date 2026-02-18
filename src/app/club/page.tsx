@@ -25,7 +25,9 @@ import {
     getXpLevel,
     addXp,
     getPastGOTMs,
-    getGOTMReviews
+    getGOTMReviews,
+    getJoinRequests,
+    subscribeToJoinRequests
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -351,6 +353,7 @@ function UserProfileModal({ user: profileUser, onClose, currentUser, isFriend, i
 function ClubContent() {
     const searchParams = useSearchParams();
     const clubId = searchParams.get("id");
+    const initialTab = searchParams.get("tab") as "overview" | "season" | "members" | "gotm" || "overview";
     const { user } = useAuth();
     const router = useRouter();
     const [isPendingJoin, setIsPendingJoin] = useState(false);
@@ -368,7 +371,8 @@ function ClubContent() {
     const [loading, setLoading] = useState(true);
     const [scoreInput, setScoreInput] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [activeTab, setActiveTab] = useState("overview");
+    const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "gotm">(initialTab);
+    const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
     // Chat functionality
     const [messages, setMessages] = useState<any[]>([]);
@@ -464,6 +468,13 @@ function ClubContent() {
                     setSentRequests(sent);
                     const friends = await getFriends(user.uid);
                     setFriendsList(friends.map(f => f.uid));
+
+                    // Fetch pending requests count if admin
+                    const userMembership = membersData.find((m: any) => m.userId === user.uid);
+                    if (userMembership && (userMembership.role === 'admin' || userMembership.role === 'owner')) {
+                        const requests = await getJoinRequests(clubId);
+                        setPendingRequestsCount(requests.length);
+                    }
                 }
 
                 setLoading(false);
@@ -499,6 +510,7 @@ function ClubContent() {
         }
     }, [clubId, activeTab]);
 
+
     useEffect(() => {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -508,6 +520,15 @@ function ClubContent() {
     const isMember = user && members.some(m => m.userId === user.uid);
     const isAdmin = user && members.some(m => m.userId === user.uid && (m.role === 'admin' || m.role === 'owner'));
     const isPending = isPendingJoin;
+
+    useEffect(() => {
+        if (clubId && isAdmin) {
+            const unsubscribe = subscribeToJoinRequests(clubId, (requests: any[]) => {
+                setPendingRequestsCount(requests.length);
+            });
+            return () => unsubscribe();
+        }
+    }, [clubId, isAdmin, subscribeToJoinRequests]);
 
     const isSessionActive = selectedSession && new Date(selectedSession.endDate) > new Date();
 
@@ -657,7 +678,14 @@ function ClubContent() {
                     <div className="flex gap-2">
                         {isAdmin ? (
                             <Link href={`/club/admin?id=${clubId}`}>
-                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10">Admin Dashboard</Button>
+                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative">
+                                    Admin Dashboard
+                                    {pendingRequestsCount > 0 && (
+                                        <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-black text-[10px] font-black border border-surface z-20 shadow-[0_0_10px_rgba(102,252,241,0.5)] animate-pulse">
+                                            {pendingRequestsCount}
+                                        </span>
+                                    )}
+                                </Button>
                             </Link>
                         ) : isMember ? (
                             <Button variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleLeave}>
@@ -1018,83 +1046,85 @@ function ClubContent() {
                         </div>
 
                         {/* Chat Section in Overview */}
-                        <div className="flex flex-col h-[500px] bg-surface/30 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden mt-8">
-                            {/* Chat Header */}
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
-                                <h3 className="font-bold text-white flex items-center gap-2">
-                                    <MessageSquare className="w-4 h-4 text-primary" /> Club Chat
-                                </h3>
-                                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                    <Shield className="w-3 h-3" /> Members Only
-                                </div>
-                            </div>
-
-                            {/* Messages Area */}
-                            <div
-                                ref={chatContainerRef}
-                                className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent scroll-smooth"
-                            >
-                                {messages.length === 0 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                                        <MessageSquare className="w-12 h-12 mb-2" />
-                                        <p className="text-sm">No messages yet. Start the conversation!</p>
+                        {club.chatEnabled !== false && (
+                            <div className="flex flex-col h-[500px] bg-surface/30 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden mt-8">
+                                {/* Chat Header */}
+                                <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
+                                    <h3 className="font-bold text-white flex items-center gap-2">
+                                        <MessageSquare className="w-4 h-4 text-primary" /> Club Chat
+                                    </h3>
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                        <Shield className="w-3 h-3" /> Members Only
                                     </div>
-                                ) : (
-                                    messages.map((msg) => (
-                                        <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.uid ? 'flex-row-reverse' : ''}`}>
-                                            <UserAvatar
-                                                uid={msg.userId}
-                                                photoURL={msg.photoURL}
-                                                displayName={msg.displayName}
-                                                xp={msg.xp || 0}
-                                                size="sm"
-                                                showLevel={false}
-                                                isWinner={club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)}
-                                                className="hover:scale-110 transition-transform active:scale-95"
-                                                onClick={() => {
-                                                    const member = members.find(m => m.userId === msg.userId);
-                                                    setSelectedUser(member || {
-                                                        userId: msg.userId,
-                                                        displayName: msg.displayName,
-                                                        photoURL: msg.photoURL,
-                                                        joinedAt: member?.joinedAt
-                                                    });
-                                                }}
-                                            />
-                                            <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>
-                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-1">
-                                                    <span className="font-bold text-white/80">{msg.displayName}</span>
-                                                    <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
-                                                <div className={`p-3 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap ${msg.userId === user?.uid ? 'bg-primary text-black rounded-tr-none font-medium' : 'bg-white/10 text-white rounded-tl-none border border-white/5'}`}>
-                                                    {msg.text}
+                                </div>
+
+                                {/* Messages Area */}
+                                <div
+                                    ref={chatContainerRef}
+                                    className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent scroll-smooth"
+                                >
+                                    {messages.length === 0 ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+                                            <MessageSquare className="w-12 h-12 mb-2" />
+                                            <p className="text-sm">No messages yet. Start the conversation!</p>
+                                        </div>
+                                    ) : (
+                                        messages.map((msg) => (
+                                            <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.uid ? 'flex-row-reverse' : ''}`}>
+                                                <UserAvatar
+                                                    uid={msg.userId}
+                                                    photoURL={msg.photoURL}
+                                                    displayName={msg.displayName}
+                                                    xp={msg.xp || 0}
+                                                    size="sm"
+                                                    showLevel={false}
+                                                    isWinner={club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)}
+                                                    className="hover:scale-110 transition-transform active:scale-95"
+                                                    onClick={() => {
+                                                        const member = members.find(m => m.userId === msg.userId);
+                                                        setSelectedUser(member || {
+                                                            userId: msg.userId,
+                                                            displayName: msg.displayName,
+                                                            photoURL: msg.photoURL,
+                                                            joinedAt: member?.joinedAt
+                                                        });
+                                                    }}
+                                                />
+                                                <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>
+                                                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-1">
+                                                        <span className="font-bold text-white/80">{msg.displayName}</span>
+                                                        <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    </div>
+                                                    <div className={`p-3 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap ${msg.userId === user?.uid ? 'bg-primary text-black rounded-tr-none font-medium' : 'bg-white/10 text-white rounded-tl-none border border-white/5'}`}>
+                                                        {msg.text}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* Chat Input */}
+                                {isMember ? (
+                                    <form onSubmit={handleSendMessage} className="p-4 bg-black/40 border-t border-white/10 flex gap-2">
+                                        <Input
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            placeholder="Type a message..."
+                                            className="bg-black/50 border-white/10"
+                                            maxLength={500}
+                                        />
+                                        <Button type="submit" disabled={isSending || !chatInput.trim()} size="icon" className="shrink-0">
+                                            <Send className="w-4 h-4" />
+                                        </Button>
+                                    </form>
+                                ) : (
+                                    <div className="p-4 bg-black/40 text-center text-xs text-muted-foreground italic border-t border-white/10">
+                                        Join this club to participate in the conversation.
+                                    </div>
                                 )}
                             </div>
-
-                            {/* Chat Input */}
-                            {isMember ? (
-                                <form onSubmit={handleSendMessage} className="p-4 bg-black/40 border-t border-white/10 flex gap-2">
-                                    <Input
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        placeholder="Type a message..."
-                                        className="bg-black/50 border-white/10"
-                                        maxLength={500}
-                                    />
-                                    <Button type="submit" disabled={isSending || !chatInput.trim()} size="icon" className="shrink-0">
-                                        <Send className="w-4 h-4" />
-                                    </Button>
-                                </form>
-                            ) : (
-                                <div className="p-4 bg-black/40 text-center text-xs text-muted-foreground italic border-t border-white/10">
-                                    Join this club to participate in the conversation.
-                                </div>
-                            )}
-                        </div>
+                        )}
 
 
                         {/* Past Challenges History */}

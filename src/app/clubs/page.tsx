@@ -97,7 +97,7 @@ export default function ClubsPage() {
                     </div>
 
                     <Link href="/clubs/create" className="shrink-0">
-                        <Button className="h-16 px-8 text-lg font-black uppercase tracking-widest neon-border bg-black/40 hover:bg-primary hover:text-black transition-all group-hover:scale-105 shadow-[0_0_30px_rgba(var(--primary-rgb),0.1)]">
+                        <Button className="h-16 px-8 text-lg w-full shadow-none">
                             <PlusCircle className="w-6 h-6 mr-3 group-hover:rotate-90 transition-transform duration-500" />
                             Create a Club
                         </Button>

@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserAvatar } from "@/components/UserAvatar";
-import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search, Upload } from "lucide-react";
+import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search, Upload, MessageSquare } from "lucide-react";
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -56,6 +56,7 @@ function ClubAdminContent() {
     const [clubBio, setClubBio] = useState("");
     const [logoUrl, setLogoUrl] = useState("");
     const [bannerUrl, setBannerUrl] = useState("");
+    const [chatEnabled, setChatEnabled] = useState(true);
     const bannerInputRef = useRef<HTMLInputElement>(null);
     const boxartInputRef = useRef<HTMLInputElement>(null);
 
@@ -290,6 +291,7 @@ function ClubAdminContent() {
                 setClubBio(clubData.bio || "");
                 setLogoUrl(clubData.logoUrl || "");
                 setBannerUrl(clubData.bannerUrl || "");
+                setChatEnabled(clubData.chatEnabled !== false);
 
                 // 2. Fetch Requests
                 const reqData = await getJoinRequests(clubId as string);
@@ -375,7 +377,8 @@ function ClubAdminContent() {
             await updateClub(clubId as string, {
                 name: clubName,
                 bio: clubBio,
-                bannerUrl: bannerUrl
+                bannerUrl: bannerUrl,
+                chatEnabled: chatEnabled
             });
             alert("Club settings updated!");
             setClub({ ...club, name: clubName, bio: clubBio });
@@ -492,7 +495,7 @@ function ClubAdminContent() {
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-white/5 pb-6">
                 <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 overflow-x-auto max-w-full">
-                    <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")}>Requests</TabButton>
+                    <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")} badge={requests.length}>Requests</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
                     <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")}>Settings</TabButton>
 
@@ -773,6 +776,28 @@ function ClubAdminContent() {
                                                     </button>
                                                 ))}
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Chat Toggle Section */}
+                                    <div className="pt-8 space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${chatEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <MessageSquare className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Club Chat</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Allow members to use the message board</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setChatEnabled(!chatEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${chatEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${chatEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
                                         </div>
                                     </div>
 
@@ -1461,13 +1486,18 @@ function ClubAdminContent() {
     );
 }
 
-function TabButton({ children, active, onClick }: { children: React.ReactNode, active: boolean, onClick: () => void }) {
+function TabButton({ children, active, onClick, badge }: { children: React.ReactNode, active: boolean, onClick: () => void, badge?: number }) {
     return (
         <button
             onClick={onClick}
-            className={`px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300 whitespace-nowrap ${active ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.5)]' : 'text-muted-foreground hover:text-white hover:bg-white/5'}`}
+            className={`px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300 whitespace-nowrap flex items-center gap-2 ${active ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.5)]' : 'text-muted-foreground hover:text-white hover:bg-white/5'}`}
         >
             {children}
+            {badge !== undefined && badge > 0 && (
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${active ? 'bg-black text-primary' : 'bg-primary text-black'}`}>
+                    {badge}
+                </span>
+            )}
         </button>
     );
 }
