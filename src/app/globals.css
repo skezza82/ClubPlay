@@ -155,7 +155,7 @@ body {
 .neon-border {
   position: relative;
   z-index: 0;
-  border-radius: 12px;
+  border-radius: 9999px;
   overflow: hidden;
   padding: 1px;
   background: var(--primary);
@@ -179,7 +179,7 @@ body {
 .rgb-neon-border {
   position: relative;
   z-index: 0;
-  border-radius: 12px;
+  border-radius: 2rem;
   overflow: hidden;
   padding: 2px;
   background: transparent;
@@ -207,7 +207,7 @@ body {
   z-index: -1;
   inset: 2px;
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: calc(2rem - 2px);
   backdrop-filter: blur(8px);
 }
 

@@ -78,11 +78,11 @@ export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "r
                 <Card className="border-none bg-surface/40 backdrop-blur-xl">
                     <CardHeader className="text-center">
                         {mode !== "reset" ? (
-                            <div className="flex bg-background/50 p-1 rounded-lg border border-white/5 mb-6">
+                            <div className="flex bg-background/50 p-1 rounded-full border border-white/5 mb-6">
                                 <button
                                     type="button"
                                     onClick={() => { setMode("login"); setError(""); setSuccessMessage(""); }}
-                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${mode === "login"
+                                    className={`flex-1 py-2 text-sm font-bold rounded-full transition-all ${mode === "login"
                                         ? "bg-primary text-black shadow-lg"
                                         : "text-muted-foreground hover:text-white"
                                         }`}

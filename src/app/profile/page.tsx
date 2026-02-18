@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { useAuth } from "@/context/AuthContext";
-import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2, Users, Search, XCircle, Heart, PartyPopper } from "lucide-react";
+import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2, Users, Search, XCircle, Heart, PartyPopper, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
-import { PRESET_AVATARS, uploadAvatar, updateUserAvatar } from "@/lib/avatar-service";
-import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest } from "@/lib/firestore-service";
+import { PRESET_AVATARS, uploadAvatar, updateUserAvatar, DEFAULT_BANNERS } from "@/lib/avatar-service";
+import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest, hideClub, randomizeAllClubBanners } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
 import { getXpLevel, getXpProgress, addXp, setXp } from "@/lib/firestore-service";
@@ -40,6 +40,8 @@ export default function ProfilePage() {
     const [lastLevel, setLastLevel] = useState<number | null>(null);
     const [showLevelUp, setShowLevelUp] = useState(false);
     const [levelUpInfo, setLevelUpInfo] = useState({ level: 1 });
+    const [hideQuery, setHideQuery] = useState("");
+    const [isHiding, setIsHiding] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -184,6 +186,33 @@ export default function ProfilePage() {
     const handleRespondRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
         await respondToFriendRequest(requestId, status);
         setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+    };
+
+    const handleHideClub = async () => {
+        if (!hideQuery) return;
+        setIsHiding(true);
+        try {
+            const res = await hideClub(hideQuery);
+            alert(`SUCCESS: Club "${res.name}" is now hidden from public. 🛡️`);
+            setHideQuery("");
+        } catch (error: any) {
+            alert("ERROR: " + error.message);
+        } finally {
+            setIsHiding(false);
+        }
+    };
+
+    const handleRandomizeBanners = async () => {
+        if (!confirm("Are you sure you want to randomize banners for all clubs? (Excluding protected ones)")) return;
+        setIsLoadingClubs(true);
+        try {
+            const count = await randomizeAllClubBanners(DEFAULT_BANNERS);
+            alert(`SUCCESS: Randomly updated banners for ${count} clubs. 🎨`);
+        } catch (error: any) {
+            alert("ERROR: " + error.message);
+        } finally {
+            setIsLoadingClubs(false);
+        }
     };
 
     if (!user) {
@@ -491,72 +520,106 @@ export default function ProfilePage() {
 
                         <InstallAppButton />
 
-                        {/* Developer Console (Test Buttons) */}
-                        <Card className="border-red-500/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up stagger-5">
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center gap-2">
-                                    <Binary className="w-4 h-4 text-red-500" />
-                                    <CardTitle className="text-xs uppercase tracking-[0.3em] font-black text-white/50">Developer Console</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-4 space-y-3">
-                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2">XP Injection (Testing Only)</p>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-white/10 hover:bg-primary/20"
-                                        onClick={() => addXp(user!.uid, 100, "Dev Bonus")}
-                                    >
-                                        +100 XP
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-white/10 hover:bg-primary/20"
-                                        onClick={() => addXp(user!.uid, 500, "Dev Bonus")}
-                                    >
-                                        +500 XP
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-white/10 hover:bg-primary/20 text-primary"
-                                        onClick={() => addXp(user!.uid, 1000, "Dev Bonus")}
-                                    >
-                                        +1000 XP
-                                    </Button>
-                                </div>
+                        {/* Developer Console (Test Buttons) - Admin Only */}
+                        {(nickname?.toLowerCase() === "skezza82" || user?.displayName?.toLowerCase() === "skezza82") && (
+                            <Card className="border-red-500/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up stagger-5">
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Binary className="w-4 h-4 text-red-500" />
+                                        <CardTitle className="text-xs uppercase tracking-[0.3em] font-black text-white/50">Developer Console</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-4 space-y-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2">XP Injection (Testing Only)</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-[10px] border-white/10 hover:bg-primary/20"
+                                            onClick={() => addXp(user!.uid, 100, "Dev Bonus")}
+                                        >
+                                            +100 XP
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-[10px] border-white/10 hover:bg-primary/20"
+                                            onClick={() => addXp(user!.uid, 500, "Dev Bonus")}
+                                        >
+                                            +500 XP
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-[10px] border-white/10 hover:bg-primary/20 text-primary"
+                                            onClick={() => addXp(user!.uid, 1000, "Dev Bonus")}
+                                        >
+                                            +1000 XP
+                                        </Button>
+                                    </div>
 
-                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-2">Level Management</p>
-                                <div className="grid grid-cols-2 gap-2">
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-2">Level Management</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-[10px] border-red-500/30 text-red-500 hover:bg-red-500/10"
+                                            onClick={() => setXp(user!.uid, 0)}
+                                        >
+                                            Reset to Level 1
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-[10px] border-white/10 hover:bg-primary/20"
+                                            onClick={() => {
+                                                const lvl = prompt("Enter target level:");
+                                                if (lvl && !isNaN(Number(lvl))) {
+                                                    const levelNum = Math.max(1, Number(lvl));
+                                                    // Formula: 500 * L * (L-1)
+                                                    const xpNeeded = 500 * levelNum * (levelNum - 1);
+                                                    setXp(user!.uid, xpNeeded);
+                                                }
+                                            }}
+                                        >
+                                            Jump to Level...
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-2">Club Visibility Control</p>
+                                    <div className="space-y-2">
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={hideQuery}
+                                                onChange={(e) => setHideQuery(e.target.value)}
+                                                placeholder="Club ID, Name, or #Code"
+                                                className="bg-black/30 border-white/10 text-[10px] h-8"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                className="h-8 text-[10px] bg-red-600 hover:bg-red-700 whitespace-nowrap"
+                                                disabled={isHiding}
+                                                onClick={handleHideClub}
+                                            >
+                                                {isHiding ? "Hiding..." : "Hide Club"}
+                                            </Button>
+                                        </div>
+                                        <p className="text-[8px] text-muted-foreground italic">Caution: Hiding is instant and removes club from discovery lists.</p>
+                                    </div>
+
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-4">Bulk Actions</p>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="text-[10px] border-red-500/30 text-red-500 hover:bg-red-500/10"
-                                        onClick={() => setXp(user!.uid, 0)}
+                                        className="w-full text-[10px] border-primary/20 hover:bg-primary/10 gap-2"
+                                        onClick={handleRandomizeBanners}
                                     >
-                                        Reset to Level 1
+                                        <ImageIcon className="w-3 h-3" />
+                                        Randomize All Club Banners
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-[10px] border-white/10 hover:bg-primary/20"
-                                        onClick={() => {
-                                            const lvl = prompt("Enter target level:");
-                                            if (lvl && !isNaN(Number(lvl))) {
-                                                const levelNum = Math.max(1, Number(lvl));
-                                                // Formula: 500 * L * (L-1)
-                                                const xpNeeded = 500 * levelNum * (levelNum - 1);
-                                                setXp(user!.uid, xpNeeded);
-                                            }
-                                        }}
-                                    >
-                                        Jump to Level...
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">

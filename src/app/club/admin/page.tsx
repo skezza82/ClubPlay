@@ -29,15 +29,16 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserAvatar } from "@/components/UserAvatar";
-import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search } from "lucide-react";
+import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search, Upload } from "lucide-react";
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { uploadClubLogo, uploadSessionBoxart } from "@/lib/avatar-service";
+import { uploadClubBanner, uploadClubLogo, uploadSessionBoxart, DEFAULT_BANNERS } from "@/lib/avatar-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { useRef, Suspense } from "react";
+
 
 function ClubAdminContent() {
     const searchParams = useSearchParams();
@@ -54,6 +55,9 @@ function ClubAdminContent() {
     const [clubName, setClubName] = useState("");
     const [clubBio, setClubBio] = useState("");
     const [logoUrl, setLogoUrl] = useState("");
+    const [bannerUrl, setBannerUrl] = useState("");
+    const bannerInputRef = useRef<HTMLInputElement>(null);
+    const boxartInputRef = useRef<HTMLInputElement>(null);
 
     // Game & Score State
     const [weekScores, setWeekScores] = useState<any[]>([]);
@@ -101,7 +105,6 @@ function ClubAdminContent() {
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const boxartInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
     const router = useRouter();
 
@@ -286,6 +289,7 @@ function ClubAdminContent() {
                 setClubName(clubData.name);
                 setClubBio(clubData.bio || "");
                 setLogoUrl(clubData.logoUrl || "");
+                setBannerUrl(clubData.bannerUrl || "");
 
                 // 2. Fetch Requests
                 const reqData = await getJoinRequests(clubId as string);
@@ -370,7 +374,8 @@ function ClubAdminContent() {
         try {
             await updateClub(clubId as string, {
                 name: clubName,
-                bio: clubBio
+                bio: clubBio,
+                bannerUrl: bannerUrl
             });
             alert("Club settings updated!");
             setClub({ ...club, name: clubName, bio: clubBio });
@@ -401,6 +406,30 @@ function ClubAdminContent() {
         } catch (error) {
             console.error("Error updating logo:", error);
             alert("Logo upload failed.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !clubId) return;
+
+        setIsUpdating(true);
+        try {
+            const uploadedUrl = await uploadClubBanner(clubId as string, file);
+            setBannerUrl(uploadedUrl);
+
+            // Auto-save to Firestore
+            await updateClub(clubId as string, {
+                bannerUrl: uploadedUrl
+            });
+
+            setClub({ ...club, bannerUrl: uploadedUrl });
+            alert("Banner updated! 🎨");
+        } catch (error) {
+            console.error("Error updating banner:", error);
+            alert("Banner upload failed.");
         } finally {
             setIsUpdating(false);
         }
@@ -615,74 +644,138 @@ function ClubAdminContent() {
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleUpdateSettings} className="space-y-6 max-w-lg">
-                                <div className="flex border-b border-white/5 pb-8 mb-8">
-                                    <div className="flex flex-col items-center gap-4">
+                                <div className="space-y-8 divide-y divide-white/5">
+                                    <div className="flex flex-col md:flex-row items-center gap-8">
+                                        {/* Logo Section */}
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-24 h-24 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group relative"
+                                            >
+                                                {logoUrl ? (
+                                                    <>
+                                                        <img src={logoUrl} alt="Club Logo" className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            <Camera className="w-6 h-6 text-white" />
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                        <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                onChange={handleLogoUpload}
+                                                className="hidden"
+                                                accept="image/*"
+                                            />
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black mb-1">Badge</p>
+                                                <Button
+                                                    type="button"
+                                                    variant="link"
+                                                    size="sm"
+                                                    className="h-auto p-0 text-primary text-[10px] font-bold uppercase tracking-widest"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                >
+                                                    Change Logo
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Basic Info */}
+                                        <div className="flex-1 space-y-4 w-full">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Name</label>
+                                                <Input
+                                                    id="clubName"
+                                                    value={clubName}
+                                                    onChange={(e) => setClubName(e.target.value)}
+                                                    className="bg-background/50 border-white/10 h-12 text-white font-bold"
+                                                    placeholder="Enter club name"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Bio</label>
+                                                <textarea
+                                                    id="clubBio"
+                                                    value={clubBio}
+                                                    onChange={(e) => setClubBio(e.target.value)}
+                                                    className="w-full bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all h-24"
+                                                    placeholder="Tell us about your club..."
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Banner Section */}
+                                    <div className="pt-8 space-y-6">
+                                        <div className="flex justify-between items-end">
+                                            <label className="text-xs font-black text-primary tracking-[0.2em] uppercase">Club Banner</label>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 text-[10px] font-black uppercase tracking-widest border-white/10"
+                                                onClick={() => bannerInputRef.current?.click()}
+                                            >
+                                                <Upload className="w-3 h-3 mr-2" /> Upload Custom
+                                            </Button>
+                                        </div>
+
                                         <div
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="w-24 h-24 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group relative"
+                                            className="relative w-full h-40 rounded-2xl bg-white/5 border border-white/10 overflow-hidden group shadow-2xl"
                                         >
-                                            {logoUrl ? (
-                                                <>
-                                                    <img src={logoUrl} alt="Club Logo" className="w-full h-full object-cover" />
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <Camera className="w-6 h-6 text-white" />
-                                                    </div>
-                                                </>
+                                            {bannerUrl ? (
+                                                <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
                                             ) : (
-                                                <>
-                                                    <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                    <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
-                                                </>
+                                                <div className="w-full h-full flex flex-col items-center justify-center opacity-40">
+                                                    <Gamepad2 className="w-12 h-12 text-muted-foreground mb-2" />
+                                                    <span className="text-sm font-bold uppercase tracking-widest">No Banner Set</span>
+                                                </div>
                                             )}
                                         </div>
                                         <input
                                             type="file"
-                                            ref={fileInputRef}
-                                            onChange={handleLogoUpload}
+                                            ref={bannerInputRef}
+                                            onChange={handleBannerUpload}
                                             className="hidden"
                                             accept="image/*"
                                         />
-                                        <div className="text-center">
-                                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black mb-1">Club Identity</p>
-                                            <Button
-                                                type="button"
-                                                variant="link"
-                                                size="sm"
-                                                className="h-auto p-0 text-primary text-[10px] font-bold uppercase tracking-widest"
-                                                onClick={() => fileInputRef.current?.click()}
-                                            >
-                                                Change Logo
-                                            </Button>
+
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Quick Select Premium Banners</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                                {DEFAULT_BANNERS.map((banner) => (
+                                                    <button
+                                                        key={banner.id}
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            setBannerUrl(banner.url);
+                                                            await updateClub(clubId as string, { bannerUrl: banner.url });
+                                                            setClub({ ...club, bannerUrl: banner.url });
+                                                        }}
+                                                        className={`aspect-[3/1] rounded-lg border-2 overflow-hidden transition-all bg-black/20 ${bannerUrl === banner.url
+                                                            ? "border-primary scale-95 shadow-[0_0_15px_rgba(0,242,234,0.4)]"
+                                                            : "border-white/5 hover:border-white/20 hover:scale-105"
+                                                            }`}
+                                                    >
+                                                        <img src={banner.url} alt={banner.name} className="w-full h-full object-cover" title={banner.name} />
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex-1 pl-8 space-y-4 pt-2">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Name</label>
-                                            <Input
-                                                id="clubName"
-                                                value={clubName}
-                                                onChange={(e) => setClubName(e.target.value)}
-                                                className="bg-background/50 border-white/10 h-12 text-white font-bold"
-                                                placeholder="Enter club name"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Club Bio</label>
-                                            <textarea
-                                                id="clubBio"
-                                                value={clubBio}
-                                                onChange={(e) => setClubBio(e.target.value)}
-                                                className="w-full bg-background/50 border border-white/10 rounded-lg p-4 font-sans text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all h-24"
-                                                placeholder="Tell us about your club..."
-                                            />
-                                        </div>
-                                        <div className="pt-2">
-                                            <Button type="submit" size="sm" className="bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest h-8 px-4" disabled={isUpdating}>
-                                                {isUpdating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                                                Update Identity
-                                            </Button>
-                                        </div>
+                                    <div className="pt-8">
+                                        <Button type="submit" size="lg" className="w-full neon-border font-black uppercase tracking-widest h-14 rounded-2xl" disabled={isUpdating}>
+                                            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Settings className="w-5 h-5 mr-2" />}
+                                            Save All Settings
+                                        </Button>
                                     </div>
                                 </div>
                             </form>

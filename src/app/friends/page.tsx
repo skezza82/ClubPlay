@@ -51,8 +51,6 @@ export default function FriendsPage() {
         } catch (error) {
             console.error("Error fetching friends data:", error);
         } finally {
-            setLoading(true);
-            // Artificial delay for smooth transition if needed, but let's just finish
             setLoading(false);
         }
     };

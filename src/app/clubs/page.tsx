@@ -9,6 +9,7 @@ import { PremiumLogo } from "@/components/PremiumLogo";
 import { Users, Search, PlusCircle, ArrowUpDown, ChevronRight, Loader2, Sparkles, Trophy, Gamepad2 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ClubsPage() {
@@ -188,16 +189,44 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                 </div>
             )}
 
-            <div className="h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+            {club.bannerUrl ? (
+                <div className="h-20 w-full relative overflow-hidden shrink-0">
+                    <Image
+                        src={club.bannerUrl}
+                        alt="Banner"
+                        fill
+                        className="object-cover opacity-40 group-hover:opacity-70 transition-opacity duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/40" />
+                </div>
+            ) : (
+                <div className="h-1 bg-gradient-to-r from-primary/50 via-purple-500/50 to-primary/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
             <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <Badge className="mb-2 bg-white/10 text-gray-400 border-white/10 uppercase text-[10px] tracking-widest font-bold px-2 py-0.5 rounded">
-                            ID: {club.inviteCode}
-                        </Badge>
-                        <CardTitle className="text-xl group-hover:text-primary transition-colors">{club.name}</CardTitle>
+                <div className="flex justify-between items-start gap-3">
+                    <div className="flex-1 flex gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shrink-0 overflow-hidden border border-white/5">
+                            {club.logoUrl ? (
+                                <Image
+                                    src={club.logoUrl}
+                                    alt={club.name}
+                                    width={48}
+                                    height={48}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Users className="w-6 h-6 text-black" />
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <Badge className="mb-1.5 bg-white/10 text-gray-400 border-white/10 uppercase text-[8px] tracking-widest font-bold px-2 py-0.5 rounded">
+                                ID: {club.inviteCode}
+                            </Badge>
+                            <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{club.name}</CardTitle>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-muted-foreground text-xs font-mono">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-muted-foreground text-xs font-mono shrink-0">
                         <Users className="w-3 h-3 text-primary" />
                         {club.memberCount || 0}
                     </div>

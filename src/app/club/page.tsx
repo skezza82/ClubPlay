@@ -46,7 +46,8 @@ import {
     ThumbsUp,
     ThumbsDown,
     UserPlus,
-    Share2
+    Share2,
+    Info
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -337,7 +338,11 @@ function ClubContent() {
         </div>
     );
 
-    const game = selectedSession;
+    const game = selectedSession ? {
+        title: selectedSession.gameTitle,
+        platform: selectedSession.platform,
+        cover_image_url: selectedSession.cover_image_url || null
+    } : null;
 
     return (
         <main className="min-h-screen bg-background pb-20">
@@ -346,12 +351,12 @@ function ClubContent() {
                 <div className="absolute inset-0 z-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
                     <div className="absolute inset-0 bg-primary/10 mix-blend-overlay z-10" />
-                    {club.coverUrl ? (
+                    {club.bannerUrl ? (
                         <Image
-                            src={club.coverUrl}
+                            src={club.bannerUrl}
                             alt={club.name}
                             fill
-                            className="object-cover scale-105 blur-sm"
+                            className="object-cover scale-100"
                         />
                     ) : (
                         <div className="w-full h-full bg-surface" />
@@ -360,8 +365,18 @@ function ClubContent() {
 
                 <div className="relative z-20 h-full container mx-auto max-w-3xl px-6 flex flex-col justify-end pb-8">
                     <div className="flex items-center gap-4 mb-4">
-                        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform rotate-3">
-                            <Users className="w-8 h-8 text-black" />
+                        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform rotate-3 overflow-hidden">
+                            {club.logoUrl ? (
+                                <Image
+                                    src={club.logoUrl}
+                                    alt={club.name}
+                                    width={64}
+                                    height={64}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Users className="w-8 h-8 text-black" />
+                            )}
                         </div>
                         <div>
                             <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic">
@@ -540,13 +555,13 @@ function ClubContent() {
                                                                 placeholder={selectedSession?.challengeType === 'speed' ? "e.g., 90 for 01:30" : "000,000"}
                                                                 value={scoreInput}
                                                                 onChange={(e) => setScoreInput(e.target.value)}
-                                                                className="bg-black/50 border-white/10 text-white font-mono text-xl h-14"
+                                                                className="flex-1 bg-black/50 border-white/10 text-white font-mono text-xl h-14"
                                                                 required
                                                             />
                                                             <Button
                                                                 disabled={isSubmitting}
                                                                 type="submit"
-                                                                className="h-14 px-8 neon-border transition-all active:scale-95"
+                                                                className="h-14 px-12 rounded-full neon-border transition-all active:scale-95 font-black font-mono tracking-normal text-sm"
                                                             >
                                                                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "SUBMIT"}
                                                             </Button>
@@ -869,6 +884,44 @@ function ClubContent() {
                                 )}
                             </div>
 
+                            {/* Club About Card */}
+                            <Card className="border-white/10 bg-surface/40 backdrop-blur-md overflow-hidden relative group">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-xs font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+                                        <Info className="w-3 h-3" /> About the Club
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden border border-white/5">
+                                            {club.logoUrl ? (
+                                                <Image src={club.logoUrl} alt={club.name} width={40} height={40} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Users className="w-5 h-5 text-primary" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h4 className="font-bold text-white truncate">{club.name}</h4>
+                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter italic">ID: {club.inviteCode}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest border-y border-white/5 py-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <Users className="w-3 h-3 text-primary" /> {members.length} Members
+                                        </div>
+                                        <div className="w-1 h-1 bg-white/10 rounded-full" />
+                                        <div className="flex items-center gap-1.5">
+                                            <Calendar className="w-3 h-3 text-primary" /> {new Date(club.createdAt).getFullYear()}
+                                        </div>
+                                    </div>
+
+                                    <p className="text-xs text-gray-300 leading-relaxed italic">
+                                        {club.bio || "No mission statement provided. Join us and help define our legacy!"}
+                                    </p>
+                                </CardContent>
+                            </Card>
+
                             <div className="p-6 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 shadow-lg relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
                                     <Crown className="w-12 h-12 text-blue-400" />
@@ -889,7 +942,17 @@ function ClubContent() {
                                         <span className="w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center font-black shrink-0 text-[10px]">3</span>
                                         <span>Hold <span className="text-white font-bold">3rd</span> place for consistent season progression.</span>
                                     </li>
+                                    <li className="flex gap-3">
+                                        <span className="w-5 h-5 rounded-full bg-blue-500/50 text-white flex items-center justify-center font-black shrink-0 text-[10px]">4+</span>
+                                        <span>Players 4th and below score <span className="text-white font-bold">25 points</span> for participation.</span>
+                                    </li>
                                 </ul>
+                                <div className="mt-4 pt-4 border-t border-blue-500/20 text-[10px] text-blue-300/80 font-medium italic">
+                                    <p className="flex items-center gap-2">
+                                        <span className="text-primary text-xs">💡</span>
+                                        <span><span className="text-primary font-bold">Bonus Tip:</span> Being the first to post a score rewards <span className="text-white">Extra XP</span> towards your player level!</span>
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -923,6 +986,7 @@ function ClubContent() {
                                                 displayName={msg.displayName}
                                                 xp={msg.xp || 0}
                                                 size="sm"
+                                                showLevel={false}
                                                 isWinner={club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)}
                                             />
                                             <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>

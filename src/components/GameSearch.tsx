@@ -102,7 +102,7 @@ export function GameSearch({ onSelect, className = '' }: GameSearchProps) {
             </div>
 
             {isOpen && results.length > 0 && (
-                <div className="absolute z-10 mt-2 w-full max-h-80 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 shadow-xl">
+                <div className="absolute z-10 mt-2 w-full max-h-80 overflow-y-auto rounded-3xl border border-gray-700 bg-gray-900 shadow-xl">
                     <div className="p-2 space-y-1">
                         {results.map((game) => (
                             <button
@@ -112,9 +112,9 @@ export function GameSearch({ onSelect, className = '' }: GameSearchProps) {
                                     setIsOpen(false);
                                     setQuery('');
                                 }}
-                                className="flex w-full items-center gap-3 rounded-md p-2 hover:bg-gray-800 transition-colors text-left"
+                                className="flex w-full items-center gap-3 rounded-xl p-2 hover:bg-gray-800 transition-colors text-left"
                             >
-                                <div className="h-12 w-9 flex-shrink-0 bg-gray-800 rounded overflow-hidden">
+                                <div className="h-12 w-9 flex-shrink-0 bg-gray-800 rounded-lg overflow-hidden">
                                     {game.coverUrl ? (
                                         <img
                                             src={game.coverUrl}
@@ -145,7 +145,7 @@ export function GameSearch({ onSelect, className = '' }: GameSearchProps) {
             )}
 
             {isOpen && !isLoading && query && results.length === 0 && (
-                <div className="absolute z-10 mt-2 w-full rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl">
+                <div className="absolute z-10 mt-2 w-full rounded-3xl border border-gray-700 bg-gray-900 p-4 shadow-xl">
                     <p className="text-center text-gray-400 mb-3">No games found via API.</p>
                     <div className="pt-2 border-t border-gray-800">
                         <p className="text-xs text-gray-500 uppercase font-bold mb-2">Suggested Classics</p>
@@ -170,7 +170,7 @@ export function GameSearch({ onSelect, className = '' }: GameSearchProps) {
 
             {/* Show suggestions if query is empty and user focused */}
             {isOpen && !query && (
-                <div className="absolute z-10 mt-2 w-full max-h-80 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 shadow-xl p-2">
+                <div className="absolute z-10 mt-2 w-full max-h-80 overflow-y-auto rounded-3xl border border-gray-700 bg-gray-900 shadow-xl p-2">
                     <p className="text-xs text-gray-500 uppercase font-bold px-2 py-1 mb-1">Popular Games</p>
                     {SUGGESTED_GAMES.map((game) => (
                         <button

@@ -36,12 +36,12 @@ export function UserAvatar({
     };
 
     const bubbleSizeClasses = {
-        xs: "w-3.5 h-3.5 text-[7px] -bottom-0.5 -right-0.5 border",
-        sm: "w-4.5 h-4.5 text-[8px] -bottom-1 -right-1 border",
-        md: "w-6 h-6 text-[10px] -bottom-1 -right-1 border-2",
-        lg: "w-7 h-7 text-[11px] -bottom-1 -right-1 border-2",
-        xl: "w-8 h-8 text-[13px] -bottom-1 -right-1 border-2",
-        "2xl": "w-11 h-11 text-[18px] -bottom-2 -right-2 border-4"
+        xs: "w-3 h-3 text-[6px] -bottom-0.5 -right-0.5 border",
+        sm: "w-3.5 h-3.5 text-[7px] -bottom-0.5 -right-0.5 border",
+        md: "w-4.5 h-4.5 text-[8px] -bottom-0.5 -right-0.5 border",
+        lg: "w-6 h-6 text-[10px] -bottom-0.5 -right-0.5 border-2",
+        xl: "w-7 h-7 text-[11px] -bottom-1 -right-1 border-2",
+        "2xl": "w-9 h-9 text-[14px] -bottom-1 -right-1 border-2"
     };
 
     const trophySizeClasses = {

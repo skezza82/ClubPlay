@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, ArrowLeft, Camera, Upload } from "lucide-react";
 import Link from "next/link";
-import { uploadClubLogo } from "@/lib/avatar-service";
+import { DEFAULT_BANNERS, uploadClubBanner, uploadClubLogo } from "@/lib/avatar-service";
 import { useRef } from "react";
 
 export default function CreateClubPage() {
@@ -20,8 +20,11 @@ export default function CreateClubPage() {
     const [bio, setBio] = useState("");
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [bannerPreview, setBannerPreview] = useState<string | null>(DEFAULT_BANNERS[0].url);
+    const [bannerFile, setBannerFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const bannerInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
     const router = useRouter();
 
@@ -43,18 +46,20 @@ export default function CreateClubPage() {
                 return;
             }
 
-            // 2. Upload Logo if selected
+            // 2. Upload Logo & Banner if selected
             let finalLogoUrl = null;
+            let finalBannerUrl = bannerPreview; // Default to current preview (could be preset)
+
+            const tempId = Math.random().toString(36).substring(7);
+
             if (logoFile) {
-                // We don't have clubId yet, so we'll use a temp path or update it after creation
-                // Since createClub uses a transaction, we should actually fetch a doc ref first
-                // OR just upload to a generic "temp_logos" and move it (complex)
-                // BETTER: Generate a doc ID first
-                const tempId = Math.random().toString(36).substring(7);
                 finalLogoUrl = await uploadClubLogo(tempId, logoFile);
             } else if (logoPreview && !logoPreview.startsWith('blob:')) {
-                // Use preset URL if it's not a blob (local file preview)
                 finalLogoUrl = logoPreview;
+            }
+
+            if (bannerFile) {
+                finalBannerUrl = await uploadClubBanner(tempId, bannerFile);
             }
 
             // 3. Create Club via Firestore
@@ -65,6 +70,7 @@ export default function CreateClubPage() {
                 user.displayName || "Club Owner",
                 user.photoURL || undefined,
                 finalLogoUrl || undefined,
+                finalBannerUrl || undefined,
                 bio || undefined
             );
 
@@ -82,6 +88,14 @@ export default function CreateClubPage() {
         if (file) {
             setLogoFile(file);
             setLogoPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setBannerFile(file);
+            setBannerPreview(URL.createObjectURL(file));
         }
     };
 
@@ -104,54 +118,109 @@ export default function CreateClubPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleCreate} className="space-y-6">
-                        <div className="flex flex-col items-center gap-4 mb-4">
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-24 h-24 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group"
-                            >
-                                {logoPreview ? (
-                                    <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-cover" />
-                                ) : (
-                                    <>
-                                        <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                                        <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
-                                    </>
-                                )}
-                            </div>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                className="hidden"
-                                accept="image/*"
-                            />
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Upload Custom Logo (Optional)</p>
+                        <div className="flex flex-col gap-8 mb-4">
+                            {/* Logo Row */}
+                            <div className="flex flex-col md:flex-row items-center gap-6">
+                                <div className="flex flex-col items-center gap-3">
+                                    <div
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-24 h-24 rounded-3xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden group shadow-xl"
+                                    >
+                                        {logoPreview ? (
+                                            <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <>
+                                                <Camera className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Logo</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleFileChange}
+                                        className="hidden"
+                                        accept="image/*"
+                                    />
+                                    <p className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-black">Upload Logo</p>
+                                </div>
 
-                            <div className="w-full pt-4 border-t border-white/5">
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3 text-center">Or Choose a Preset</p>
-                                <div className="grid grid-cols-5 gap-2">
-                                    {[
-                                        { id: 'controller', url: '/avatars/club-icons/controller.svg' },
-                                        { id: 'arcade', url: '/avatars/club-icons/arcade.svg' },
-                                        { id: 'trophy', url: '/avatars/club-icons/trophy.svg' },
-                                        { id: 'swords', url: '/avatars/club-icons/swords.svg' },
-                                        { id: 'rocket', url: '/avatars/club-icons/rocket.svg' },
-                                    ].map((icon) => (
-                                        <button
-                                            key={icon.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setLogoPreview(icon.url);
-                                                setLogoFile(null); // Clear custom file if preset selected
-                                            }}
-                                            className={`aspect-square rounded-xl border-2 overflow-hidden transition-all bg-black/20 ${logoPreview === icon.url
-                                                ? "border-primary scale-95 shadow-[0_0_10px_rgba(0,242,234,0.3)]"
-                                                : "border-white/5 hover:border-white/20 hover:scale-105"
-                                                }`}
-                                        >
-                                            <img src={icon.url} alt={icon.id} className="w-full h-full object-cover p-2" />
-                                        </button>
-                                    ))}
+                                <div className="flex-1 w-full pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-white/5 md:pl-6">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-3">Or Choose a Preset Icon</p>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {[
+                                            { id: 'controller', url: '/avatars/club-icons/controller.svg' },
+                                            { id: 'arcade', url: '/avatars/club-icons/arcade.svg' },
+                                            { id: 'trophy', url: '/avatars/club-icons/trophy.svg' },
+                                            { id: 'swords', url: '/avatars/club-icons/swords.svg' },
+                                            { id: 'rocket', url: '/avatars/club-icons/rocket.svg' },
+                                        ].map((icon) => (
+                                            <button
+                                                key={icon.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setLogoPreview(icon.url);
+                                                    setLogoFile(null);
+                                                }}
+                                                className={`aspect-square rounded-full border-2 overflow-hidden transition-all bg-black/20 ${logoPreview === icon.url
+                                                    ? "border-primary scale-95 shadow-[0_0_10px_rgba(0,242,234,0.3)]"
+                                                    : "border-white/5 hover:border-white/20 hover:scale-105"
+                                                    }`}
+                                            >
+                                                <img src={icon.url} alt={icon.id} className="w-full h-full object-cover p-2" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Banner Section */}
+                            <div className="space-y-4">
+                                <label className="text-xs font-black text-primary tracking-[0.2em] uppercase">Club Banner</label>
+                                <div
+                                    onClick={() => bannerInputRef.current?.click()}
+                                    className="relative w-full h-32 rounded-2xl bg-white/5 border-2 border-dashed border-white/10 hover:border-primary/50 transition-all cursor-pointer overflow-hidden group shadow-2xl"
+                                >
+                                    {bannerPreview ? (
+                                        <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center">
+                                            <Upload className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            <span className="text-[10px] text-muted-foreground mt-1 uppercase font-bold">Upload Custom Banner</span>
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">
+                                        Update Banner
+                                    </div>
+                                </div>
+                                <input
+                                    type="file"
+                                    ref={bannerInputRef}
+                                    onChange={handleBannerChange}
+                                    className="hidden"
+                                    accept="image/*"
+                                />
+
+                                <div className="space-y-2">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Or Choose a Premium Banner</p>
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {DEFAULT_BANNERS.map((banner) => (
+                                            <button
+                                                key={banner.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setBannerPreview(banner.url);
+                                                    setBannerFile(null);
+                                                }}
+                                                className={`aspect-[3/1] rounded-lg border-2 overflow-hidden transition-all bg-black/20 ${bannerPreview === banner.url
+                                                    ? "border-primary scale-95 shadow-[0_0_10px_rgba(0,242,234,0.3)]"
+                                                    : "border-white/5 hover:border-white/20 hover:scale-105"
+                                                    }`}
+                                            >
+                                                <img src={banner.url} alt={banner.name} className="w-full h-full object-cover" title={banner.name} />
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -174,7 +243,7 @@ export default function CreateClubPage() {
                                 maxLength={4}
                                 value={inviteCode}
                                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                                className="bg-background/30 border-white/10 focus:border-primary/50 font-mono"
+                                className="bg-background/30 border-white/10 focus:border-primary/50 font-mono rounded-full"
                             />
                             <p className="text-[10px] text-muted-foreground">4 characters max. This will be used for joining your club.</p>
                         </div>
@@ -185,13 +254,13 @@ export default function CreateClubPage() {
                                 placeholder="Tell us what your club is about..."
                                 value={bio}
                                 onChange={(e) => setBio(e.target.value)}
-                                className="w-full bg-background/30 border border-white/10 focus:border-primary/50 rounded-md p-3 min-h-[100px] text-sm resize-none"
+                                className="w-full bg-background/30 border border-white/10 focus:border-primary/50 rounded-2xl p-3 min-h-[100px] text-sm resize-none"
                                 maxLength={200}
                             />
                             <p className="text-[10px] text-muted-foreground text-right">{bio.length}/200</p>
                         </div>
 
-                        <Button className="w-full neon-border font-black text-lg h-14" disabled={isLoading}>
+                        <Button className="w-full neon-border font-black text-lg h-14 rounded-2xl" disabled={isLoading}>
                             {isLoading ? (
                                 <Loader2 className="w-6 h-6 animate-spin" />
                             ) : (

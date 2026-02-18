@@ -86,7 +86,15 @@ function HomeContent() {
 
             if (soonestSession.gameId) {
               const { data: gameData } = await supabase.from('games').select('*').eq('id', soonestSession.gameId).single();
-              if (gameData) setGame(gameData);
+              if (gameData) {
+                setGame(gameData);
+              } else {
+                setGame({
+                  title: soonestSession.gameTitle,
+                  platform: soonestSession.platform,
+                  cover_image_url: soonestSession.cover_image_url || null
+                });
+              }
             } else {
               setGame({
                 title: soonestSession.gameTitle,
@@ -263,7 +271,13 @@ function HomeContent() {
                     <Link key={club.id} href={`/club?id=${club.id}`} className="flex-shrink-0">
                       <Card className="w-64 h-32 border-white/5 bg-surface/60 backdrop-blur-md hover:border-primary/50 transition-all group relative overflow-hidden">
                         <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
-                          <img src={club.logoUrl || "/images/retro-club-bg.png"} alt="" className="w-full h-full object-cover" />
+                          <Image
+                            src={club.logoUrl || "/images/retro-club-bg.png"}
+                            alt={club.name}
+                            fill
+                            className="object-cover"
+                            unoptimized={!!club.logoUrl}
+                          />
                         </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
                         <CardContent className="absolute bottom-0 left-0 p-4 w-full">

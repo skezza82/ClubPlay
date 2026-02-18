@@ -34,8 +34,14 @@ export interface Club {
     name: string;
     bio?: string;
     ownerId: string;
+    memberCount: number;
+    logoUrl?: string | null;
+    bannerUrl?: string | null;
+    inviteCode: string;
     latestWinnerId?: string | null;
     latestWinnerName?: string | null;
+    createdAt: string;
+    isHidden?: boolean;
 }
 
 export interface Membership {
@@ -274,6 +280,7 @@ export const createClub = async (
     ownerDisplayName: string,
     ownerPhotoURL?: string,
     logoUrl?: string,
+    bannerUrl?: string,
     bio?: string
 ) => {
     try {
@@ -289,6 +296,7 @@ export const createClub = async (
                 ownerId,
                 memberCount: 1,
                 logoUrl: logoUrl || null,
+                bannerUrl: bannerUrl || null,
                 bio: bio || "",
                 createdAt: new Date().toISOString()
             };
@@ -566,7 +574,7 @@ export const getJoinRequests = async (clubId: string) => {
     return requests;
 };
 
-export const updateClub = async (clubId: string, data: Partial<Club> & { logoUrl?: string }) => {
+export const updateClub = async (clubId: string, data: Partial<Club> & { logoUrl?: string, bannerUrl?: string }) => {
     const docRef = doc(db, "clubs", clubId);
     await setDoc(docRef, data, { merge: true });
 };
@@ -1043,7 +1051,9 @@ export const getAllClubs = async () => {
     const clubsRef = collection(db, "clubs");
     const q = query(clubsRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() as any }))
+        .filter(club => !club.isHidden);
 };
 
 export const searchClubs = async (searchTerm: string) => {
@@ -1066,12 +1076,76 @@ export const searchClubs = async (searchTerm: string) => {
     );
     const snapName = await getDocs(qName);
 
-    // Combine and return
+    // Combine and filter
     const results = new Map();
-    snapCode.docs.forEach(doc => results.set(doc.id, { id: doc.id, ...doc.data() }));
-    snapName.docs.forEach(doc => results.set(doc.id, { id: doc.id, ...doc.data() }));
+    snapCode.docs.forEach(doc => {
+        const data = doc.data();
+        if (!data.isHidden) results.set(doc.id, { id: doc.id, ...data });
+    });
+    snapName.docs.forEach(doc => {
+        const data = doc.data();
+        if (!data.isHidden) results.set(doc.id, { id: doc.id, ...data });
+    });
 
     return Array.from(results.values());
+};
+
+/**
+ * Hides a club from public discovery
+ * @param identifier Can be Club ID, Name (Exact), or Invite Code
+ */
+export const hideClub = async (identifier: string) => {
+    const clubsRef = collection(db, "clubs");
+
+    // 1. Try by ID
+    const docRef = doc(db, "clubs", identifier);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+        await updateDoc(docRef, { isHidden: true });
+        return { success: true, name: docSnap.data().name };
+    }
+
+    // 2. Try by Exact Name
+    const qName = query(clubsRef, where("name", "==", identifier), limit(1));
+    const snapName = await getDocs(qName);
+    if (!snapName.empty) {
+        const foundDoc = snapName.docs[0];
+        await updateDoc(foundDoc.ref, { isHidden: true });
+        return { success: true, name: (foundDoc.data() as any).name };
+    }
+
+    // 3. Try by Invite Code
+    const qCode = query(clubsRef, where("inviteCode", "==", identifier.toUpperCase()), limit(1));
+    const snapCode = await getDocs(qCode);
+    if (!snapCode.empty) {
+        const foundDoc = snapCode.docs[0];
+        await updateDoc(foundDoc.ref, { isHidden: true });
+        return { success: true, name: (foundDoc.data() as any).name };
+    }
+
+    throw new Error("Club not found by ID, Name, or Invite Code");
+};
+
+export const randomizeAllClubBanners = async (banners: { url: string }[]) => {
+    const clubsRef = collection(db, "clubs");
+    const snapshot = await getDocs(clubsRef);
+    const exclusions = ["The Porkchop Xpress", "The Retro Collective"];
+    let updatedCount = 0;
+
+    const batch = writeBatch(db);
+
+    snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (!exclusions.includes(data.name)) {
+            const randomBanner = banners[Math.floor(Math.random() * banners.length)].url;
+            batch.update(doc.ref, { bannerUrl: randomBanner });
+            updatedCount++;
+        }
+    });
+
+    await batch.commit();
+    return updatedCount;
 };
 
 export const requestJoin = async (clubId: string, userId: string, displayName: string, photoURL?: string) => {
