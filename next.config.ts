@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "export", // Enabled for Capacitor/Android APK build.
+  trailingSlash: true, // Required for Firebase Hosting to handle routes correctly on all devices
   images: {
     unoptimized: true,
     remotePatterns: [

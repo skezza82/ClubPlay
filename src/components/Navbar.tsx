@@ -20,17 +20,13 @@ export function Navbar() {
                     <PremiumLogo />
 
                     <div className="hidden lg:flex items-center gap-6">
-                        <Link href="/search" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
-                            <Search className="w-4 h-4" />
-                            Search
-                        </Link>
                         <Link href="/clubs" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
                             <Compass className="w-4 h-4" />
                             Clubs
                         </Link>
-                        <Link href="/clubs/create" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
-                            <PlusSquare className="w-4 h-4" />
-                            Create
+                        <Link href="/arcade" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                            <Gamepad2 className="w-4 h-4" />
+                            Arcade
                         </Link>
                         <Link href="/friends" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
                             <Users className="w-4 h-4" />
@@ -47,17 +43,13 @@ export function Navbar() {
             {/* Mobile Navigation Row - Visible only on small screens */}
             <div className="lg:hidden border-t border-white/5 overflow-x-auto scrollbar-hide">
                 <div className="flex items-center justify-around min-w-full px-4 py-3 gap-6">
-                    <Link href="/search" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
-                        <Search className="w-5 h-5 group-active:scale-90 transition-transform" />
-                        <span>Search</span>
-                    </Link>
                     <Link href="/clubs" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
                         <Compass className="w-5 h-5 group-active:scale-90 transition-transform" />
                         <span>Clubs</span>
                     </Link>
-                    <Link href="/clubs/create" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
-                        <PlusSquare className="w-5 h-5 group-active:scale-90 transition-transform" />
-                        <span>Create</span>
+                    <Link href="/arcade" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
+                        <Gamepad2 className="w-5 h-5 group-active:scale-90 transition-transform" />
+                        <span>Arcade</span>
                     </Link>
                     <Link href="/friends" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
                         <Users className="w-5 h-5 group-active:scale-90 transition-transform" />

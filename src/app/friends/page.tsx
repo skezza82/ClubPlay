@@ -19,8 +19,12 @@ import {
     Trophy,
     MessageSquare,
     ArrowRight,
-    UserCircle
+    UserCircle,
+    Search,
+    X,
+    Check
 } from "lucide-react";
+import { searchUsers, sendFriendRequest } from "@/lib/firestore-service";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -31,6 +35,45 @@ export default function FriendsPage() {
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+    // Search State
+    const [searchTerm, setSearchTerm] = useState("");
+    const [userResults, setUserResults] = useState<any[]>([]);
+    const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (searchTerm.length >= 2) {
+                handleSearch();
+            } else {
+                setUserResults([]);
+            }
+        }, 500);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchTerm]);
+
+    const handleSearch = async () => {
+        try {
+            const users = await searchUsers(searchTerm);
+            setUserResults(users.filter(u => u.uid !== user?.uid));
+        } catch (error) {
+            console.error("Search error:", error);
+        }
+    };
+
+    const handleAddFriend = async (userId: string, targetName: string) => {
+        if (!user) return;
+        try {
+            await sendFriendRequest(user.uid, userId);
+            setSentRequests(prev => new Set(prev).add(userId));
+            alert(`Friend request sent to ${targetName}! 🎉`);
+        } catch (error: any) {
+            console.error("Failed to send friend request:", error);
+            alert(error.message || "Failed to send request.");
+        }
+    };
+
 
     useEffect(() => {
         if (user) {
@@ -79,13 +122,82 @@ export default function FriendsPage() {
 
     return (
         <main className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto space-y-12 animate-fade-in-up pb-32">
-            {/* Header */}
-            <div className="flex flex-col gap-2">
-                <h1 className="text-4xl font-black italic tracking-tighter uppercase flex items-center gap-4">
-                    <Users className="w-10 h-10 text-primary" />
-                    Gamer Network
-                </h1>
-                <p className="text-muted-foreground ml-1 text-lg">Manage your connections and pending alliances.</p>
+            {/* Header with Search */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex flex-col gap-2">
+                    <h1 className="text-4xl font-black italic tracking-tighter uppercase flex items-center gap-4">
+                        <Users className="w-10 h-10 text-primary" />
+                        Gamer Network
+                    </h1>
+                    <p className="text-muted-foreground ml-1 text-lg">Manage your connections and find new rivals.</p>
+                </div>
+
+                <div className="relative w-full md:w-80 group z-20">
+                    <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${loading && searchTerm ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
+                    <input
+                        type="text"
+                        placeholder="Search players by name..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-surface/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-full text-muted-foreground"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    )}
+
+                    {/* Search Results Dropdown */}
+                    {searchTerm.length >= 2 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-surface border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                            {userResults.length > 0 ? (
+                                <div className="max-h-80 overflow-y-auto">
+                                    {userResults.map((user) => (
+                                        <div key={user.uid} className="p-3 hover:bg-white/5 flex items-center justify-between group transition-colors border-b border-white/5 last:border-0">
+                                            <Link href={`/user?id=${user.uid}`} className="flex items-center gap-3 flex-1 min-w-0">
+                                                <UserAvatar
+                                                    photoURL={user.photoURL}
+                                                    displayName={user.displayName}
+                                                    xp={user.xp || 0}
+                                                    size="sm"
+                                                />
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{user.displayName}</p>
+                                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{user.fans || 0} Followers</p>
+                                                </div>
+                                            </Link>
+                                            <button
+                                                onClick={() => handleAddFriend(user.uid, user.displayName)}
+                                                disabled={sentRequests.has(user.uid) || friends.some(f => f.uid === user.uid)}
+                                                className={`p-2 rounded-lg transition-all ${friends.some(f => f.uid === user.uid)
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : sentRequests.has(user.uid)
+                                                        ? 'bg-green-500/10 text-green-500'
+                                                        : 'bg-white/5 hover:bg-primary hover:text-black'
+                                                    }`}
+                                            >
+                                                {friends.some(f => f.uid === user.uid) ? (
+                                                    <UserCheck className="w-4 h-4" />
+                                                ) : sentRequests.has(user.uid) ? (
+                                                    <Check className="w-4 h-4" />
+                                                ) : (
+                                                    <UserPlus className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-4 text-center text-muted-foreground text-xs uppercase tracking-widest">
+                                    {loading ? 'Scanning...' : 'No players found'}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Pending Requests Section */}

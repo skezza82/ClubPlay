@@ -277,7 +277,7 @@ export default function ProfilePage() {
         try {
             const foundUser = await findUserByUsername(targetUsername);
             if (!foundUser) {
-                alert("User not found.");
+                alert("User not found (Try exact case). If this is a legacy user, they must log in once to initialize their profile.");
                 return;
             }
 
@@ -285,7 +285,12 @@ export default function ProfilePage() {
             if (!task) return;
 
             await addXp(foundUser.uid, task.xp, `Simulated: ${task.name}`);
-            alert(`Successfully awarded ${task.xp} XP to ${foundUser.displayName} for ${task.name}.`);
+
+            // Re-fetch to confirm
+            const updatedUser = await findUserByUsername(targetUsername);
+            const newXp = updatedUser?.xp || 0;
+
+            alert(`SUCCESS! 🚀\nAwarded ${task.xp} XP to ${foundUser.displayName}.\nNew Total XP: ${newXp}\n(If this didn't change, check Firestore rules/console)`);
         } catch (error: any) {
             alert("Error: " + error.message);
         } finally {
@@ -365,7 +370,7 @@ export default function ProfilePage() {
                                 />
                             </div>
                             <p className="text-[10px] text-muted-foreground text-center">
-                                {1000 - getXpProgress(xp).current} XP until Level {getXpLevel(xp) + 1}
+                                {getXpProgress(xp).needed - getXpProgress(xp).current} XP until Level {getXpLevel(xp) + 1}
                             </p>
                         </div>
 
@@ -701,18 +706,44 @@ export default function ProfilePage() {
                                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-4">User XP Overwrite (Remote)</p>
                                     <div className="space-y-2">
                                         <div className="grid grid-cols-2 gap-2">
-                                            <Input
-                                                value={targetUsername}
-                                                onChange={(e) => setTargetUsername(e.target.value)}
-                                                placeholder="Username"
-                                                className="bg-black/30 border-white/10 text-[10px] h-8"
-                                            />
+                                            <div className="flex gap-1 col-span-2">
+                                                <Input
+                                                    value={targetUsername}
+                                                    onChange={(e) => setTargetUsername(e.target.value)}
+                                                    placeholder="Username (Exact Case)"
+                                                    className="bg-black/30 border-white/10 text-[10px] h-8 flex-1"
+                                                />
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8 text-[10px] bg-blue-600 hover:bg-blue-700 w-16"
+                                                    disabled={isUpdatingXp}
+                                                    onClick={async () => {
+                                                        if (!targetUsername) return;
+                                                        setIsUpdatingXp(true);
+                                                        try {
+                                                            const u = await findUserByUsername(targetUsername);
+                                                            if (u) {
+                                                                alert(`FOUND USER:\nName: ${u.displayName}\nID: ${u.uid}\nXP: ${u.xp || 0}\nLevel: ${getXpLevel(u.xp || 0)}\nDoc Exists: YES`);
+                                                                setTargetXp((u.xp || 0).toString());
+                                                            } else {
+                                                                alert(`User "${targetUsername}" not found. Try exact casing.`);
+                                                            }
+                                                        } catch (e: any) {
+                                                            alert("Error: " + e.message);
+                                                        } finally {
+                                                            setIsUpdatingXp(false);
+                                                        }
+                                                    }}
+                                                >
+                                                    Check
+                                                </Button>
+                                            </div>
                                             <Input
                                                 type="number"
                                                 value={targetXp}
                                                 onChange={(e) => setTargetXp(e.target.value)}
                                                 placeholder="New Total XP"
-                                                className="bg-black/30 border-white/10 text-[10px] h-8"
+                                                className="bg-black/30 border-white/10 text-[10px] h-8 col-span-2"
                                             />
                                         </div>
                                         <Button

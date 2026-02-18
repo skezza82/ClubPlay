@@ -31,10 +31,23 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
 
 export const findUserByUsername = async (username: string) => {
     const usersRef = collection(db, "users");
+    // Try lowercase first
     const q = query(usersRef, where("displayNameLowercase", "==", username.toLowerCase()), limit(1));
     const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
-    return { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+
+    if (!snapshot.empty) {
+        return { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+    }
+
+    // Fallback: Try exact match on displayName for legacy accounts
+    const q2 = query(usersRef, where("displayName", "==", username), limit(1));
+    const snapshot2 = await getDocs(q2);
+
+    if (!snapshot2.empty) {
+        return { uid: snapshot2.docs[0].id, ...snapshot2.docs[0].data() } as any;
+    }
+
+    return null;
 };
 
 export interface Club {
@@ -684,12 +697,15 @@ export const addXp = async (userId: string, amount: number, source: string) => {
     if (!userId) return;
     try {
         const userRef = doc(db, "users", userId);
-        await updateDoc(userRef, {
-            xp: increment(amount)
-        });
+        // Use setDoc with merge instead of updateDoc to handle missing documents
+        await setDoc(userRef, {
+            xp: increment(amount),
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
         console.log(`[XP] Awarded ${amount} XP to ${userId} for ${source}`);
     } catch (e) {
         console.error("Error awarding XP:", e);
+        throw e; // Re-throw to let UI handle it
     }
 };
 
@@ -697,12 +713,15 @@ export const setXp = async (userId: string, amount: number) => {
     if (!userId) return;
     try {
         const userRef = doc(db, "users", userId);
-        await updateDoc(userRef, {
-            xp: amount
-        });
+        // Use setDoc with merge instead of updateDoc
+        await setDoc(userRef, {
+            xp: amount,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
         console.log(`[XP] Manually set XP to ${amount} for ${userId}`);
     } catch (e) {
         console.error("Error setting XP:", e);
+        throw e; // Re-throw to let UI handle it
     }
 };
 
@@ -1737,6 +1756,25 @@ export const getUpcomingGOTM = async (clubId: string) => {
     const upcoming = sorted.find(g => g.startDate > now);
 
     return upcoming || null;
+};
+
+export const getPastGOTMs = async (clubId: string) => {
+    const gotmRef = collection(db, "gotm");
+    const now = new Date().toISOString().split('T')[0];
+    const q = query(
+        gotmRef,
+        where("clubId", "==", clubId)
+    );
+
+    const snap = await getDocs(q);
+
+    // Sort descending by endDate (most recent past game first)
+    const sorted = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as GOTM))
+        .filter(g => g.endDate < now)
+        .sort((a, b) => b.endDate.localeCompare(a.endDate));
+
+    return sorted;
 };
 
 export const submitGOTMReview = async (clubId: string, gotmId: string, userId: string, review: Omit<GOTMReview, "id" | "gotmId" | "userId" | "createdAt">) => {

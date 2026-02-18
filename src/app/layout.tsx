@@ -75,7 +75,7 @@ export default function RootLayout({
           <AuthProvider>
             <PWAProvider>
               <PWARegistrar />
-              <InstallPrompt />
+
               <AndroidBackHandler />
               <Navbar />
               <main className="pb-16 min-h-screen relative z-10">

@@ -581,12 +581,12 @@ function ClubAdminContent() {
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 w-full sm:w-auto justify-end">
+                                        <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:justify-end mt-2 sm:mt-0">
                                             {userRole === 'owner' && member.userId !== user?.uid && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    className={`text-xs font-bold uppercase tracking-widest ${member.role === 'admin' ? 'border-orange-500/30 text-orange-400 hover:bg-orange-500/10' : 'border-primary/30 text-primary hover:bg-primary/10'}`}
+                                                    className={`w-full sm:w-auto text-xs font-bold uppercase tracking-widest ${member.role === 'admin' ? 'border-orange-500/30 text-orange-400 hover:bg-orange-500/10' : 'border-primary/30 text-primary hover:bg-primary/10'}`}
                                                     onClick={() => handleToggleAdmin(member.userId, member.role)}
                                                 >
                                                     {member.role === 'admin' ? 'Demote' : 'Make Admin'}
@@ -611,15 +611,20 @@ function ClubAdminContent() {
                                                         // @ts-ignore
                                                         .catch((e: any) => alert("Failed to update stats: " + e.message));
                                                 }}
-                                                className="border-primary/20 text-primary hover:bg-primary/10 text-[10px] h-7"
+                                                className="w-full sm:w-auto border-primary/20 text-primary hover:bg-primary/10 text-xs font-bold uppercase tracking-widest"
                                             >
                                                 Edit Stats
                                             </Button>
 
                                             {member.role !== 'owner' && (
-                                                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-400 text-xs" onClick={() => {
-                                                    alert("Remove member feature coming soon");
-                                                }}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className={`w-full sm:w-auto text-muted-foreground hover:text-red-400 text-xs font-bold uppercase tracking-widest ${userRole === 'owner' && member.userId !== user?.uid ? 'col-span-2 sm:col-span-1' : ''}`}
+                                                    onClick={() => {
+                                                        alert("Remove member feature coming soon");
+                                                    }}
+                                                >
                                                     Remove
                                                 </Button>
                                             )}

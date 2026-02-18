@@ -77,48 +77,62 @@ export default function ClubsPage() {
 
     return (
         <main className="container mx-auto px-4 py-8 max-w-6xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                <div className="flex flex-col gap-2">
-                    <PremiumLogo />
-                    <p className="text-muted-foreground ml-1">Find your next gaming community</p>
-                </div>
+            {/* Hero / Create Club Section */}
+            <div className="relative overflow-hidden rounded-3xl bg-surface/40 border border-white/5 p-8 md:p-12 mb-12 group">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-primary/10 transition-colors duration-1000"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -ml-20 -mb-20"></div>
 
-                <Link href="/clubs/create">
-                    <Button variant="default" className="neon-border group font-bold px-8">
-                        <PlusCircle className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform" />
-                        Create New Club
-                    </Button>
-                </Link>
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="max-w-xl space-y-4 text-center md:text-left">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
+                            <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Start Your Legacy</span>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-black italic tracking-tighter uppercase text-white">
+                            Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">Empire</span>
+                        </h1>
+                        <p className="text-muted-foreground text-lg max-w-md mx-auto md:mx-0">
+                            Create a club, gather your squad, and compete in weekly challenges to dominate the leaderboards.
+                        </p>
+                    </div>
+
+                    <Link href="/clubs/create" className="shrink-0">
+                        <Button className="h-16 px-8 text-lg font-black uppercase tracking-widest neon-border bg-black/40 hover:bg-primary hover:text-black transition-all group-hover:scale-105 shadow-[0_0_30px_rgba(var(--primary-rgb),0.1)]">
+                            <PlusCircle className="w-6 h-6 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                            Create a Club
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             <div className="flex flex-col md:flex-row gap-4 mb-8">
                 <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search by name or invite code (e.g. NEON)..."
-                        className="pl-12 bg-surface/50 border-white/10 h-12"
+                        placeholder="Find a legion to join..."
+                        className="pl-12 bg-surface/50 border-white/10 h-12 text-sm md:text-base focus:border-primary/50 transition-colors"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2 md:flex md:w-auto">
                     <Button
                         variant="outline"
-                        className={`backdrop-blur-sm border-white/10 h-12 px-6 ${sortBy === 'count' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
+                        className={`backdrop-blur-sm border-white/10 h-12 px-2 md:px-6 whitespace-nowrap text-[10px] md:text-xs ${sortBy === 'count' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
                         onClick={() => setSortBy("count")}
                     >
                         Popular
                     </Button>
                     <Button
                         variant="outline"
-                        className={`backdrop-blur-sm border-white/10 h-12 px-6 ${sortBy === 'newest' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
+                        className={`backdrop-blur-sm border-white/10 h-12 px-2 md:px-6 whitespace-nowrap text-[10px] md:text-xs ${sortBy === 'newest' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
                         onClick={() => setSortBy("newest")}
                     >
                         Newest
                     </Button>
                     <Button
                         variant="outline"
-                        className={`backdrop-blur-sm border-white/10 h-12 px-6 ${sortBy === 'name' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
+                        className={`backdrop-blur-sm border-white/10 h-12 px-2 md:px-6 whitespace-nowrap text-[10px] md:text-xs ${sortBy === 'name' ? 'text-primary border-primary/30 bg-primary/5' : ''}`}
                         onClick={() => setSortBy("name")}
                     >
                         A-Z
@@ -137,10 +151,12 @@ export default function ClubsPage() {
             </div>
 
             {filteredClubs.length === 0 && (
-                <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10">
-                    <Users className="w-16 h-16 mx-auto mb-4 text-white/5" />
-                    <h3 className="text-xl font-bold text-white/50 italic">No clubs found matching your search.</h3>
-                    <p className="text-muted-foreground mt-2 max-w-sm mx-auto">Try a different keyword or start your own gaming legacy right now!</p>
+                <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Users className="w-10 h-10 text-muted-foreground/40" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white/50 italic uppercase tracking-widest">No clubs found</h3>
+                    <p className="text-muted-foreground mt-2 max-w-sm mx-auto">The archives are empty. Perhaps it's time to start your own?</p>
                 </div>
             )}
         </main>

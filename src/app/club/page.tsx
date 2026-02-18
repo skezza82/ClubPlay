@@ -23,7 +23,9 @@ import {
     getFriends,
     checkPendingRequest,
     getXpLevel,
-    addXp
+    addXp,
+    getPastGOTMs,
+    getGOTMReviews
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -47,14 +49,15 @@ import {
     ThumbsUp,
     ThumbsDown,
     UserPlus,
-    Share2,
+
     Info,
     Star,
     Settings
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Share } from '@capacitor/share';
+import { GOTMHistoryModal } from "@/components/GOTMHistoryModal";
+
 
 // Add the missing getLibretroBoxartUrl helper
 const getLibretroBoxartUrl = (gameTitle: string, platform: string) => {
@@ -383,6 +386,8 @@ function ClubContent() {
         completed: false,
         text: ""
     });
+    const [pastGOTMs, setPastGOTMs] = useState<any[]>([]);
+    const [selectedPastGOTM, setSelectedPastGOTM] = useState<any>(null);
 
     const [isRequesting, setIsRequesting] = useState(false);
     const [sentRequests, setSentRequests] = useState<string[]>([]);
@@ -442,6 +447,9 @@ function ClubContent() {
 
                 const gotmData = await getGameOfTheMonth(clubId);
                 setGotm(gotmData);
+
+                const pastG = await getPastGOTMs(clubId);
+                setPastGOTMs(pastG);
 
                 if (user && gotmData) {
                     const review = await getUserGOTMReview(gotmData.id, user.uid);
@@ -682,26 +690,7 @@ function ClubContent() {
                             <Info className="w-4 h-4 mr-2" />
                             Bio
                         </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="w-10 h-10 border-primary/30 text-primary hover:bg-primary/10 rounded-full"
-                            onClick={async () => {
-                                try {
-                                    await Share.share({
-                                        title: 'Join my Club on ClubPlay!',
-                                        text: `Come join ${club.name} on ClubPlay! Use invite code: ${club.inviteCode}`,
-                                        url: 'https://play.google.com/store/apps/details?id=com.clubplaygaming.app',
-                                        dialogTitle: 'Invite Friends',
-                                    });
-                                } catch (error) {
-                                    console.log('Error sharing:', error);
-                                    alert(`Invite Code: ${club.inviteCode}`);
-                                }
-                            }}
-                        >
-                            <Share2 className="w-5 h-5" />
-                        </Button>
+
                     </div>
                 </div>
             </div>
@@ -782,10 +771,11 @@ function ClubContent() {
 
             {/* Navigation */}
             <div className="container mx-auto max-w-3xl px-6 mt-8 mb-8">
-                <div className="flex gap-2 border-b border-white/10 pb-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
+                <div className="grid grid-cols-4 gap-1 border-b border-white/10 pb-1">
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
-                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Club Leaderboard</TabButton>
+                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Leaderboard</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
+                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -1019,230 +1009,6 @@ function ClubContent() {
                                         </p>
                                     </div>
                                 )}
-
-                                {/* Game of the Month Box (GOTM moved from tab) */}
-                                {gotm && (
-                                    <div className="animate-fade-in-up">
-                                        <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
-                                            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            <CardHeader>
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs mb-1">Game of the Month</CardDescription>
-                                                        <CardTitle className="text-3xl md:text-4xl font-black text-white italic lowercase">{gotm.title}</CardTitle>
-                                                    </div>
-                                                    <Trophy className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
-                                                </div>
-                                            </CardHeader>
-
-                                            <CardContent className="relative z-10 space-y-6">
-                                                <div className="flex flex-col sm:flex-row gap-6">
-                                                    <div className="w-full sm:w-32 shrink-0">
-                                                        <div className="aspect-[3/4] relative rounded-xl overflow-hidden shadow-2xl border border-white/10 group">
-                                                            {gotm.coverUrl ? (
-                                                                <Image src={gotm.coverUrl} alt={gotm.title} fill className="object-cover transition-transform duration-700 group-hover:scale-105" />
-                                                            ) : (
-                                                                <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                                                                    <Gamepad2 className="w-16 h-16 text-gray-600" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex-1 space-y-4">
-                                                        <h3 className="text-sm font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Mission Briefing</h3>
-                                                        <p className="text-gray-300 leading-relaxed text-sm">
-                                                            {gotm.description || "No specific briefing for this title. Explore the game and report back, soldier!"}
-                                                        </p>
-
-                                                        <div className="pt-2">
-                                                            {!userReview ? (
-                                                                (() => {
-                                                                    const now = new Date();
-                                                                    const end = new Date(gotm.endDate);
-                                                                    const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-                                                                    const isReviewPeriod = diffDays <= 10;
-
-                                                                    if (!isReviewPeriod) {
-                                                                        return (
-                                                                            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200 text-[10px]">
-                                                                                <strong className="block uppercase tracking-widest mb-1 text-primary">Status: Active Mission</strong>
-                                                                                Reviews will unlock during the final designated operational window (last 10 days of the month).
-                                                                            </div>
-                                                                        );
-                                                                    }
-
-                                                                    if (isReviewOpen) {
-                                                                        return (
-                                                                            <div className="bg-black/40 border border-white/10 rounded-xl p-4 animate-fade-in-up">
-                                                                                <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-center">Submit Your Report</h4>
-
-                                                                                <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
-                                                                                    {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
-                                                                                        <div key={cat} className="space-y-1">
-                                                                                            <div className="flex justify-between">
-                                                                                                <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{cat}</label>
-                                                                                                <span className="text-[8px] font-mono font-bold text-primary">{reviewForm.ratings[cat]}/11</span>
-                                                                                            </div>
-                                                                                            <input
-                                                                                                type="range"
-                                                                                                min="0"
-                                                                                                max="11"
-                                                                                                value={reviewForm.ratings[cat]}
-                                                                                                onChange={e => setReviewForm(prev => ({
-                                                                                                    ...prev,
-                                                                                                    ratings: { ...prev.ratings, [cat]: parseInt(e.target.value) }
-                                                                                                }))}
-                                                                                                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-                                                                                            />
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-
-                                                                                <div className="mb-4 space-y-2">
-                                                                                    <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground text-center block">Would you recommend this?</label>
-                                                                                    <div className="flex gap-2 justify-center">
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            size="sm"
-                                                                                            variant={reviewForm.recommend ? "default" : "outline"}
-                                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: true }))}
-                                                                                            className={reviewForm.recommend ? "bg-green-500 hover:bg-green-600 text-white text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
-                                                                                        >
-                                                                                            <ThumbsUp className="w-3 h-3 mr-1" /> YES
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            size="sm"
-                                                                                            variant={!reviewForm.recommend ? "destructive" : "outline"}
-                                                                                            onClick={() => setReviewForm(prev => ({ ...prev, recommend: false }))}
-                                                                                            className={!reviewForm.recommend ? "text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
-                                                                                        >
-                                                                                            <ThumbsDown className="w-3 h-3 mr-1" /> NO
-                                                                                        </Button>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                <div className="mb-4">
-                                                                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                                                                        <div
-                                                                                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors
-                                                                                            ${reviewForm.completed ? 'bg-primary border-primary' : 'border-white/20 group-hover:border-primary/50'}`}
-                                                                                        >
-                                                                                            {reviewForm.completed && <Check className="w-3 h-3 text-black font-bold" />}
-                                                                                        </div>
-                                                                                        <input
-                                                                                            type="checkbox"
-                                                                                            className="hidden"
-                                                                                            checked={reviewForm.completed}
-                                                                                            onChange={(e) => setReviewForm(prev => ({ ...prev, completed: e.target.checked }))}
-                                                                                        />
-                                                                                        <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
-                                                                                            Completed it mate?
-                                                                                        </span>
-                                                                                    </label>
-                                                                                </div>
-
-                                                                                <div className="mb-4 space-y-1">
-                                                                                    <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
-                                                                                    <textarea
-                                                                                        value={reviewForm.text}
-                                                                                        onChange={e => setReviewForm(prev => ({ ...prev, text: e.target.value }))}
-                                                                                        className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-primary/50 h-16 resize-none"
-                                                                                        placeholder="Share your thoughts..."
-                                                                                    />
-                                                                                </div>
-
-                                                                                <div className="flex gap-2">
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        onClick={async () => {
-                                                                                            if (!reviewForm.text.trim()) return alert("Please write a short review.");
-                                                                                            try {
-                                                                                                setIsSubmitting(true);
-                                                                                                if (user && gotm) {
-                                                                                                    await submitGOTMReview(clubId as string, gotm.id, user.uid, {
-                                                                                                        ...reviewForm,
-                                                                                                        reviewText: reviewForm.text,
-                                                                                                        displayName: user.displayName || "Unknown",
-                                                                                                        photoURL: user.photoURL || undefined,
-                                                                                                        completed: reviewForm.completed
-                                                                                                    });
-                                                                                                    // Award XP for review
-                                                                                                    await addXp(user.uid, 50, "GOTM Review");
-                                                                                                    alert("Review posted! 📝");
-                                                                                                    const r = await getUserGOTMReview(gotm.id, user.uid);
-                                                                                                    setUserReview(r);
-                                                                                                    setIsReviewOpen(false);
-                                                                                                }
-                                                                                            } catch (e) {
-                                                                                                console.error(e);
-                                                                                                alert("Failed to submit review");
-                                                                                            } finally {
-                                                                                                setIsSubmitting(false);
-                                                                                            }
-                                                                                        }}
-                                                                                        disabled={isSubmitting}
-                                                                                        className="flex-1 font-bold uppercase tracking-widest text-[10px]"
-                                                                                    >
-                                                                                        {isSubmitting ? <Loader2 className="animate-spin w-3 h-3 mr-1" /> : <Send className="w-3 h-3 mr-1" />}
-                                                                                        Submit
-                                                                                    </Button>
-                                                                                    <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => setIsReviewOpen(false)}>Cancel</Button>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    } else {
-                                                                        return (
-                                                                            <Button onClick={() => setIsReviewOpen(true)} className="w-full font-bold uppercase tracking-widest neon-border-static h-10 text-[10px]">
-                                                                                <Edit className="w-3 h-3 mr-2" /> Write a Review
-                                                                            </Button>
-                                                                        );
-                                                                    }
-                                                                })()
-                                                            ) : (
-                                                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
-                                                                    <div className="flex justify-between items-start mb-3">
-                                                                        <div>
-                                                                            <h4 className="text-green-400 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2">
-                                                                                <Check className="w-3 h-3" /> Review Submitted
-                                                                            </h4>
-                                                                        </div>
-                                                                        <div className="flex flex-col items-end gap-1">
-                                                                            {userReview.completed && (
-                                                                                <span className="flex items-center gap-1 text-primary font-bold uppercase text-[9px] bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                                                                                    <Check className="w-2 h-2" /> Completed
-                                                                                </span>
-                                                                            )}
-                                                                            {userReview.recommend ? (
-                                                                                <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-[9px]">
-                                                                                    <ThumbsUp className="w-2 h-2" /> Recommended
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="flex items-center gap-1 text-red-400 font-bold uppercase text-[9px]">
-                                                                                    <ThumbsDown className="w-2 h-2" /> Not Recommended
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-5 gap-1 mb-3 text-center">
-                                                                        {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
-                                                                            <div key={cat} className="bg-black/20 p-1.5 rounded">
-                                                                                <div className="text-[7px] uppercase font-bold text-muted-foreground mb-0.5">{cat.slice(0, 4)}</div>
-                                                                                <div className="text-[10px] font-mono font-bold text-white">{userReview.ratings[cat]}</div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                    <p className="text-[11px] text-gray-300 italic">"{userReview.reviewText}"</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-                                )}
                             </div>
 
                             {/* Sidebar Column: Rules (Desktop Only) */}
@@ -1330,85 +1096,13 @@ function ClubContent() {
                             )}
                         </div>
 
-                    </>
-                )}
-
-                {/* SEASON TAB */}
-                {activeTab === "season" && (
-                    <div className="space-y-12">
-                        <Card className="border-white/10 bg-surface/40">
-                            <CardHeader>
-                                <CardTitle>Club Leaderboard</CardTitle>
-                                <CardDescription>Accumulated points from weekly victories.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="rounded-lg overflow-hidden border border-white/5 overflow-x-auto">
-                                    <table className="w-full text-left text-sm whitespace-nowrap">
-                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold text-[10px] md:text-xs">
-                                            <tr>
-                                                <th className="p-3 md:p-4">#</th>
-                                                <th className="p-3 md:p-4">Player</th>
-                                                <th className="p-3 md:p-4 text-right">
-                                                    <span className="hidden sm:inline">Weekly Wins</span>
-                                                    <span className="sm:hidden">Wins</span>
-                                                </th>
-                                                <th className="p-3 md:p-4 text-right">
-                                                    <span className="hidden sm:inline">Total Points</span>
-                                                    <span className="sm:hidden">Pts</span>
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/5">
-                                            {seasonStandings.map((player, index) => {
-                                                const member = members.find(m => m.userId === player.userId);
-                                                const displayName = member?.displayName || player.displayName;
-                                                const photoURL = member?.photoURL || player.photoURL;
-
-                                                return (
-                                                    <tr key={player.id} className="hover:bg-white/5 transition-colors">
-                                                        <td className="p-3 md:p-4 font-bold text-gray-500 text-xs md:text-sm">#{index + 1}</td>
-                                                        <td className="p-3 md:p-4">
-                                                            <div className="flex items-center gap-2 md:gap-3">
-                                                                <UserAvatar
-                                                                    uid={player.userId}
-                                                                    photoURL={photoURL}
-                                                                    displayName={displayName}
-                                                                    xp={player.xp || 0}
-                                                                    size="sm"
-                                                                    className="cursor-pointer hover:scale-110 transition-transform active:scale-95"
-                                                                    onClick={() => setSelectedUser(member || {
-                                                                        userId: player.userId,
-                                                                        displayName,
-                                                                        photoURL,
-                                                                        xp: player.xp,
-                                                                        joinedAt: member?.joinedAt
-                                                                    })}
-                                                                />
-                                                                <span className="font-bold text-white text-xs md:text-sm truncate max-w-[80px] sm:max-w-none">{displayName}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 md:p-4 text-right text-gray-400 font-bold text-xs md:text-sm">{player.wins || 0}</td>
-                                                        <td className="p-3 md:p-4 text-right font-mono text-primary font-bold text-base md:text-lg">{player.points}</td>
-                                                    </tr>
-                                                )
-                                            })}
-                                            {(seasonStandings.length === 0) && (
-                                                <tr>
-                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground text-xs">No points awarded yet.</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </CardContent>
-                        </Card>
 
                         {/* Past Challenges History */}
-                        <div>
+                        <div className="mt-12">
                             <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-6 flex items-center gap-2">
                                 <Trophy className="w-5 h-5 text-muted-foreground" /> Past Challenges
                             </h3>
-                            <div className="grid md:grid-cols-2 gap-6 pb-20">
+                            <div className="grid md:grid-cols-2 gap-6">
                                 {pastSessions.length === 0 ? (
                                     <div className="col-span-full text-center py-10 text-muted-foreground bg-white/5 rounded-xl border border-white/5">
                                         <p>No completed challenges yet.</p>
@@ -1492,6 +1186,78 @@ function ClubContent() {
                                 )}
                             </div>
                         </div>
+                    </>
+                )}
+
+                {/* SEASON TAB */}
+                {activeTab === "season" && (
+                    <div className="space-y-12">
+                        <Card className="border-white/10 bg-surface/40">
+                            <CardHeader>
+                                <CardTitle>Club Leaderboard</CardTitle>
+                                <CardDescription>Accumulated points from weekly victories.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="rounded-lg overflow-hidden border border-white/5 overflow-x-auto">
+                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                        <thead className="bg-white/5 text-muted-foreground uppercase tracking-wider font-bold text-[10px] md:text-xs">
+                                            <tr>
+                                                <th className="p-3 md:p-4">#</th>
+                                                <th className="p-3 md:p-4">Player</th>
+                                                <th className="p-3 md:p-4 text-right">
+                                                    <span className="hidden sm:inline">Weekly Wins</span>
+                                                    <span className="sm:hidden">Wins</span>
+                                                </th>
+                                                <th className="p-3 md:p-4 text-right">
+                                                    <span className="hidden sm:inline">Total Points</span>
+                                                    <span className="sm:hidden">Pts</span>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {seasonStandings.map((player, index) => {
+                                                const member = members.find(m => m.userId === player.userId);
+                                                const displayName = member?.displayName || player.displayName;
+                                                const photoURL = member?.photoURL || player.photoURL;
+
+                                                return (
+                                                    <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                                                        <td className="p-3 md:p-4 font-bold text-gray-500 text-xs md:text-sm">#{index + 1}</td>
+                                                        <td className="p-3 md:p-4">
+                                                            <div className="flex items-center gap-2 md:gap-3">
+                                                                <UserAvatar
+                                                                    uid={player.userId}
+                                                                    photoURL={photoURL}
+                                                                    displayName={displayName}
+                                                                    xp={player.xp || 0}
+                                                                    size="sm"
+                                                                    className="cursor-pointer hover:scale-110 transition-transform active:scale-95"
+                                                                    onClick={() => setSelectedUser(member || {
+                                                                        userId: player.userId,
+                                                                        displayName,
+                                                                        photoURL,
+                                                                        xp: player.xp,
+                                                                        joinedAt: member?.joinedAt
+                                                                    })}
+                                                                />
+                                                                <span className="font-bold text-white text-xs md:text-sm truncate max-w-[80px] sm:max-w-none">{displayName}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-3 md:p-4 text-right text-gray-400 font-bold text-xs md:text-sm">{player.wins || 0}</td>
+                                                        <td className="p-3 md:p-4 text-right font-mono text-primary font-bold text-base md:text-lg">{player.points}</td>
+                                                    </tr>
+                                                )
+                                            })}
+                                            {(seasonStandings.length === 0) && (
+                                                <tr>
+                                                    <td colSpan={4} className="p-8 text-center text-muted-foreground text-xs">No points awarded yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
 
@@ -1566,6 +1332,300 @@ function ClubContent() {
                         )}
                     </div>
                 )}
+
+                {/* GOTM TAB */}
+                {activeTab === "gotm" && (
+                    <div className="space-y-12 animate-fade-in-up">
+                        {/* Current GOTM Card */}
+                        {gotm ? (
+                            <div className="mb-8">
+                                <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <CardHeader>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs mb-1">Game of the Month</CardDescription>
+                                                <CardTitle className="text-3xl md:text-4xl font-black text-white italic lowercase">{gotm.title}</CardTitle>
+                                            </div>
+                                            <Trophy className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
+                                        </div>
+                                    </CardHeader>
+
+                                    <CardContent className="relative z-10 space-y-6">
+                                        <div className="flex flex-col sm:flex-row gap-6">
+                                            <div className="w-full sm:w-32 shrink-0">
+                                                <div className="aspect-[3/4] relative rounded-xl overflow-hidden shadow-2xl border border-white/10 group">
+                                                    {gotm.coverUrl ? (
+                                                        <Image src={gotm.coverUrl} alt={gotm.title} fill className="object-cover transition-transform duration-700 group-hover:scale-105" />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                                                            <Gamepad2 className="w-16 h-16 text-gray-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 space-y-4">
+                                                <h3 className="text-sm font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">Mission Briefing</h3>
+                                                <p className="text-gray-300 leading-relaxed text-sm">
+                                                    {gotm.description || "No specific briefing for this title. Explore the game and report back, soldier!"}
+                                                </p>
+
+                                                <div className="pt-2">
+                                                    {!userReview ? (
+                                                        (() => {
+                                                            const now = new Date();
+                                                            const end = new Date(gotm.endDate);
+                                                            const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+                                                            const isReviewPeriod = diffDays <= 10;
+
+                                                            if (!isReviewPeriod) {
+                                                                return (
+                                                                    <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-200 text-[10px]">
+                                                                        <strong className="block uppercase tracking-widest mb-1 text-primary">Status: Active Mission</strong>
+                                                                        Reviews will unlock during the final designated operational window (last 10 days of the month).
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            if (isReviewOpen) {
+                                                                return (
+                                                                    <div className="bg-black/40 border border-white/10 rounded-xl p-4 animate-fade-in-up">
+                                                                        <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-center">Submit Your Report</h4>
+
+                                                                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-4">
+                                                                            {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                                                <div key={cat} className="space-y-1">
+                                                                                    <div className="flex justify-between">
+                                                                                        <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">{cat}</label>
+                                                                                        <span className="text-[8px] font-mono font-bold text-primary">{reviewForm.ratings[cat]}/11</span>
+                                                                                    </div>
+                                                                                    <input
+                                                                                        type="range"
+                                                                                        min="0"
+                                                                                        max="11"
+                                                                                        value={reviewForm.ratings[cat]}
+                                                                                        onChange={e => setReviewForm(prev => ({
+                                                                                            ...prev,
+                                                                                            ratings: { ...prev.ratings, [cat]: parseInt(e.target.value) }
+                                                                                        }))}
+                                                                                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+                                                                                    />
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+
+                                                                        <div className="mb-4 space-y-2">
+                                                                            <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground text-center block">Would you recommend this?</label>
+                                                                            <div className="flex gap-2 justify-center">
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    size="sm"
+                                                                                    variant={reviewForm.recommend ? "default" : "outline"}
+                                                                                    onClick={() => setReviewForm(prev => ({ ...prev, recommend: true }))}
+                                                                                    className={reviewForm.recommend ? "bg-green-500 hover:bg-green-600 text-white text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
+                                                                                >
+                                                                                    <ThumbsUp className="w-3 h-3 mr-1" /> YES
+                                                                                </Button>
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    size="sm"
+                                                                                    variant={!reviewForm.recommend ? "destructive" : "outline"}
+                                                                                    onClick={() => setReviewForm(prev => ({ ...prev, recommend: false }))}
+                                                                                    className={!reviewForm.recommend ? "text-[10px]" : "border-white/10 text-muted-foreground text-[10px]"}
+                                                                                >
+                                                                                    <ThumbsDown className="w-3 h-3 mr-1" /> NO
+                                                                                </Button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="mb-4">
+                                                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                                                <div
+                                                                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors
+                                                                ${reviewForm.completed ? 'bg-primary border-primary' : 'border-white/20 group-hover:border-primary/50'}`}
+                                                                                >
+                                                                                    {reviewForm.completed && <Check className="w-3 h-3 text-black font-bold" />}
+                                                                                </div>
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    className="hidden"
+                                                                                    checked={reviewForm.completed}
+                                                                                    onChange={(e) => setReviewForm(prev => ({ ...prev, completed: e.target.checked }))}
+                                                                                />
+                                                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                                                                                    Completed it mate?
+                                                                                </span>
+                                                                            </label>
+                                                                        </div>
+
+                                                                        <div className="mb-4 space-y-1">
+                                                                            <label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Mini Review</label>
+                                                                            <textarea
+                                                                                value={reviewForm.text}
+                                                                                onChange={e => setReviewForm(prev => ({ ...prev, text: e.target.value }))}
+                                                                                className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-primary/50 h-16 resize-none"
+                                                                                placeholder="Share your thoughts..."
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                onClick={async () => {
+                                                                                    if (!reviewForm.text.trim()) return alert("Please write a short review.");
+                                                                                    try {
+                                                                                        setIsSubmitting(true);
+                                                                                        if (user && gotm) {
+                                                                                            await submitGOTMReview(clubId as string, gotm.id, user.uid, {
+                                                                                                ...reviewForm,
+                                                                                                reviewText: reviewForm.text,
+                                                                                                displayName: user.displayName || "Unknown",
+                                                                                                photoURL: user.photoURL || undefined,
+                                                                                                completed: reviewForm.completed
+                                                                                            });
+                                                                                            // Award XP for review
+                                                                                            await addXp(user.uid, 50, "GOTM Review");
+                                                                                            alert("Review posted! 📝");
+                                                                                            const r = await getUserGOTMReview(gotm.id, user.uid);
+                                                                                            setUserReview(r);
+                                                                                            setIsReviewOpen(false);
+                                                                                        }
+                                                                                    } catch (e) {
+                                                                                        console.error(e);
+                                                                                        alert("Failed to submit review");
+                                                                                    } finally {
+                                                                                        setIsSubmitting(false);
+                                                                                    }
+                                                                                }}
+                                                                                disabled={isSubmitting}
+                                                                                className="flex-1 font-bold uppercase tracking-widest text-[10px]"
+                                                                            >
+                                                                                {isSubmitting ? <Loader2 className="animate-spin w-3 h-3 mr-1" /> : <Send className="w-3 h-3 mr-1" />}
+                                                                                Submit
+                                                                            </Button>
+                                                                            <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => setIsReviewOpen(false)}>Cancel</Button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                return (
+                                                                    <Button onClick={() => setIsReviewOpen(true)} className="w-full font-bold uppercase tracking-widest neon-border-static h-10 text-[10px]">
+                                                                        <Edit className="w-3 h-3 mr-2" /> Write a Review
+                                                                    </Button>
+                                                                );
+                                                            }
+                                                        })()
+                                                    ) : (
+                                                        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <h4 className="text-green-400 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                                                        <Check className="w-3 h-3" /> Review Submitted
+                                                                    </h4>
+                                                                </div>
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    {userReview.completed && (
+                                                                        <span className="flex items-center gap-1 text-primary font-bold uppercase text-[9px] bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                                                                            <Check className="w-2 h-2" /> Completed
+                                                                        </span>
+                                                                    )}
+                                                                    {userReview.recommend ? (
+                                                                        <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-[9px]">
+                                                                            <ThumbsUp className="w-2 h-2" /> Recommended
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="flex items-center gap-1 text-red-400 font-bold uppercase text-[9px]">
+                                                                            <ThumbsDown className="w-2 h-2" /> Not Recommended
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-5 gap-1 mb-3 text-center">
+                                                                {(['graphics', 'sound', 'gameplay', 'story', 'replayability'] as const).map(cat => (
+                                                                    <div key={cat} className="bg-black/20 p-1.5 rounded">
+                                                                        <div className="text-[7px] uppercase font-bold text-muted-foreground mb-0.5">{cat.slice(0, 4)}</div>
+                                                                        <div className="text-[10px] font-mono font-bold text-white">{userReview.ratings[cat]}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[11px] text-gray-300 italic">"{userReview.reviewText}"</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        ) : (
+                            <div className="text-center py-20 text-muted-foreground border border-dashed border-white/10 rounded-xl">
+                                <Gamepad2 className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                                <h3 className="text-lg font-bold text-white mb-2">No Active Mission</h3>
+                                <p className="text-sm">The admins haven't selected a Game of the Month yet.</p>
+                            </div>
+                        )}
+
+                        {/* GOTM Vault */}
+                        <div className="mb-12">
+                            <div className="flex items-center justify-between mb-6 pb-2 border-b border-primary/20">
+                                <div>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                                        <Star className="w-5 h-5 text-purple-400" />
+                                        GOTM Vault
+                                    </h3>
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-0.5">Hall of Fame</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {pastGOTMs.length === 0 ? (
+                                    <div className="col-span-full text-center py-8 text-muted-foreground bg-white/5 rounded-xl border border-white/5 text-xs">
+                                        <p>No past Games of the Month yet.</p>
+                                    </div>
+                                ) : (
+                                    pastGOTMs.map((g) => (
+                                        <div
+                                            key={g.id}
+                                            className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 group cursor-pointer hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all"
+                                            onClick={() => setSelectedPastGOTM(g)}
+                                        >
+                                            {g.coverUrl ? (
+                                                <Image
+                                                    src={g.coverUrl}
+                                                    alt={g.title}
+                                                    fill
+                                                    className="object-cover transition-transform duration-500 group-hover:scale-110"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                                                    <Gamepad2 className="w-8 h-8 text-white/20" />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+
+                                            <div className="absolute bottom-0 left-0 right-0 p-3">
+                                                <h4 className="text-sm font-black text-white italic leading-tight uppercase mb-1 drop-shadow-md line-clamp-2">
+                                                    {g.title}
+                                                </h4>
+                                                <p className="text-[9px] font-bold text-purple-300 uppercase tracking-widest">
+                                                    {new Date(g.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {selectedPastGOTM && (
+                            <GOTMHistoryModal
+                                gotm={selectedPastGOTM}
+                                onClose={() => setSelectedPastGOTM(null)}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
         </main>
     );
@@ -1575,7 +1635,7 @@ function TabButton({ children, active, onClick }: { children: React.ReactNode, a
     return (
         <button
             onClick={onClick}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors ${active ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
+            className={`px-1 md:px-4 py-2 text-[10px] md:text-sm font-bold uppercase tracking-wider border-b-2 transition-colors truncate ${active ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
         >
             {children}
         </button>

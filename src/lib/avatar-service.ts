@@ -94,7 +94,7 @@ export const DEFAULT_BANNERS = [
     { id: "retro_setup", url: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=1200&h=400", name: "Retro Vibe" },
     { id: "controller", url: "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=1200&h=400", name: "Minimal" },
     { id: "synth_grid", url: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200&h=400", name: "Synthwave Grid" },
-    { id: "molten", url: "https://images.unsplash.com/photo-1636239474796-01646e7f1dc2?auto=format&fit=crop&q=80&w=1200&h=400", name: "Molten Core" },
+    { id: "molten", url: "https://images.unsplash.com/photo-1476158085676-e67f57ed9ed7?auto=format&fit=crop&q=80&w=1200&h=400", name: "Molten Core" },
     { id: "ice", url: "https://images.unsplash.com/photo-1518066000714-58c45f1a2c0a?auto=format&fit=crop&q=80&w=1200&h=400", name: "Ice Fractal" },
     { id: "forest", url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=1200&h=400", name: "Midnight Forest" },
     { id: "gold", url: "https://images.unsplash.com/photo-1533134486753-c833f0ed4866?auto=format&fit=crop&q=80&w=1200&h=400", name: "Golden Particles" },
