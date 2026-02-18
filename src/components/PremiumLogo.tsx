@@ -18,11 +18,11 @@ export function PremiumLogo() {
                     title="Enter Console Corner"
                 >
                     <div className="absolute inset-0 bg-primary blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-500" />
-                    <Gamepad2 className="w-12 h-12 relative z-10 transition-all duration-500 animate-pulsing-rgb scale-110 group-hover:scale-125" />
+                    <Gamepad2 className="w-12 h-12 relative z-10 text-primary transition-all duration-500 animate-pulse-primary scale-110 group-hover:scale-125" />
                 </Link>
             ) : (
-                <div className="relative opacity-20 transition-all duration-500">
-                    <Gamepad2 className="w-12 h-12 text-white relative z-10" />
+                <div className="relative opacity-40 transition-all duration-500">
+                    <Gamepad2 className="w-12 h-12 text-primary relative z-10" />
                 </div>
             )}
 

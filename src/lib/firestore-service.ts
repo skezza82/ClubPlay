@@ -29,6 +29,14 @@ export const checkUsernameAvailability = async (username: string): Promise<boole
     return snapshot.empty;
 };
 
+export const findUserByUsername = async (username: string) => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("displayNameLowercase", "==", username.toLowerCase()), limit(1));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+};
+
 export interface Club {
     id: string;
     name: string;

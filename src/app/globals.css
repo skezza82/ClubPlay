@@ -383,3 +383,24 @@ body {
 .animate-pulsing-rgb {
   animation: pulsing-rgb 3s linear infinite !important;
 }
+
+@keyframes pulse-primary {
+  0% {
+    filter: drop-shadow(0 0 5px var(--primary));
+    opacity: 0.8;
+  }
+
+  50% {
+    filter: drop-shadow(0 0 20px var(--primary));
+    opacity: 1;
+  }
+
+  100% {
+    filter: drop-shadow(0 0 5px var(--primary));
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-primary {
+  animation: pulse-primary 2s ease-in-out infinite;
+}

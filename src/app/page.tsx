@@ -97,8 +97,8 @@ function HomeContent() {
               }
             } else {
               setGame({
-                title: soonestSession.gameTitle,
-                platform: soonestSession.platform,
+                title: soonestSession.gameTitle || soonestSession.title || "Challenge Active",
+                platform: soonestSession.platform || "Retro",
                 cover_image_url: soonestSession.cover_image_url || null
               });
             }

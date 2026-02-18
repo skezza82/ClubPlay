@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User, Mail, Shield, Camera, ArrowLeft, CheckCircle, PlusCircle, Upload, Loader2, Users, Search, XCircle, Heart, PartyPopper, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { PRESET_AVATARS, uploadAvatar, updateUserAvatar, DEFAULT_BANNERS } from "@/lib/avatar-service";
-import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest, hideClub, randomizeAllClubBanners } from "@/lib/firestore-service";
+import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequest, FriendRequest, hideClub, randomizeAllClubBanners, findUserByUsername } from "@/lib/firestore-service";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
 import { getXpLevel, getXpProgress, addXp, setXp } from "@/lib/firestore-service";
@@ -42,6 +42,20 @@ export default function ProfilePage() {
     const [levelUpInfo, setLevelUpInfo] = useState({ level: 1 });
     const [hideQuery, setHideQuery] = useState("");
     const [isHiding, setIsHiding] = useState(false);
+    const [isDeveloper, setIsDeveloper] = useState(false);
+    const [targetUsername, setTargetUsername] = useState("");
+    const [targetXp, setTargetXp] = useState("");
+    const [isUpdatingXp, setIsUpdatingXp] = useState(false);
+    const [isXpLoaded, setIsXpLoaded] = useState(false);
+
+    const XP_TASKS = [
+        { id: "review", name: "Post GOTM Review", xp: 50 },
+        { id: "score", name: "Submit Score", xp: 25 },
+        { id: "login", name: "Daily Login", xp: 10 },
+        { id: "win", name: "Weekly Win", xp: 100 },
+        { id: "friend", name: "Invite Friend", xp: 75 },
+    ];
+    const [simTaskId, setSimTaskId] = useState(XP_TASKS[0].id);
 
     useEffect(() => {
         if (user) {
@@ -55,6 +69,10 @@ export default function ProfilePage() {
                     const data = userDoc.data();
                     if (!nickname && data.displayName) setNickname(data.displayName);
                     if (!avatarUrl && data.photoURL) setAvatarUrl(data.photoURL);
+
+                    // Secure Developer Check
+                    const isDev = data.role === 'developer' || data.displayName?.toLowerCase() === 'skezza82';
+                    setIsDeveloper(isDev);
                 }
 
                 // Fetch User Clubs
@@ -96,6 +114,7 @@ export default function ProfilePage() {
                         }
                         return currentLevel;
                     });
+                    setIsXpLoaded(true);
                 }
             });
 
@@ -215,6 +234,65 @@ export default function ProfilePage() {
         }
     };
 
+    const handleManualXpUpdate = async () => {
+        if (!targetUsername || !targetXp) {
+            alert("Username and XP are required.");
+            return;
+        }
+
+        setIsUpdatingXp(true);
+        try {
+            const foundUser = await findUserByUsername(targetUsername);
+            if (!foundUser) {
+                alert("User not found.");
+                return;
+            }
+
+            const xpNum = parseInt(targetXp);
+            if (isNaN(xpNum)) {
+                alert("Invalid XP value.");
+                return;
+            }
+
+            if (confirm(`Set ${foundUser.displayName}'s total XP to ${xpNum}?`)) {
+                await setXp(foundUser.uid, xpNum);
+                alert(`Successfully set ${foundUser.displayName}'s XP to ${xpNum}.`);
+                setTargetUsername("");
+                setTargetXp("");
+            }
+        } catch (error: any) {
+            alert("Error: " + error.message);
+        } finally {
+            setIsUpdatingXp(false);
+        }
+    };
+
+    const handleSimulateXpTask = async () => {
+        if (!targetUsername) {
+            alert("Username is required.");
+            return;
+        }
+
+        setIsUpdatingXp(true);
+        try {
+            const foundUser = await findUserByUsername(targetUsername);
+            if (!foundUser) {
+                alert("User not found.");
+                return;
+            }
+
+            const task = XP_TASKS.find(t => t.id === simTaskId);
+            if (!task) return;
+
+            await addXp(foundUser.uid, task.xp, `Simulated: ${task.name}`);
+            alert(`Successfully awarded ${task.xp} XP to ${foundUser.displayName} for ${task.name}.`);
+        } catch (error: any) {
+            alert("Error: " + error.message);
+        } finally {
+            setIsUpdatingXp(false);
+        }
+    };
+
     if (!user) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -272,7 +350,9 @@ export default function ProfilePage() {
                             <div className="flex justify-between items-end mb-2">
                                 <div>
                                     <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase mb-1">Current Level</p>
-                                    <h2 className="text-3xl font-black text-primary">LVL {getXpLevel(xp)}</h2>
+                                    <h2 className="text-3xl font-black text-primary">
+                                        {isXpLoaded ? `LVL ${getXpLevel(xp)}` : "---"}
+                                    </h2>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs font-bold text-white mb-1">{getXpProgress(xp).current} / {getXpProgress(xp).needed} XP</p>
@@ -521,8 +601,8 @@ export default function ProfilePage() {
                         <InstallAppButton />
 
                         {/* Developer Console (Test Buttons) - Admin Only */}
-                        {(nickname?.toLowerCase() === "skezza82" || user?.displayName?.toLowerCase() === "skezza82") && (
-                            <Card className="border-red-500/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up stagger-5">
+                        {isDeveloper && (
+                            <Card className="border-red-500/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up stagger-5 border-dashed">
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center gap-2">
                                         <Binary className="w-4 h-4 text-red-500" />
@@ -617,13 +697,63 @@ export default function ProfilePage() {
                                         <ImageIcon className="w-3 h-3" />
                                         Randomize All Club Banners
                                     </Button>
+
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-4">User XP Overwrite (Remote)</p>
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Input
+                                                value={targetUsername}
+                                                onChange={(e) => setTargetUsername(e.target.value)}
+                                                placeholder="Username"
+                                                className="bg-black/30 border-white/10 text-[10px] h-8"
+                                            />
+                                            <Input
+                                                type="number"
+                                                value={targetXp}
+                                                onChange={(e) => setTargetXp(e.target.value)}
+                                                placeholder="New Total XP"
+                                                className="bg-black/30 border-white/10 text-[10px] h-8"
+                                            />
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="w-full h-8 text-[10px] bg-red-600 hover:bg-red-700 font-black uppercase tracking-widest"
+                                            disabled={isUpdatingXp}
+                                            onClick={handleManualXpUpdate}
+                                        >
+                                            {isUpdatingXp ? "Updating..." : "SET USER TOTAL XP"}
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2 pt-4">XP Task Simulation</p>
+                                    <div className="space-y-2">
+                                        <select
+                                            value={simTaskId}
+                                            onChange={(e) => setSimTaskId(e.target.value)}
+                                            className="w-full h-8 bg-black/30 border border-white/10 rounded px-2 text-[10px] text-white focus:outline-none focus:border-primary/50"
+                                        >
+                                            {XP_TASKS.map(task => (
+                                                <option key={task.id} value={task.id} className="bg-surface text-white">
+                                                    {task.name} (+{task.xp} XP)
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Button
+                                            size="sm"
+                                            className="w-full h-8 text-[10px] bg-blue-600 hover:bg-blue-700 font-black uppercase tracking-widest"
+                                            disabled={isUpdatingXp}
+                                            onClick={handleSimulateXpTask}
+                                        >
+                                            {isUpdatingXp ? "Simulating..." : "Simulate XP Award"}
+                                        </Button>
+                                    </div>
                                 </CardContent>
                             </Card>
                         )}
 
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
-                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.6.3"}
+                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.71"}
                             </p>
                             <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
                                 Update: {new Date().toLocaleString('en-US', {

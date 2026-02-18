@@ -22,7 +22,8 @@ import {
     getSentFriendRequests,
     getFriends,
     checkPendingRequest,
-    getXpLevel
+    getXpLevel,
+    addXp
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -47,7 +48,9 @@ import {
     ThumbsDown,
     UserPlus,
     Share2,
-    Info
+    Info,
+    Star,
+    Settings
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -105,12 +108,252 @@ function CountdownTimer({ targetDate }: { targetDate: any }) {
     );
 }
 
+
+const formatScore = (val: any, type?: string) => {
+    if (val === undefined || val === null) return "0";
+    const num = typeof val === 'number' ? val : parseFloat(val) || 0;
+
+    if (type === 'speed') {
+        const mins = Math.floor(num / 60);
+        const secs = Math.floor(num % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    return num.toLocaleString();
+};
+
+function HowToWin() {
+    return (
+        <div className="p-6 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 shadow-lg relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Crown className="w-12 h-12 text-blue-400" />
+            </div>
+            <p className="font-black mb-3 flex items-center gap-2 uppercase tracking-widest text-blue-400 italic text-[10px]">
+                <Crown className="w-4 h-4" /> How to win?
+            </p>
+            <ul className="space-y-3 relative z-10">
+                <li className="flex gap-3">
+                    <span className="w-5 h-5 rounded-full bg-yellow-500 text-black flex items-center justify-center font-black shrink-0 text-[10px]">1</span>
+                    <span>Finish <span className="text-white font-bold">1st</span> for maximum Club Points and the Weekly Trophy.</span>
+                </li>
+                <li className="flex gap-3">
+                    <span className="w-5 h-5 rounded-full bg-slate-400 text-black flex items-center justify-center font-black shrink-0 text-[10px]">2</span>
+                    <span>Secure <span className="text-white font-bold">2nd</span> place for a significant points boost.</span>
+                </li>
+                <li className="flex gap-3">
+                    <span className="w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center font-black shrink-0 text-[10px]">3</span>
+                    <span>Hold <span className="text-white font-bold">3rd</span> place for consistent season progression.</span>
+                </li>
+                <li className="flex gap-3">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/50 text-white flex items-center justify-center font-black shrink-0 text-[10px]">4+</span>
+                    <span>Players 4th and below score <span className="text-white font-bold">25 points</span> for participation.</span>
+                </li>
+            </ul>
+            <div className="mt-4 pt-4 border-t border-blue-500/20 text-[10px] text-blue-300/80 font-medium italic">
+                <p className="flex items-center gap-2">
+                    <span className="text-primary text-xs">💡</span>
+                    <span><span className="text-primary font-bold text-[9px]">Bonus Tip:</span> Being the first to post a score rewards <span className="text-white">Extra XP</span>!</span>
+                </p>
+            </div>
+        </div>
+    );
+}
+
+function HowToWinModal({ onClose }: { onClose: () => void }) {
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        setIsVisible(true);
+    }, []);
+
+    const handleClose = () => {
+        setIsVisible(false);
+        setTimeout(onClose, 500);
+    };
+
+    return (
+        <div
+            className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-500 ${isVisible ? 'opacity-100 backdrop-blur-xl' : 'opacity-0 pointer-events-none'}`}
+            style={{ background: 'rgba(0,0,0,0.85)' }}
+            onClick={handleClose}
+        >
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] transition-all duration-1000 ${isVisible ? 'scale-150 opacity-100' : 'scale-0 opacity-0'}`} />
+
+            <div
+                className={`relative max-w-sm w-full bg-surface/50 border border-blue-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(59,130,246,0.2)] transition-all duration-700 transform ${isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-20 scale-90 opacity-0'}`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex justify-between items-start mb-8">
+                    <div>
+                        <h2 className="text-xs font-black text-blue-400 uppercase tracking-[0.3em] mb-1 italic">Club Rules</h2>
+                        <h3 className="text-3xl font-black text-white italic tracking-tighter">HOW TO WIN</h3>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30 shadow-lg shadow-blue-500/10">
+                        <Crown className="w-6 h-6 text-blue-400" />
+                    </div>
+                </div>
+
+                <ul className="space-y-6 mb-8">
+                    {[
+                        { pos: "1", text: "Finish 1st for maximum Club Points and the Weekly Trophy.", color: "bg-yellow-500", textColor: "text-black" },
+                        { pos: "2", text: "Secure 2nd place for a significant points boost.", color: "bg-slate-400", textColor: "text-black" },
+                        { pos: "3", text: "Hold 3rd place for consistent season progression.", color: "bg-amber-700", textColor: "text-white" },
+                        { pos: "4+", text: "Players 4th and below score 25 points for participation.", color: "bg-blue-500/50", textColor: "text-white" }
+                    ].map((item, i) => (
+                        <li key={i} className="flex gap-4 items-start">
+                            <span className={`w-8 h-8 rounded-full ${item.color} ${item.textColor} flex items-center justify-center font-black shrink-0 text-xs shadow-lg`}>
+                                {item.pos}
+                            </span>
+                            <span className="text-blue-100/90 text-sm leading-relaxed font-medium">
+                                {item.text}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+
+                <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 mb-8 overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-2 opacity-10">
+                        <Star className="w-8 h-8 text-primary" />
+                    </div>
+                    <p className="flex items-center gap-3 text-xs text-blue-200 relative z-10">
+                        <span className="text-primary text-lg">💡</span>
+                        <span><span className="text-primary font-bold">Bonus Tip:</span> Being the first to post a score rewards <span className="text-white font-bold">Extra XP</span>!</span>
+                    </p>
+                </div>
+
+                <Button
+                    onClick={handleClose}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg shadow-[0_4px_20px_rgba(59,130,246,0.3)] transition-all active:scale-95 border-b-4 border-blue-800"
+                >
+                    Get Back In
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function UserProfileModal({ user: profileUser, onClose, currentUser, isFriend, isPending, onSendRequest }: {
+    user: any,
+    onClose: () => void,
+    currentUser: any,
+    isFriend: boolean,
+    isPending: boolean,
+    onSendRequest: (userId: string) => Promise<void>
+}) {
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        setIsVisible(true);
+    }, []);
+
+    const handleClose = () => {
+        setIsVisible(false);
+        setTimeout(onClose, 500);
+    };
+
+    const isMe = currentUser?.uid === profileUser.userId;
+
+    return (
+        <div
+            className={`fixed inset-0 z-[110] flex items-center justify-center p-4 transition-all duration-500 ${isVisible ? 'opacity-100 backdrop-blur-xl' : 'opacity-0 pointer-events-none'}`}
+            style={{ background: 'rgba(0,0,0,0.85)' }}
+            onClick={handleClose}
+        >
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] transition-all duration-1000 ${isVisible ? 'scale-150 opacity-100' : 'scale-0 opacity-0'}`} />
+
+            <div
+                className={`relative max-w-sm w-full bg-surface/50 border border-primary/30 rounded-3xl p-8 text-center shadow-[0_0_50px_rgba(var(--primary-rgb),0.2)] transition-all duration-700 transform ${isVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-20 scale-90 opacity-0'}`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Close Button */}
+                <button
+                    onClick={handleClose}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                    <span className="text-xl">×</span>
+                </button>
+
+                <div className="relative mb-6 flex justify-center">
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+                    <div className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-primary to-primary-dim p-0.5 border border-white/20 shadow-xl overflow-hidden">
+                        <UserAvatar
+                            uid={profileUser.userId}
+                            photoURL={profileUser.photoURL}
+                            displayName={profileUser.displayName}
+                            className="w-full h-full rounded-[14px]"
+                            size="full"
+                            showLevel={false}
+                        />
+                    </div>
+                    {isFriend && (
+                        <div className="absolute -bottom-2 -right-2 bg-green-500 text-black px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 shadow-lg">
+                            <Star className="w-3 h-3 fill-black" /> Friend
+                        </div>
+                    )}
+                </div>
+
+                <h3 className="text-3xl font-black text-white italic tracking-tighter mb-1 uppercase">
+                    {profileUser.displayName}
+                </h3>
+                <p className="text-xs font-bold text-primary uppercase tracking-[0.3em] mb-4 italic">
+                    {profileUser.title || "Club Member"}
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="bg-black/40 rounded-2xl p-4 border border-white/5">
+                        <div className="text-[10px] uppercase font-black text-muted-foreground mb-1 tracking-widest text-left">Level</div>
+                        <div className="text-2xl font-black text-white italic tracking-tighter text-left">
+                            LVL {getXpLevel(profileUser.xp || 0)}
+                        </div>
+                    </div>
+                    <div className="bg-black/40 rounded-2xl p-4 border border-white/5">
+                        <div className="text-[10px] uppercase font-black text-muted-foreground mb-1 tracking-widest text-left">Joined</div>
+                        <div className="text-2xl font-black text-white italic tracking-tighter text-left">
+                            {new Date(profileUser.joinedAt || Date.now()).getFullYear()}
+                        </div>
+                    </div>
+                </div>
+
+                {!isMe && !isFriend && (
+                    <Button
+                        onClick={() => onSendRequest(profileUser.userId)}
+                        disabled={isPending}
+                        className="w-full bg-primary hover:bg-primary-dim text-white font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg shadow-[0_4px_20px_rgba(var(--primary-rgb),0.3)] transition-all active:scale-95 border-b-4 border-primary-dim"
+                    >
+                        {isPending ? "Request Sent" : <span className="flex items-center justify-center gap-2"><UserPlus className="w-5 h-5" /> Add Friend</span>}
+                    </Button>
+                )}
+
+                {isFriend && (
+                    <Button
+                        disabled
+                        className="w-full bg-green-500/20 text-green-500 font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg opacity-50 border border-green-500/20"
+                    >
+                        Already Friends
+                    </Button>
+                )}
+
+                {isMe && (
+                    <Button
+                        disabled
+                        className="w-full bg-primary/20 text-primary font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg opacity-50 border border-primary/20"
+                    >
+                        It&apos;s You!
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function ClubContent() {
     const searchParams = useSearchParams();
     const clubId = searchParams.get("id");
     const { user } = useAuth();
     const router = useRouter();
     const [isPendingJoin, setIsPendingJoin] = useState(false);
+    const [showBio, setShowBio] = useState(false);
+    const [showHowTo, setShowHowTo] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<any>(null);
 
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<any[]>([]);
@@ -162,15 +405,36 @@ function ClubContent() {
                 const sessions = await getClubSessions(clubId);
                 const now = new Date();
                 const active = sessions.filter(s => new Date(s.endDate) > now);
-                const past = sessions.filter(s => new Date(s.endDate) <= now).sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+                const pastRaw = sessions.filter(s => new Date(s.endDate) <= now).sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+
+                // Fetch top scores for each past session with robust error handling
+                const pastEnriched = await Promise.all(pastRaw.map(async (session) => {
+                    try {
+                        const scores = await getClubSessionScores(session.id);
+                        const sorted = [...scores].sort((a, b) => {
+                            if (session.challengeType === 'speed') {
+                                return (a.scoreValue || 0) - (b.scoreValue || 0);
+                            }
+                            return (b.scoreValue || 0) - (a.scoreValue || 0);
+                        });
+                        return {
+                            ...session,
+                            topScores: sorted.slice(0, 3),
+                            challengeType: session.challengeType || 'score' // Ensure type exists
+                        };
+                    } catch (e) {
+                        console.error(`Error fetching scores for session ${session.id}:`, e);
+                        return { ...session, topScores: [] };
+                    }
+                }));
 
                 setActiveSessions(active);
-                setPastSessions(past);
+                setPastSessions(pastEnriched);
                 if (active.length > 0) {
                     setSelectedSession(active[0]);
-                } else if (past.length > 0) {
+                } else if (pastRaw.length > 0) {
                     // Fallback to most recent past session for display
-                    setSelectedSession(past[0]);
+                    setSelectedSession(pastRaw[0]);
                 }
 
                 const standings = await getSeasonStandings(clubId);
@@ -316,14 +580,6 @@ function ClubContent() {
         }
     };
 
-    const formatScore = (val: number, type: string) => {
-        if (type === 'speed') {
-            const mins = Math.floor(val / 60);
-            const secs = val % 60;
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-        return val.toLocaleString();
-    };
 
     if (loading) return (
         <div className="min-h-screen bg-background flex items-center justify-center">
@@ -420,6 +676,14 @@ function ClubContent() {
                         )}
                         <Button
                             variant="outline"
+                            className="border-white/10 text-white hover:bg-white/10"
+                            onClick={() => setShowBio(!showBio)}
+                        >
+                            <Info className="w-4 h-4 mr-2" />
+                            Bio
+                        </Button>
+                        <Button
+                            variant="outline"
                             size="icon"
                             className="w-10 h-10 border-primary/30 text-primary hover:bg-primary/10 rounded-full"
                             onClick={async () => {
@@ -441,6 +705,80 @@ function ClubContent() {
                     </div>
                 </div>
             </div>
+
+            {/* Club Bio Overlay */}
+            {showBio && (
+                <div className="container mx-auto max-w-3xl px-6 -mt-4 mb-4 animate-fade-in">
+                    <Card className="border-primary/20 bg-surface/80 backdrop-blur-xl overflow-hidden relative group">
+                        <div className="absolute top-0 right-0 p-4">
+                            <Button variant="ghost" size="icon" onClick={() => setShowBio(false)} className="text-muted-foreground hover:text-white">
+                                <span className="text-xl">×</span>
+                            </Button>
+                        </div>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-xs font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+                                <Info className="w-3 h-3" /> Mission & Bio
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center overflow-hidden border border-white/5">
+                                    {club.logoUrl ? (
+                                        <Image src={club.logoUrl} alt={club.name} width={48} height={48} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <Users className="w-6 h-6 text-primary" />
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <h4 className="font-bold text-white text-lg">{club.name}</h4>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-2">
+                                        INVITE CODE: <span className="text-primary">{club.inviteCode}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-white/90 leading-relaxed italic border-l-2 border-primary/30 pl-4 py-1">
+                                {club.bio || "No mission statement provided. Join us and help define our legacy!"}
+                            </p>
+
+                            <div className="flex items-center gap-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest pt-2">
+                                <div className="flex items-center gap-1.5">
+                                    <Users className="w-3 h-3 text-primary" /> {members.length} Members
+                                </div>
+                                <div className="w-1 h-1 bg-white/10 rounded-full" />
+                                <div className="flex items-center gap-1.5">
+                                    <Calendar className="w-3 h-3 text-primary" /> Est. {new Date(club.createdAt).getFullYear()}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            {showHowTo && (
+                <HowToWinModal onClose={() => setShowHowTo(false)} />
+            )}
+
+            {selectedUser && (
+                <UserProfileModal
+                    user={selectedUser}
+                    currentUser={user}
+                    isFriend={friendsList.includes(selectedUser.userId)}
+                    isPending={sentRequests.includes(selectedUser.userId)}
+                    onClose={() => setSelectedUser(null)}
+                    onSendRequest={async (targetId) => {
+                        if (!user) return;
+                        try {
+                            await sendFriendRequest(user.uid, targetId);
+                            setSentRequests(prev => [...prev, targetId]);
+                            alert("Friend request sent!");
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to send request");
+                        }
+                    }}
+                />
+            )}
 
             {/* Navigation */}
             <div className="container mx-auto max-w-3xl px-6 mt-8 mb-8">
@@ -480,11 +818,23 @@ function ClubContent() {
 
                                 {/* Active Game Card */}
                                 <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
-                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     <CardHeader>
-                                        <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">
-                                            {isSessionActive ? "Current Challenge" : "Previous Challenge"}
-                                        </CardDescription>
+                                        <div className="flex justify-between items-center">
+                                            <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">
+                                                {isSessionActive ? "Current Challenge" : "Previous Challenge"}
+                                            </CardDescription>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowHowTo(true);
+                                                }}
+                                                className="md:hidden w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors relative z-10"
+                                            >
+                                                <Info className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                         <div className="flex justify-between items-start">
                                             <CardTitle className="text-3xl md:text-4xl font-black text-white italic">{game?.title || "No Active Game"}</CardTitle>
                                             <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
@@ -615,11 +965,20 @@ function ClubContent() {
                                                                     {i + 1}
                                                                 </div>
                                                                 <UserAvatar
+                                                                    uid={member?.userId || score.userId}
                                                                     photoURL={member?.photoURL || score.photoURL}
                                                                     displayName={displayName}
                                                                     xp={member?.xp || score.xp || 0}
                                                                     size="md"
                                                                     isWinner={i === 0 && weekScores.length > 0}
+                                                                    className="cursor-pointer hover:scale-110 transition-transform active:scale-95"
+                                                                    onClick={() => setSelectedUser(member || {
+                                                                        userId: score.userId,
+                                                                        displayName,
+                                                                        photoURL: score.photoURL,
+                                                                        xp: score.xp,
+                                                                        joinedAt: member?.joinedAt
+                                                                    })}
                                                                 />
                                                                 <div>
                                                                     <div className="text-sm font-black text-white">{displayName}</div>
@@ -809,6 +1168,8 @@ function ClubContent() {
                                                                                                         photoURL: user.photoURL || undefined,
                                                                                                         completed: reviewForm.completed
                                                                                                     });
+                                                                                                    // Award XP for review
+                                                                                                    await addXp(user.uid, 50, "GOTM Review");
                                                                                                     alert("Review posted! 📝");
                                                                                                     const r = await getUserGOTMReview(gotm.id, user.uid);
                                                                                                     setUserReview(r);
@@ -884,75 +1245,9 @@ function ClubContent() {
                                 )}
                             </div>
 
-                            {/* Club About Card */}
-                            <Card className="border-white/10 bg-surface/40 backdrop-blur-md overflow-hidden relative group">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-xs font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <Info className="w-3 h-3" /> About the Club
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center overflow-hidden border border-white/5">
-                                            {club.logoUrl ? (
-                                                <Image src={club.logoUrl} alt={club.name} width={40} height={40} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Users className="w-5 h-5 text-primary" />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <h4 className="font-bold text-white truncate">{club.name}</h4>
-                                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter italic">ID: {club.inviteCode}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest border-y border-white/5 py-3">
-                                        <div className="flex items-center gap-1.5">
-                                            <Users className="w-3 h-3 text-primary" /> {members.length} Members
-                                        </div>
-                                        <div className="w-1 h-1 bg-white/10 rounded-full" />
-                                        <div className="flex items-center gap-1.5">
-                                            <Calendar className="w-3 h-3 text-primary" /> {new Date(club.createdAt).getFullYear()}
-                                        </div>
-                                    </div>
-
-                                    <p className="text-xs text-gray-300 leading-relaxed italic">
-                                        {club.bio || "No mission statement provided. Join us and help define our legacy!"}
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <div className="p-6 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 shadow-lg relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <Crown className="w-12 h-12 text-blue-400" />
-                                </div>
-                                <p className="font-black mb-3 flex items-center gap-2 uppercase tracking-widest text-blue-400 italic">
-                                    <Crown className="w-4 h-4" /> How to win?
-                                </p>
-                                <ul className="space-y-3 relative z-10">
-                                    <li className="flex gap-3">
-                                        <span className="w-5 h-5 rounded-full bg-yellow-500 text-black flex items-center justify-center font-black shrink-0 text-[10px]">1</span>
-                                        <span>Finish <span className="text-white font-bold">1st</span> for maximum Club Points and the Weekly Trophy.</span>
-                                    </li>
-                                    <li className="flex gap-3">
-                                        <span className="w-5 h-5 rounded-full bg-slate-400 text-black flex items-center justify-center font-black shrink-0 text-[10px]">2</span>
-                                        <span>Secure <span className="text-white font-bold">2nd</span> place for a significant points boost.</span>
-                                    </li>
-                                    <li className="flex gap-3">
-                                        <span className="w-5 h-5 rounded-full bg-amber-700 text-white flex items-center justify-center font-black shrink-0 text-[10px]">3</span>
-                                        <span>Hold <span className="text-white font-bold">3rd</span> place for consistent season progression.</span>
-                                    </li>
-                                    <li className="flex gap-3">
-                                        <span className="w-5 h-5 rounded-full bg-blue-500/50 text-white flex items-center justify-center font-black shrink-0 text-[10px]">4+</span>
-                                        <span>Players 4th and below score <span className="text-white font-bold">25 points</span> for participation.</span>
-                                    </li>
-                                </ul>
-                                <div className="mt-4 pt-4 border-t border-blue-500/20 text-[10px] text-blue-300/80 font-medium italic">
-                                    <p className="flex items-center gap-2">
-                                        <span className="text-primary text-xs">💡</span>
-                                        <span><span className="text-primary font-bold">Bonus Tip:</span> Being the first to post a score rewards <span className="text-white">Extra XP</span> towards your player level!</span>
-                                    </p>
-                                </div>
+                            {/* Sidebar Column: Rules (Desktop Only) */}
+                            <div className="hidden md:block space-y-6">
+                                <HowToWin />
                             </div>
                         </div>
 
@@ -982,12 +1277,23 @@ function ClubContent() {
                                     messages.map((msg) => (
                                         <div key={msg.id} className={`flex gap-3 ${msg.userId === user?.uid ? 'flex-row-reverse' : ''}`}>
                                             <UserAvatar
+                                                uid={msg.userId}
                                                 photoURL={msg.photoURL}
                                                 displayName={msg.displayName}
                                                 xp={msg.xp || 0}
                                                 size="sm"
                                                 showLevel={false}
                                                 isWinner={club?.latestWinnerId === msg.userId || (club?.latestWinnerName && club?.latestWinnerName === msg.displayName)}
+                                                className="hover:scale-110 transition-transform active:scale-95"
+                                                onClick={() => {
+                                                    const member = members.find(m => m.userId === msg.userId);
+                                                    setSelectedUser(member || {
+                                                        userId: msg.userId,
+                                                        displayName: msg.displayName,
+                                                        photoURL: msg.photoURL,
+                                                        joinedAt: member?.joinedAt
+                                                    });
+                                                }}
                                             />
                                             <div className={`max-w-[80%] space-y-1 ${msg.userId === user?.uid ? 'items-end flex flex-col' : ''}`}>
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground px-1">
@@ -1003,32 +1309,27 @@ function ClubContent() {
                                 )}
                             </div>
 
-                            {/* Input Area */}
-                            <div className="p-4 bg-black/40 border-t border-white/10">
-                                {isMember ? (
-                                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                                        <Input
-                                            value={chatInput}
-                                            onChange={(e) => setChatInput(e.target.value)}
-                                            placeholder="Type a message..."
-                                            className="flex-1 bg-white/5 border-white/10 text-white focus:ring-primary/50"
-                                            disabled={isSending}
-                                        />
-                                        <Button
-                                            type="submit"
-                                            disabled={!chatInput.trim() || isSending}
-                                            className="bg-primary text-black hover:bg-primary/90 font-bold"
-                                        >
-                                            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                        </Button>
-                                    </form>
-                                ) : (
-                                    <div className="text-center text-xs text-muted-foreground py-2 italic border border-dashed border-white/10 rounded-lg">
-                                        Join the club to participate in the chat.
-                                    </div>
-                                )}
-                            </div>
+                            {/* Chat Input */}
+                            {isMember ? (
+                                <form onSubmit={handleSendMessage} className="p-4 bg-black/40 border-t border-white/10 flex gap-2">
+                                    <Input
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        placeholder="Type a message..."
+                                        className="bg-black/50 border-white/10"
+                                        maxLength={500}
+                                    />
+                                    <Button type="submit" disabled={isSending || !chatInput.trim()} size="icon" className="shrink-0">
+                                        <Send className="w-4 h-4" />
+                                    </Button>
+                                </form>
+                            ) : (
+                                <div className="p-4 bg-black/40 text-center text-xs text-muted-foreground italic border-t border-white/10">
+                                    Join this club to participate in the conversation.
+                                </div>
+                            )}
                         </div>
+
                     </>
                 )}
 
@@ -1069,10 +1370,19 @@ function ClubContent() {
                                                         <td className="p-3 md:p-4">
                                                             <div className="flex items-center gap-2 md:gap-3">
                                                                 <UserAvatar
+                                                                    uid={player.userId}
                                                                     photoURL={photoURL}
                                                                     displayName={displayName}
                                                                     xp={player.xp || 0}
                                                                     size="sm"
+                                                                    className="cursor-pointer hover:scale-110 transition-transform active:scale-95"
+                                                                    onClick={() => setSelectedUser(member || {
+                                                                        userId: player.userId,
+                                                                        displayName,
+                                                                        photoURL,
+                                                                        xp: player.xp,
+                                                                        joinedAt: member?.joinedAt
+                                                                    })}
                                                                 />
                                                                 <span className="font-bold text-white text-xs md:text-sm truncate max-w-[80px] sm:max-w-none">{displayName}</span>
                                                             </div>
@@ -1167,7 +1477,7 @@ function ClubContent() {
                                                                         </span>
                                                                     </div>
                                                                     <span className="font-mono text-primary text-xs">
-                                                                        {formatScore(score.scoreValue, session.challengeType)}
+                                                                        {formatScore(score.scoreValue || score.score, session.challengeType)}
                                                                     </span>
                                                                 </div>
                                                             )
@@ -1203,12 +1513,14 @@ function ClubContent() {
                                     <Card key={member.id} className="border-white/10 bg-surface/30 backdrop-blur-sm overflow-hidden group hover:border-primary/30 transition-all relative">
                                         <div className="p-6 flex flex-col items-center text-center">
                                             <UserAvatar
+                                                uid={member.userId}
                                                 photoURL={member.photoURL}
                                                 displayName={member.displayName}
                                                 xp={member.xp || 0}
                                                 size="2xl"
                                                 isWinner={club?.latestWinnerId === member.userId || (club?.latestWinnerName && club?.latestWinnerName === member.displayName)}
-                                                className="mb-4"
+                                                className="mb-4 cursor-pointer hover:scale-105 transition-transform active:scale-95"
+                                                onClick={() => setSelectedUser(member)}
                                             />
                                             <h3 className="font-bold text-white mb-1 flex items-center gap-2 justify-center">
                                                 {member.displayName}
@@ -1255,7 +1567,7 @@ function ClubContent() {
                     </div>
                 )}
             </div>
-        </main >
+        </main>
     );
 }
 

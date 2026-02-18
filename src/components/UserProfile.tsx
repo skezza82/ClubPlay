@@ -15,6 +15,7 @@ export function UserProfile() {
     const { user, logout } = useAuth();
     const [isWinner, setIsWinner] = useState(false);
     const [xp, setXp] = useState(0);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -35,6 +36,7 @@ export function UserProfile() {
             if (doc.exists()) {
                 setXp(doc.data().xp || 0);
             }
+            setIsLoaded(true);
         });
 
         return () => unsub();
@@ -69,16 +71,17 @@ export function UserProfile() {
                         {isWinner && <Trophy className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
                     </p>
                     <p className="text-xs text-primary font-mono font-black tracking-widest leading-none">
-                        LVL {level}
+                        {isLoaded ? `LVL ${level}` : "LVL ..."}
                         {isWinner && <span className="text-yellow-500 ml-1">• CHAMPION</span>}
                     </p>
                 </div>
                 <UserAvatar
                     photoURL={user.photoURL}
-                    displayName={user.displayName || ""}
+                    displayName={user.displayName || "User"}
                     xp={xp}
+                    size="sm"
                     isWinner={isWinner}
-                    size="md"
+                    showLevel={isLoaded}
                 />
             </Link>
 

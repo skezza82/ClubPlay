@@ -9,10 +9,11 @@ interface UserAvatarProps {
     photoURL?: string | null;
     displayName?: string;
     xp?: number;
-    size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
+    size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "full";
     showLevel?: boolean;
     isWinner?: boolean;
     className?: string;
+    onClick?: () => void;
 }
 
 export function UserAvatar({
@@ -22,7 +23,8 @@ export function UserAvatar({
     size = "md",
     showLevel = true,
     isWinner = false,
-    className = ""
+    className = "",
+    onClick
 }: UserAvatarProps) {
     const level = getXpLevel(xp);
 
@@ -32,7 +34,8 @@ export function UserAvatar({
         md: "w-10 h-10",
         lg: "w-14 h-14",
         xl: "w-16 h-16",
-        "2xl": "w-24 h-24"
+        "2xl": "w-24 h-24",
+        full: "w-full h-full"
     };
 
     const bubbleSizeClasses = {
@@ -54,7 +57,10 @@ export function UserAvatar({
     };
 
     return (
-        <div className={`relative shrink-0 ${className}`}>
+        <div
+            className={`relative shrink-0 ${className} ${onClick ? 'cursor-pointer' : ''}`}
+            onClick={onClick}
+        >
             {/* Avatar Circle */}
             <div className={`${sizeClasses[size]} rounded-xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden transition-colors`}>
                 {photoURL ? (
@@ -65,15 +71,15 @@ export function UserAvatar({
             </div>
 
             {/* Level Badge Bubble */}
-            {showLevel && (
-                <div className={`absolute ${bubbleSizeClasses[size]} bg-primary text-black font-black rounded-full flex items-center justify-center border-surface z-20 shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]`}>
+            {showLevel && size !== "full" && (
+                <div className={`absolute ${bubbleSizeClasses[size as keyof typeof bubbleSizeClasses] || bubbleSizeClasses.md} bg-primary text-black font-black rounded-full flex items-center justify-center border-surface z-20 shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]`}>
                     {level}
                 </div>
             )}
 
             {/* Winner Trophy */}
-            {isWinner && (
-                <div className={`absolute ${trophySizeClasses[size]} bg-yellow-500 rounded-full border border-surface shadow-lg z-10 flex items-center justify-center`}>
+            {isWinner && size !== "full" && (
+                <div className={`absolute ${trophySizeClasses[size as keyof typeof trophySizeClasses] || trophySizeClasses.md} bg-yellow-500 rounded-full border border-surface shadow-lg z-10 flex items-center justify-center`}>
                     <Trophy className="w-full h-full text-black" />
                 </div>
             )}
