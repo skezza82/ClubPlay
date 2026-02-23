@@ -25,7 +25,8 @@ import {
     createGOTM,
     getCurrentGOTM,
     getUpcomingGOTM,
-    type GOTM
+    type GOTM,
+    verifyScore
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -271,6 +272,21 @@ function ClubAdminContent() {
         } catch (e) {
             console.error(e);
             alert("Failed to update score.");
+        }
+    };
+
+    const handleVerifyScore = async (scoreId: string, isApproved: boolean) => {
+        if (!confirm(`Are you sure you want to ${isApproved ? 'approve' : 'reject & delete'} this score?`)) return;
+        try {
+            await verifyScore(scoreId, isApproved);
+            if (isApproved) {
+                setWeekScores(weekScores.map(s => s.id === scoreId ? { ...s, status: 'verified', proofUrl: null } : s));
+            } else {
+                setWeekScores(weekScores.filter(s => s.id !== scoreId));
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to verify score.");
         }
     };
 
@@ -1386,14 +1402,46 @@ function ClubAdminContent() {
                                                                 <div className="font-mono font-bold text-primary text-lg mr-4">
                                                                     {activeSessions.find(s => s.id === viewingScoresSessionId)?.challengeType === 'speed' ? `${score.scoreValue}s` : score.scoreValue.toLocaleString()}
                                                                 </div>
-                                                                <div className="flex gap-1">
-                                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-400" onClick={() => handleEditScore(score)}>
-                                                                        <Edit className="w-4 h-4" />
-                                                                    </Button>
-                                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => handleDeleteScore(score.id)}>
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </Button>
-                                                                </div>
+                                                                {score.status === 'pending_verification' ? (
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <div className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-sm text-xs font-bold mr-2 uppercase tracking-widest border border-yellow-500/20">
+                                                                            Review Pending
+                                                                        </div>
+                                                                        {score.proofUrl && (
+                                                                            <a href={score.proofUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 mr-2 text-xs underline font-bold">View Proof</a>
+                                                                        )}
+                                                                        <Button size="sm" variant="outline" className="h-8 border-green-500/30 text-green-400 hover:bg-green-500/10" onClick={() => handleVerifyScore(score.id, true)}>
+                                                                            Approve
+                                                                        </Button>
+                                                                        <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => handleVerifyScore(score.id, false)}>
+                                                                            Reject
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : score.status === 'rejected' ? (
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <div title={score.aiVerificationLogs} className="bg-red-500/10 text-red-500 px-2 py-1 rounded-sm text-xs font-bold mr-2 uppercase tracking-widest border border-red-500/20 cursor-help">
+                                                                            AI Rejected
+                                                                        </div>
+                                                                        {score.proofUrl && (
+                                                                            <a href={score.proofUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 mr-2 text-xs underline font-bold">View Proof</a>
+                                                                        )}
+                                                                        <Button size="sm" variant="outline" className="h-8 border-green-500/30 text-green-400 hover:bg-green-500/10" onClick={() => handleVerifyScore(score.id, true)}>
+                                                                            Override
+                                                                        </Button>
+                                                                        <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => handleVerifyScore(score.id, false)}>
+                                                                            Delete
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex gap-1">
+                                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-blue-400" onClick={() => handleEditScore(score)}>
+                                                                            <Edit className="w-4 h-4" />
+                                                                        </Button>
+                                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400" onClick={() => handleDeleteScore(score.id)}>
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
                                                             </>
                                                         )}
                                                     </div>

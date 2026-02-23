@@ -31,7 +31,8 @@ import {
     unfriend,
     sendClubInvite,
     checkAndActivateUpcomingSession,
-    updateClubLastAccessed
+    updateClubLastAccessed,
+    uploadVerificationImage
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -484,6 +485,11 @@ function ClubContent() {
     const [friendsList, setFriendsList] = useState<string[]>([]);
     const [friendsData, setFriendsData] = useState<any[]>([]);
 
+    // Score Verification
+    const [pendingVerificationScore, setPendingVerificationScore] = useState<{ scoreValue: number, sessionId: string } | null>(null);
+    const [verificationImage, setVerificationImage] = useState<File | null>(null);
+    const [isUploadingProof, setIsUploadingProof] = useState(false);
+
     useEffect(() => {
         if (!clubId) {
             setLoading(false);
@@ -598,7 +604,8 @@ function ClubContent() {
                     }
                     return b.scoreValue - a.scoreValue;
                 });
-                setWeekScores(sorted);
+                const filteredAndSorted = sorted.filter(s => s.status !== 'pending_verification' && s.status !== 'rejected');
+                setWeekScores(filteredAndSorted);
             });
         }
     }, [selectedSession, clubId]);
@@ -655,15 +662,23 @@ function ClubContent() {
 
         setIsSubmitting(true);
         try {
-            await submitScore(selectedSession.id, user.uid, parseInt(scoreInput), user.displayName || "Unknown User");
+            const result = await submitScore(selectedSession.id, user.uid, parseInt(scoreInput), user.displayName || "Unknown User");
+
+            if (result.isOutlier) {
+                setPendingVerificationScore({ sessionId: selectedSession.id, scoreValue: parseInt(scoreInput) });
+                setIsSubmitting(false);
+                return; // Stop here, show verification modal
+            }
+
             const updatedScores = await getClubSessionScores(selectedSession.id);
             const sorted = [...updatedScores].sort((a, b) => {
                 if (selectedSession.challengeType === 'speed') {
-                    return a.scoreValue - b.scoreValue;
+                    return (a.scoreValue || 0) - (b.scoreValue || 0);
                 }
-                return b.scoreValue - a.scoreValue;
+                return (b.scoreValue || 0) - (a.scoreValue || 0);
             });
-            setWeekScores(sorted);
+            // Filter out pending and rejected verification scores from the public board
+            setWeekScores(sorted.filter(s => s.status !== 'pending_verification' && s.status !== 'rejected'));
             setScoreInput("");
             alert("Score submitted successfully! 🎮");
         } catch (error) {
@@ -671,6 +686,23 @@ function ClubContent() {
             alert("Failed to submit score");
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleProofSubmit = async () => {
+        if (!user || !pendingVerificationScore || !verificationImage) return;
+        setIsUploadingProof(true);
+        try {
+            await uploadVerificationImage(pendingVerificationScore.sessionId, user.uid, verificationImage);
+            alert("Proof uploaded successfully! Your score is now pending Admin Review.");
+            setPendingVerificationScore(null);
+            setVerificationImage(null);
+            setScoreInput("");
+        } catch (e) {
+            console.error(e);
+            alert("Failed to upload proof.");
+        } finally {
+            setIsUploadingProof(false);
         }
     };
 
@@ -834,6 +866,40 @@ function ClubContent() {
             </div>
 
             {/* Club Bio Overlay */}
+            {/* Verification Modal */}
+            {pendingVerificationScore && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-surface border border-primary/30 rounded-3xl p-6 shadow-2xl max-w-md w-full">
+                        <h3 className="text-2xl font-black italic uppercase text-white mb-2 text-center text-primary">Verification Required</h3>
+                        <p className="text-sm text-blue-100/70 mb-6 text-center">
+                            Your score of <strong className="text-white text-lg">{pendingVerificationScore.scoreValue}</strong> is exceptionally high! To maintain leaderboard integrity, please upload a photo of your screen showing the score alongside your handwritten username.
+                        </p>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="w-full mb-6 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-primary file:text-black hover:file:bg-primary-dim transition-all outline-none"
+                            onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                    setVerificationImage(e.target.files[0]);
+                                }
+                            }}
+                        />
+                        <div className="flex gap-3">
+                            <Button variant="outline" className="flex-1 bg-white/5 border-white/10 hover:bg-white/10 text-white" onClick={() => { setPendingVerificationScore(null); setVerificationImage(null); }}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1 bg-primary text-black hover:bg-primary-dim transition-all disabled:opacity-50"
+                                disabled={!verificationImage || isUploadingProof}
+                                onClick={handleProofSubmit}
+                            >
+                                {isUploadingProof ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Uploading...</> : 'Submit Proof'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showBio && (
                 <div className="container mx-auto max-w-3xl px-6 -mt-4 mb-4 animate-fade-in">
                     <Card className="border-primary/20 bg-surface/80 backdrop-blur-xl overflow-hidden relative group">

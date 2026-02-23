@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 admin.initializeApp();
 
@@ -279,3 +280,125 @@ exports.onWeeklySessionUpdated = functions.firestore
             return null;
         }
     });
+
+/**
+ * AI Score Verification using Google Gemini
+ * Triggered automatically when an image is uploaded to the score_proofs directory in Storage.
+ */
+exports.verifyScoreProof = functions.storage.object().onFinalize(async (object) => {
+    const fileBucket = object.bucket;
+    const filePath = object.name;
+    const contentType = object.contentType;
+
+    // Only process files in score_proofs
+    if (!filePath.startsWith('score_proofs/')) {
+        return null;
+    }
+
+    // Config: Allow user to fallback to env variable or Firebase config
+    const apiKey = functions.config().gemini ? functions.config().gemini.api_key : process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        console.error('GEMINI_API_KEY is not set. Run: firebase functions:config:set gemini.api_key="YOUR_KEY"');
+        return null;
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    // Extract scoreId. Assuming format: score_proofs/userId_sessionId_timestamp
+    const parts = filePath.split('/');
+    const filename = parts[parts.length - 1];
+    const nameParts = filename.split('_');
+    if (nameParts.length < 3) return null; // Invalid format
+
+    nameParts.pop(); // Remove timestamp
+    const scoreId = nameParts.join('_'); // "userId_sessionId"
+
+    const bucket = admin.storage().bucket(fileBucket);
+    const file = bucket.file(filePath);
+
+    try {
+        console.log(`Starting AI Verification for scoreId: ${scoreId}`);
+        // 1. Download file to memory
+        const [fileContent] = await file.download();
+        const imageBase64 = fileContent.toString('base64');
+        const imagePart = {
+            inlineData: {
+                data: imageBase64,
+                mimeType: contentType,
+            },
+        };
+
+        // 2. Query Gemini
+        const prompt = `You are verifying an arcade or video game leaderboard score. Extract the main numeric score value from this image, and any handwritten name/text (it will usually be written on a piece of paper next to the screen). 
+Return ONLY a valid JSON object in this exact format:
+{ "score": 12345, "text": "username" }
+If you cannot find a score or text, use null. Do not include markdown formatting or backticks, just raw JSON.`;
+
+        const result = await model.generateContent([prompt, imagePart]);
+        const responseText = result.response.text();
+
+        // 3. Parse JSON from output
+        let extractedData;
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            extractedData = JSON.parse(jsonMatch[0]);
+        } else {
+            throw new Error(`Failed to parse Gemini output: ${responseText}`);
+        }
+
+        console.log(`Extracted Data from Gemini for ${scoreId}:`, extractedData);
+
+        // 4. Secure verification against Firestore
+        const scoreRef = admin.firestore().collection("scores").doc(scoreId);
+        const scoreDoc = await scoreRef.get();
+
+        if (!scoreDoc.exists) {
+            console.error('Score Document not found in Firestore:', scoreId);
+            return null;
+        }
+
+        const scoreData = scoreDoc.data();
+
+        // Validation Rules:
+        // A) Score value must exactly match what they claimed in app (to prevent lying in input field to get #1)
+        const isScoreMatch = Number(extractedData.score) === Number(scoreData.scoreValue);
+
+        // B) Name must fuzzily match. If the username is "Player1", they just need to write "Pla" for us to accept it.
+        const submittedName = (scoreData.displayName || "").toLowerCase();
+        const detectedText = (extractedData.text || "").toLowerCase();
+        let isNameMatch = false;
+
+        if (submittedName.length >= 3) {
+            const substring = submittedName.substring(0, 3);
+            if (detectedText.includes(substring)) {
+                isNameMatch = true;
+            }
+        } else if (submittedName.length > 0 && detectedText.includes(submittedName)) {
+            isNameMatch = true;
+        }
+
+        if (isScoreMatch && isNameMatch) {
+            console.log(`✅ Verification SUCCEEDED for ${scoreId}`);
+            await scoreRef.update({
+                status: 'verified',
+                aiVerificationLogs: 'Match Success',
+                proofUrl: admin.firestore.FieldValue.delete() // Clean up storage
+            });
+
+            // Delete the file since it's verified securely to save storage space
+            await file.delete().catch(() => { });
+        } else {
+            console.log(`❌ Verification FAILED for ${scoreId}. Expected: ${scoreData.scoreValue}/${submittedName}, Got: ${extractedData.score}/${detectedText}`);
+            await scoreRef.update({
+                status: 'rejected',
+                aiVerificationLogs: `Failed. AI saw: Score=${extractedData.score}, Name=${extractedData.text}`,
+                // We keep proofUrl so the user/admin can still see the image that got rejected locally.
+            });
+        }
+    } catch (e) {
+        console.error('AI Verification Process Failed:', e);
+        // Fallback: If AI fails for any reason, leave it as 'pending_verification' for biological admin review
+        return null;
+    }
+});

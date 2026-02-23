@@ -17,8 +17,10 @@ import {
     onSnapshot,
     QuerySnapshot,
     Timestamp,
-    serverTimestamp
+    serverTimestamp,
+    deleteField
 } from "firebase/firestore";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, auth } from "./firebase";
 import { updateProfile } from "firebase/auth";
 
@@ -424,7 +426,10 @@ export const getSessionScores = async (sessionId: string) => {
             displayName: displayName || "Unknown",
             photoURL: photoURL,
             xp: userDoc.exists() ? userDoc.data().xp : 0,
-            submittedAt: data.submittedAt
+            submittedAt: data.submittedAt,
+            status: data.status,
+            proofUrl: data.proofUrl,
+            aiVerificationLogs: data.aiVerificationLogs
         };
     }));
 
@@ -1105,27 +1110,87 @@ export const disbandClub = async (clubId: string) => {
 };
 
 export const submitScore = async (sessionId: string, userId: string, scoreValue: number, displayName: string) => {
+    // 1. Determine outlier
+    const sessionDoc = await getDoc(doc(db, "weekly_sessions", sessionId));
+    const sessionType = sessionDoc.exists() ? sessionDoc.data().challengeType : 'score';
+
+    // Fetch current scores to check for outliers
+    const scoresRef = collection(db, "scores");
+    const qScores = query(scoresRef, where("sessionId", "==", sessionId));
+    const snapScores = await getDocs(qScores);
+
+    let isOutlier = false;
+    if (snapScores.size >= 3) {
+        const values = snapScores.docs.map(d => d.data().scoreValue || 0);
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+
+        const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+        const stdDev = Math.sqrt(variance);
+
+        if (sessionType === 'speed') {
+            // Lower is "better" for speedruns. Average might be 60. New score 10 is suspicious.
+            // Meaning if their time is less than half the average time, it's flagged.
+            if (scoreValue < mean - (stdDev * 2) || scoreValue < mean * 0.5) {
+                isOutlier = true;
+            }
+        } else {
+            // Higher is "better" for standard score checks.
+            if (scoreValue > mean + (stdDev * 2) || scoreValue > mean * 1.5) {
+                isOutlier = true;
+            }
+        }
+    }
+
     // We use a composite ID to ensure one score per user per session
     const scoreId = `${userId}_${sessionId}`;
     const scoreRef = doc(db, "scores", scoreId);
+
+    const status = isOutlier ? 'pending_verification' : 'verified';
 
     await setDoc(scoreRef, {
         sessionId,
         userId,
         scoreValue,
         displayName,
+        status,
         submittedAt: Timestamp.now()
-    }, { merge: true }); // Merge true allows updating the score if it already exists
+    }, { merge: true });
 
     // Check if this is the FIRST score for this session to award bonus XP
-    // Note: This is an optimistic check. Race conditions might occur but acceptable for XP.
-    const scoresRef = collection(db, "scores");
-    const q = query(scoresRef, where("sessionId", "==", sessionId), limit(2)); // Check if more than 1 (ours + maybe another)
-    const snap = await getDocs(q);
-
-    // If only 1 score exists (ours, just added), then we are first!
-    if (snap.size === 1) {
+    if (snapScores.size === 0) {
         await addXp(userId, 20, "First Score Posted");
+    }
+
+    return { isOutlier, status };
+};
+
+export const uploadVerificationImage = async (sessionId: string, userId: string, file: File) => {
+    const storage = getStorage();
+    const scoreId = `${userId}_${sessionId}`;
+    // Using Date.now() to ensure path uniqueness if they retry
+    const imageRef = storageRef(storage, `score_proofs/${scoreId}_${Date.now()}`);
+
+    const snapshot = await uploadBytes(imageRef, file);
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+
+    const scoreRef = doc(db, "scores", scoreId);
+    await updateDoc(scoreRef, {
+        proofUrl: downloadUrl
+    });
+
+    return downloadUrl;
+};
+
+export const verifyScore = async (scoreId: string, isApproved: boolean) => {
+    const scoreRef = doc(db, "scores", scoreId);
+
+    if (isApproved) {
+        await updateDoc(scoreRef, {
+            status: "verified",
+            proofUrl: deleteField() // Remove proof to save storage space
+        });
+    } else {
+        await deleteDoc(scoreRef);
     }
 };
 
