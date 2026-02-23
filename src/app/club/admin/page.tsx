@@ -38,7 +38,7 @@ import {
     Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera,
     Trash2, Edit, Search, Upload, MessageSquare, RefreshCw, Wrench
 } from "lucide-react";
-import { bulkSyncAllUsersXp } from "@/lib/firestore-service";
+
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -55,7 +55,7 @@ function ClubAdminContent() {
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm" | "maintenance">("requests");
+    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm" | "maintenance">("settings");
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -276,13 +276,35 @@ function ClubAdminContent() {
     };
 
     const handleVerifyScore = async (scoreId: string, isApproved: boolean) => {
-        if (!confirm(`Are you sure you want to ${isApproved ? 'approve' : 'reject & delete'} this score?`)) return;
+        const score = weekScores.find(s => s.id === scoreId);
+        const actionLabel = isApproved ? 'approve' : (score?.verifiedScoreValue !== undefined ? 'reject and revert' : 'reject & delete');
+
+        if (!confirm(`Are you sure you want to ${actionLabel} this score?`)) return;
+
         try {
             await verifyScore(scoreId, isApproved);
             if (isApproved) {
-                setWeekScores(weekScores.map(s => s.id === scoreId ? { ...s, status: 'verified', proofUrl: null } : s));
+                setWeekScores(weekScores.map(s => s.id === scoreId ? {
+                    ...s,
+                    status: 'verified',
+                    proofUrl: null,
+                    verifiedScoreValue: undefined,
+                    aiVerification: null
+                } : s));
             } else {
-                setWeekScores(weekScores.filter(s => s.id !== scoreId));
+                if (score && score.verifiedScoreValue !== undefined) {
+                    // Revert UI to the fallback score
+                    setWeekScores(weekScores.map(s => s.id === scoreId ? {
+                        ...s,
+                        scoreValue: s.verifiedScoreValue,
+                        status: 'verified',
+                        verifiedScoreValue: undefined,
+                        proofUrl: null,
+                        aiVerification: null
+                    } : s));
+                } else {
+                    setWeekScores(weekScores.filter(s => s.id !== scoreId));
+                }
             }
         } catch (e) {
             console.error(e);
@@ -326,6 +348,11 @@ function ClubAdminContent() {
                 // 2. Fetch Requests
                 const reqData = await getJoinRequests(clubId as string);
                 setRequests(reqData);
+
+                // Set active tab based on requests
+                if (reqData.length > 0) {
+                    setActiveTab("requests");
+                }
 
                 // 3. (Already fetched members above to verify role)
 
@@ -524,16 +551,14 @@ function ClubAdminContent() {
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-white/5 pb-6">
-                <div className="flex bg-surface/50 p-1 rounded-xl border border-white/5 overflow-x-auto max-w-full">
+                <div className="flex flex-wrap bg-surface/50 p-1 rounded-xl border border-white/5 max-w-full gap-1 w-full md:w-auto">
+                    <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")}>Settings</TabButton>
                     <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")} badge={requests.length}>Requests</TabButton>
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-                    <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")}>Settings</TabButton>
-
                     <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")}>Game</TabButton>
-                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
-                    {userRole === 'owner' && (
-                        <TabButton active={activeTab === "maintenance"} onClick={() => setActiveTab("maintenance")}>Maintenance</TabButton>
-                    )}
+                    <div className="flex-grow flex justify-center md:justify-start">
+                        <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>Game of the Month</TabButton>
+                    </div>
                 </div>
             </div>
 
@@ -1404,8 +1429,16 @@ function ClubAdminContent() {
                                                                 </div>
                                                                 {score.status === 'pending_verification' ? (
                                                                     <div className="flex gap-2 items-center">
-                                                                        <div className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-sm text-xs font-bold mr-2 uppercase tracking-widest border border-yellow-500/20">
-                                                                            Review Pending
+                                                                        <div className="flex flex-col items-end mr-2 text-right">
+                                                                            <div className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-sm text-[10px] font-black uppercase tracking-widest border border-yellow-500/20">
+                                                                                Audit Required
+                                                                            </div>
+                                                                            {score.verifiedScoreValue !== undefined && (
+                                                                                <span className="text-[9px] text-green-400 font-bold mt-1 uppercase tracking-tighter">Prev Verified: {score.verifiedScoreValue}</span>
+                                                                            )}
+                                                                            {score.aiVerification && (
+                                                                                <span className="text-[8px] text-muted-foreground mt-0.5 uppercase">AI Match: {Math.round(score.aiVerification.confidence * 100)}%</span>
+                                                                            )}
                                                                         </div>
                                                                         {score.proofUrl && (
                                                                             <a href={score.proofUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 mr-2 text-xs underline font-bold">View Proof</a>
@@ -1419,8 +1452,13 @@ function ClubAdminContent() {
                                                                     </div>
                                                                 ) : score.status === 'rejected' ? (
                                                                     <div className="flex gap-2 items-center">
-                                                                        <div title={score.aiVerificationLogs} className="bg-red-500/10 text-red-500 px-2 py-1 rounded-sm text-xs font-bold mr-2 uppercase tracking-widest border border-red-500/20 cursor-help">
-                                                                            AI Rejected
+                                                                        <div className="flex flex-col items-end mr-2">
+                                                                            <div title={score.aiVerification?.reasoning || score.aiVerificationLogs} className="bg-red-500/10 text-red-500 px-2 py-1 rounded-sm text-xs font-bold uppercase tracking-widest border border-red-500/20 cursor-help">
+                                                                                AI Rejected
+                                                                            </div>
+                                                                            {score.aiVerification && (
+                                                                                <span className="text-[8px] text-red-400/50 mt-0.5 uppercase">Conf: {Math.round(score.aiVerification.confidence * 100)}%</span>
+                                                                            )}
                                                                         </div>
                                                                         {score.proofUrl && (
                                                                             <a href={score.proofUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 mr-2 text-xs underline font-bold">View Proof</a>
@@ -1429,7 +1467,7 @@ function ClubAdminContent() {
                                                                             Override
                                                                         </Button>
                                                                         <Button size="sm" variant="outline" className="h-8 border-red-500/30 text-red-400 hover:bg-red-500/10" onClick={() => handleVerifyScore(score.id, false)}>
-                                                                            Delete
+                                                                            {score.verifiedScoreValue !== undefined ? 'Revert' : 'Delete'}
                                                                         </Button>
                                                                     </div>
                                                                 ) : (
@@ -1618,74 +1656,7 @@ function ClubAdminContent() {
                 )
             }
 
-            {activeTab === "maintenance" && userRole === 'owner' && (
-                <div className="grid gap-6 animate-fade-in-up">
-                    <Card className="border-orange-500/20 bg-surface/40 backdrop-blur-md">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Wrench className="w-5 h-5 text-orange-400" />
-                                Club Maintenance & Repair
-                            </CardTitle>
-                            <CardDescription>Tools to ensure all accounts are synchronized and features are working correctly.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 flex gap-4">
-                                <AlertTriangle className="w-6 h-6 text-orange-400 shrink-0" />
-                                <div>
-                                    <p className="text-sm font-bold text-orange-200">Legacy Account Sync</p>
-                                    <p className="text-xs text-orange-200/60 mt-1">
-                                        Some older accounts may be missing search keywords or profile metadata.
-                                        This tool will scan all memberships, scores, and requests to ensure everyone has a full profile document.
-                                    </p>
-                                </div>
-                            </div>
 
-                            <div className="flex flex-col gap-4">
-                                <div className="flex items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5">
-                                    <div>
-                                        <p className="text-sm font-bold text-white">Bulk Profile & XP Sync</p>
-                                        <p className="text-xs text-muted-foreground">Re-calculates XP for all known players and backfills missing fields.</p>
-                                    </div>
-                                    <Button
-                                        onClick={async () => {
-                                            if (!confirm("This will scan all users and update their profiles. Continue?")) return;
-                                            setIsUpdating(true);
-                                            try {
-                                                const count = await bulkSyncAllUsersXp();
-                                                alert(`Successfully synced ${count} players! 🚀`);
-                                            } catch (e) {
-                                                console.error(e);
-                                                alert("Sync failed. Check console.");
-                                            } finally {
-                                                setIsUpdating(false);
-                                            }
-                                        }}
-                                        disabled={isUpdating}
-                                        className="bg-primary hover:bg-primary/80 transition-all text-black font-black uppercase tracking-widest text-xs px-6 h-10 flex items-center gap-2"
-                                    >
-                                        {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                        Run Sync
-                                    </Button>
-                                </div>
-
-                                <div className="flex items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5 text-sm">
-                                    <div>
-                                        <p className="text-sm font-bold text-white">Disband Club</p>
-                                        <p className="text-xs text-muted-foreground text-red-400/70">Danger Zone: Permanently delete this club.</p>
-                                    </div>
-                                    <Button
-                                        variant="destructive"
-                                        onClick={handleDisband}
-                                        className="font-black uppercase tracking-widest text-xs px-6 h-10"
-                                    >
-                                        <Trash2 className="w-4 h-4 mr-2" /> Disband
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
         </main >
     );
 }

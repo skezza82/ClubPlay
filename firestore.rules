@@ -81,7 +81,10 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid || 
         hasAdminAccess(request.resource.data.clubId)
       );
-      allow update: if request.auth != null && hasAdminAccess(resource.data.clubId);
+      allow update: if request.auth != null && (
+        hasAdminAccess(resource.data.clubId) ||
+        (resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAccessedAt']))
+      );
       allow delete: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
         hasAdminAccess(resource.data.clubId)
@@ -99,6 +102,20 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
         hasAdminAccess(resource.data.clubId)
+      );
+    }
+
+    // Club Invites
+    match /club_invites/{inviteId} {
+      allow read: if request.auth != null && (
+        resource.data.receiverId == request.auth.uid || 
+        request.auth.uid == resource.data.senderId ||
+        isDeveloper()
+      );
+      allow create: if request.auth != null; // Typically from admin/owner
+      allow update, delete: if request.auth != null && (
+        resource.data.receiverId == request.auth.uid ||
+        isDeveloper()
       );
     }
 

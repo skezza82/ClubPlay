@@ -1,6 +1,6 @@
 {
   "name": "club-play-web",
-  "version": "1.9",
+  "version": "2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -18,9 +18,11 @@
     "@capacitor/core": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.0",
     "@capacitor/share": "^8.0.0",
+    "@google/generative-ai": "^0.24.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.3.1",
     "firebase": "^12.8.0",
     "firebase-admin": "^13.6.1",
     "lucide-react": "^0.563.0",

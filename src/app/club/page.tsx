@@ -59,7 +59,8 @@ import {
     UserX,
     Info,
     Star,
-    Settings
+    Settings,
+    Share2
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -120,7 +121,7 @@ function CountdownTimer({ targetDate }: { targetDate: any }) {
 
 
 const formatScore = (val: any, type?: string) => {
-    if (val === undefined || val === null) return "0";
+    if (val === undefined || val === null) return "---";
     const num = typeof val === 'number' ? val : parseFloat(val) || 0;
 
     if (type === 'speed') {
@@ -460,6 +461,7 @@ function ClubContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<"overview" | "season" | "members" | "gotm">(initialTab);
     const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+    const [bannerError, setBannerError] = useState(false);
 
     // Chat functionality
     const [messages, setMessages] = useState<any[]>([]);
@@ -489,6 +491,7 @@ function ClubContent() {
     const [pendingVerificationScore, setPendingVerificationScore] = useState<{ scoreValue: number, sessionId: string } | null>(null);
     const [verificationImage, setVerificationImage] = useState<File | null>(null);
     const [isUploadingProof, setIsUploadingProof] = useState(false);
+    const [isVerifyingAI, setIsVerifyingAI] = useState(false);
 
     useEffect(() => {
         if (!clubId) {
@@ -596,19 +599,81 @@ function ClubContent() {
     }, [clubId, user]);
 
     useEffect(() => {
-        if (selectedSession) {
+        if (selectedSession && members.length > 0) {
             getClubSessionScores(selectedSession.id).then(scores => {
-                const sorted = [...scores].sort((a, b) => {
-                    if (selectedSession.challengeType === 'speed') {
-                        return a.scoreValue - b.scoreValue;
+                // 1. Create a map of existing submissions for quick lookup
+                const scoreMap = new Map(scores.map((s: any) => [s.userId, s]));
+
+                // 2. Build a complete list of entries based on all members
+                const allEntries = members.map((m: any) => {
+                    const submission: any = scoreMap.get(m.userId);
+
+                    if (!submission) {
+                        return {
+                            id: `unsubmitted-${m.userId}`,
+                            userId: m.userId,
+                            displayName: m.displayName,
+                            photoURL: m.photoURL,
+                            xp: m.xp,
+                            scoreValue: null,
+                            status: 'none',
+                            submittedAt: null
+                        };
                     }
-                    return b.scoreValue - a.scoreValue;
+
+                    // Handle verified fallback for pending/rejected
+                    if (submission.verifiedScoreValue !== undefined && (submission.status === 'pending_verification' || submission.status === 'rejected')) {
+                        return {
+                            ...submission,
+                            displayName: m.displayName,
+                            xp: m.xp,
+                            scoreValue: submission.verifiedScoreValue,
+                            status: 'verified'
+                        };
+                    }
+
+                    // Filter out pending scores without fallback (treat as no score for ranking)
+                    if (submission.status === 'pending_verification' || submission.status === 'rejected') {
+                        return {
+                            ...submission,
+                            displayName: m.displayName,
+                            xp: m.xp,
+                            scoreValue: null
+                        };
+                    }
+
+                    return { ...submission, displayName: m.displayName, xp: m.xp };
                 });
-                const filteredAndSorted = sorted.filter(s => s.status !== 'pending_verification' && s.status !== 'rejected');
-                setWeekScores(filteredAndSorted);
+
+                // 3. Sort the entire list
+                allEntries.sort((a, b) => {
+                    // Secondary Sort: Name (Alphabetical A-Z)
+                    const nameA = (a.displayName || "").toLowerCase();
+                    const nameB = (b.displayName || "").toLowerCase();
+
+                    // Primary Sort: Score
+                    if (a.scoreValue !== null && b.scoreValue !== null) {
+                        if (a.scoreValue !== b.scoreValue) {
+                            if (selectedSession.challengeType === 'speed') {
+                                return a.scoreValue - b.scoreValue;
+                            }
+                            return b.scoreValue - a.scoreValue;
+                        }
+                        return nameA.localeCompare(nameB);
+                    }
+
+                    // Nulls go to the bottom
+                    if (a.scoreValue === null && b.scoreValue !== null) return 1;
+                    if (a.scoreValue !== null && b.scoreValue === null) return -1;
+
+                    // Both null? Sort alphabetically by name
+                    return nameA.localeCompare(nameB);
+                });
+
+                setWeekScores(allEntries);
             });
         }
-    }, [selectedSession, clubId]);
+    }, [selectedSession, clubId, members]);
 
     useEffect(() => {
         if (clubId && activeTab === "overview") {
@@ -694,7 +759,43 @@ function ClubContent() {
         setIsUploadingProof(true);
         try {
             await uploadVerificationImage(pendingVerificationScore.sessionId, user.uid, verificationImage);
-            alert("Proof uploaded successfully! Your score is now pending Admin Review.");
+
+            // Trigger AI Verification
+            setIsVerifyingAI(true);
+            const scoreId = `${user.uid}_${pendingVerificationScore.sessionId}`;
+            try {
+                // Use Cloud Function for production support (works with static export)
+                const functionsBase = process.env.NEXT_PUBLIC_FUNCTIONS_URL;
+                const verifyUrl = functionsBase
+                    ? functionsBase.replace('searchGames', 'verifyScore')
+                    : '/api/verify-score';
+
+                const res = await fetch(verifyUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scoreId })
+                });
+                const data = await res.json();
+
+                if (data.status === 'verified') {
+                    alert("AI Verified! ✅ Your score has been added to the leaderboard.");
+                    // Refresh scores to show the new one immediately
+                    if (selectedSession) {
+                        const updated = await getClubSessionScores(selectedSession.id);
+                        setWeekScores(updated.filter(s => s.status === 'verified'));
+                    }
+                } else if (data.status === 'rejected') {
+                    alert(`AI Review Result: Rejected. ❌ ${data.aiResult?.reasoning || "Please try again with a clearer photo."}`);
+                } else {
+                    alert("Proof uploaded! 📤 AI analysis complete but needs human review. Your score is pending Admin Review.");
+                }
+            } catch (aiErr) {
+                console.warn("AI Verification call failed:", aiErr);
+                alert("Proof uploaded successfully! Your score is pending Admin Review.");
+            } finally {
+                setIsVerifyingAI(false);
+            }
+
             setPendingVerificationScore(null);
             setVerificationImage(null);
             setScoreInput("");
@@ -731,6 +832,70 @@ function ClubContent() {
             router.push('/');
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const handleShareClub = async () => {
+        if (!club) return;
+
+        const shareUrl = `${window.location.origin}/club?id=${club.id}`;
+        const shareData = {
+            title: `Join ${club.name} on Club Play!`,
+            text: `Come join my club "${club.name}" and compete in retro game challenges!`,
+            url: shareUrl
+        };
+
+        const fallbackCopy = async () => {
+            // Try modern clipboard API if available and secure
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    alert("Club link copied to clipboard!");
+                    return;
+                } catch (err) {
+                    console.error("Clipboard copy failed:", err);
+                }
+            }
+
+            // Fallback for non-secure contexts (local IP testing on Android)
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.style.position = "fixed";
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                if (successful) {
+                    alert("Club link copied to clipboard!");
+                } else {
+                    alert(`Please manually share this link: ${shareUrl}`);
+                }
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+                alert(`Please manually share this link: ${shareUrl}`);
+            }
+        };
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                await fallbackCopy();
+            }
+        } catch (err) {
+            console.error('Error sharing:', err);
+            // If user cancels, it throws AbortError. Ignore it.
+            if (err instanceof Error && err.name === 'AbortError') {
+                return;
+            }
+            // Fallback if NotAllowedError or any other error
+            await fallbackCopy();
         }
     };
 
@@ -771,15 +936,18 @@ function ClubContent() {
                 <div className="absolute inset-0 z-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
                     <div className="absolute inset-0 bg-primary/10 mix-blend-overlay z-10" />
-                    {club.bannerUrl ? (
+                    {club.bannerUrl && !bannerError ? (
                         <Image
                             src={club.bannerUrl}
                             alt={club.name}
                             fill
                             className="object-cover scale-100"
+                            priority
+                            loading="eager"
+                            onError={() => setBannerError(true)}
                         />
                     ) : (
-                        <div className="w-full h-full bg-surface" />
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-900/40 via-purple-900/40 to-black" />
                     )}
                 </div>
 
@@ -793,6 +961,8 @@ function ClubContent() {
                                     width={80}
                                     height={80}
                                     className="w-full h-full object-cover"
+                                    priority
+                                    loading="eager"
                                 />
                             ) : (
                                 <Users className="w-10 h-10 text-black" />
@@ -860,6 +1030,15 @@ function ClubContent() {
                         >
                             <Info className="w-4 h-4" />
                         </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="border-white/10 text-white hover:bg-white/10"
+                            onClick={handleShareClub}
+                            title="Share Club"
+                        >
+                            <Share2 className="w-4 h-4" />
+                        </Button>
 
                     </div>
                 </div>
@@ -885,15 +1064,21 @@ function ClubContent() {
                             }}
                         />
                         <div className="flex gap-3">
-                            <Button variant="outline" className="flex-1 bg-white/5 border-white/10 hover:bg-white/10 text-white" onClick={() => { setPendingVerificationScore(null); setVerificationImage(null); }}>
+                            <Button variant="outline" className="flex-1 bg-white/5 border-white/10 hover:bg-white/10 text-white" onClick={() => { setPendingVerificationScore(null); setVerificationImage(null); }} disabled={isUploadingProof || isVerifyingAI}>
                                 Cancel
                             </Button>
                             <Button
                                 className="flex-1 bg-primary text-black hover:bg-primary-dim transition-all disabled:opacity-50"
-                                disabled={!verificationImage || isUploadingProof}
+                                disabled={!verificationImage || isUploadingProof || isVerifyingAI}
                                 onClick={handleProofSubmit}
                             >
-                                {isUploadingProof ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Uploading...</> : 'Submit Proof'}
+                                {isUploadingProof ? (
+                                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Uploading...</>
+                                ) : isVerifyingAI ? (
+                                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> AI Reviewing...</>
+                                ) : (
+                                    'Submit Proof'
+                                )}
                             </Button>
                         </div>
                     </div>
@@ -917,7 +1102,7 @@ function ClubContent() {
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center overflow-hidden border border-white/5">
                                     {club.logoUrl ? (
-                                        <Image src={club.logoUrl} alt={club.name} width={48} height={48} className="w-full h-full object-cover" />
+                                        <Image src={club.logoUrl} alt={club.name} width={48} height={48} className="w-full h-full object-cover" priority loading="eager" />
                                     ) : (
                                         <Users className="w-6 h-6 text-primary" />
                                     )}
@@ -1163,7 +1348,14 @@ function ClubContent() {
                                                 <div className="flex items-center gap-2">
                                                     <Trophy className="w-4 h-4 text-yellow-500" /> Leaderboard
                                                 </div>
-                                                <span className="text-[10px] text-muted-foreground font-bold">{weekScores.length} Submissions</span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[10px] text-muted-foreground font-bold">{weekScores.length} In The Hunt</span>
+                                                    {isSessionActive && (
+                                                        <span className="text-[9px] text-primary/70 font-black uppercase tracking-tighter animate-pulse">
+                                                            Scores Hidden Until End
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="p-0">
@@ -1187,7 +1379,7 @@ function ClubContent() {
                                                                     displayName={displayName}
                                                                     xp={member?.xp || score.xp || 0}
                                                                     size="md"
-                                                                    isWinner={i === 0 && weekScores.length > 0}
+                                                                    isWinner={i === 0 && weekScores.length > 0 && score.scoreValue !== null}
                                                                     className="cursor-pointer hover:scale-110 transition-transform active:scale-95"
                                                                     onClick={() => setSelectedUser(member || {
                                                                         userId: score.userId,
@@ -1203,11 +1395,21 @@ function ClubContent() {
                                                                 </div>
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className={`font-mono font-black text-lg ${i === 0 ? 'text-yellow-500' : 'text-primary'}`}>
-                                                                    {formatScore(score.scoreValue, selectedSession?.challengeType)}
+                                                                <div className={`font-mono font-black text-lg ${i === 0 && score.scoreValue !== null ? 'text-yellow-500' : 'text-primary'}`}>
+                                                                    {score.status === 'none' ? (
+                                                                        <span className="text-[10px] italic opacity-30 tracking-widest uppercase">No Entry</span>
+                                                                    ) : score.status === 'pending_verification' && score.verifiedScoreValue === undefined ? (
+                                                                        <span className="text-[10px] italic text-yellow-500 font-bold uppercase tracking-tighter">Audit Pending</span>
+                                                                    ) : isSessionActive && score.userId !== user?.uid ? (
+                                                                        <span className="text-[10px] italic opacity-30 tracking-widest uppercase">Hidden</span>
+                                                                    ) : (
+                                                                        formatScore(score.scoreValue, selectedSession?.challengeType)
+                                                                    )}
                                                                 </div>
                                                                 <div className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter">
-                                                                    {score.submittedAt ? new Date(score.submittedAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                                                                    {score.status === 'none' ? 'Awaiting Entry' :
+                                                                        score.status === 'pending_verification' && score.verifiedScoreValue === undefined ? 'Reviewing' :
+                                                                            (score.submittedAt ? new Date(score.submittedAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now')}
                                                                 </div>
                                                             </div>
                                                         </div>

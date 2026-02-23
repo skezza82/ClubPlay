@@ -14,10 +14,17 @@ const firebaseConfig = {
     measurementId: "G-6B4HDZNCCJ"
 };
 
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
+
 // Initialize Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Initialize Firestore with settings to prevent 400 Bad Request on stream listeners
+const db = initializeFirestore(app, {
+    localCache: persistentLocalCache(),
+    experimentalForceLongPolling: true, // Forces long polling to avoid streaming errors in dev
+});
 const storage = getStorage(app);
 
 export { app, auth, db, storage };

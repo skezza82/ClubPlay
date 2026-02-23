@@ -318,6 +318,14 @@ exports.verifyScoreProof = functions.storage.object().onFinalize(async (object) 
     const file = bucket.file(filePath);
 
     try {
+        // 0. Check if already verified to save costs
+        let scoreRef = admin.firestore().collection("scores").doc(scoreId);
+        let scoreDoc = await scoreRef.get();
+        if (scoreDoc.exists && scoreDoc.data().status === 'verified') {
+            console.log(`[CF] Score ${scoreId} already verified. Skipping.`);
+            return null;
+        }
+
         console.log(`Starting AI Verification for scoreId: ${scoreId}`);
         // 1. Download file to memory
         const [fileContent] = await file.download();
@@ -350,8 +358,8 @@ If you cannot find a score or text, use null. Do not include markdown formatting
         console.log(`Extracted Data from Gemini for ${scoreId}:`, extractedData);
 
         // 4. Secure verification against Firestore
-        const scoreRef = admin.firestore().collection("scores").doc(scoreId);
-        const scoreDoc = await scoreRef.get();
+        scoreRef = admin.firestore().collection("scores").doc(scoreId);
+        scoreDoc = await scoreRef.get();
 
         if (!scoreDoc.exists) {
             console.error('Score Document not found in Firestore:', scoreId);
@@ -400,5 +408,146 @@ If you cannot find a score or text, use null. Do not include markdown formatting
         console.error('AI Verification Process Failed:', e);
         // Fallback: If AI fails for any reason, leave it as 'pending_verification' for biological admin review
         return null;
+    }
+});
+/**
+ * HTTPS Function for real-time AI Score Verification.
+ * Called by the frontend after a proof image is uploaded.
+ */
+exports.verifyScore = functions.https.onRequest(async (req, res) => {
+    // CORS Headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const { scoreId } = req.body;
+
+        if (!scoreId) {
+            res.status(400).send({ error: "Missing scoreId" });
+            return;
+        }
+
+        console.log(`[HTTP] Starting verification for score: ${scoreId}`);
+        const scoreRef = admin.firestore().collection("scores").doc(scoreId);
+        const scoreSnap = await scoreRef.get();
+
+        if (!scoreSnap.exists) {
+            res.status(404).send({ error: "Score not found" });
+            return;
+        }
+
+        const scoreData = scoreSnap.data();
+
+        if (scoreData.status === "verified") {
+            res.send({ message: "Already verified", status: "verified" });
+            return;
+        }
+
+        if (!scoreData.proofUrl) {
+            res.status(400).send({ error: "No proof image found for this score" });
+            return;
+        }
+
+        // Initialize Gemini
+        const apiKey = functions.config().gemini?.api_key;
+        if (!apiKey) {
+            console.error("GEMINI_API_KEY not set in functions config");
+            res.status(500).send({ error: "AI Service misconfigured" });
+            return;
+        }
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        // 1. Fetch the image
+        const imgResponse = await fetch(scoreData.proofUrl);
+        const buffer = await imgResponse.buffer();
+        const base64Image = buffer.toString("base64");
+
+        const prompt = `You are verifying a video game leaderboard score. 
+Extract the main numeric score value and any handwritten name/text from this image.
+The handwritten text is usually on a piece of paper next to the screen.
+
+Target Player Name: "${scoreData.displayName || "Unknown"}"
+Target Score: ${scoreData.scoreValue}
+
+Return ONLY a valid JSON object in this exact format:
+{
+  "detectedScore": 12345,
+  "detectedName": "username",
+  "confidence": 0.95,
+  "matchScore": true,
+  "matchName": true,
+  "reasoning": "Brief explanation"
+}
+
+Do not include markdown formatting or backticks, just raw JSON.`;
+
+        const result = await model.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    data: base64Image,
+                    mimeType: imgResponse.headers.get("content-type") || "image/jpeg",
+                },
+            },
+        ]);
+
+        const text = result.response.text();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+        if (!jsonMatch) {
+            throw new Error(`Failed to parse Gemini output: ${text}`);
+        }
+
+        const aiResult = JSON.parse(jsonMatch[0]);
+        console.log(`[HTTP] Gemini result for ${scoreId}:`, aiResult);
+
+        // 2. Update Firestore
+        if (aiResult.matchScore && aiResult.matchName && aiResult.confidence > 0.8) {
+            await scoreRef.update({
+                status: "verified",
+                aiVerification: {
+                    verifiedAt: new Date().toISOString(),
+                    confidence: aiResult.confidence,
+                    reasoning: aiResult.reasoning,
+                },
+                proofUrl: admin.firestore.FieldValue.delete()
+            });
+
+            // Award XP (using firestore-service pattern, but translated for CF)
+            if (scoreData.userId) {
+                const userRef = admin.firestore().collection("users").doc(scoreData.userId);
+                await userRef.set({
+                    xp: admin.firestore.FieldValue.increment(50),
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+            }
+
+            res.send({ success: true, status: "verified", aiResult });
+        } else {
+            const newStatus = aiResult.confidence < 0.5 ? "rejected" : "pending_verification";
+            await scoreRef.update({
+                status: newStatus,
+                aiVerification: {
+                    lastCheckAt: new Date().toISOString(),
+                    confidence: aiResult.confidence,
+                    reasoning: aiResult.reasoning,
+                    matchScore: aiResult.matchScore,
+                    matchName: aiResult.matchName
+                }
+            });
+            res.send({ success: false, status: newStatus, aiResult });
+        }
+
+    } catch (error) {
+        console.error("[HTTP] Verification Error:", error);
+        res.status(500).send({ error: "Internal server error during verification", details: error.message });
     }
 });

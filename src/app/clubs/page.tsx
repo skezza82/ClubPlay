@@ -252,6 +252,8 @@ function ClubCard({ club, onJoin, isMember, isPending }: {
                         alt="Banner"
                         fill
                         className="object-cover opacity-40 group-hover:opacity-70 transition-opacity duration-500 group-hover:scale-110"
+                        priority
+                        loading="eager"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface/40" />
@@ -270,6 +272,8 @@ function ClubCard({ club, onJoin, isMember, isPending }: {
                                     width={48}
                                     height={48}
                                     className="w-full h-full object-cover"
+                                    priority
+                                    loading="eager"
                                 />
                             ) : (
                                 <Users className="w-6 h-6 text-black" />

@@ -110,13 +110,19 @@ export interface ClubStanding {
 }
 
 export interface Score {
+    id?: string;
     userId: string;
     sessionId: string;
     scoreValue: number;
+    verifiedScoreValue?: number;
     displayName?: string;
     photoURL?: string | null;
     xp?: number;
     submittedAt?: any;
+    status?: 'verified' | 'pending_verification' | 'rejected';
+    proofUrl?: string | null;
+    aiVerification?: any;
+    aiVerificationLogs?: string;
 }
 
 export interface FriendRequest {
@@ -1145,16 +1151,30 @@ export const submitScore = async (sessionId: string, userId: string, scoreValue:
     const scoreId = `${userId}_${sessionId}`;
     const scoreRef = doc(db, "scores", scoreId);
 
+    // FETCH EXISTING to see if we have a verified fallback
+    const existingSnap = await getDoc(scoreRef);
+    const existingData = existingSnap.exists() ? existingSnap.data() : null;
+
     const status = isOutlier ? 'pending_verification' : 'verified';
 
-    await setDoc(scoreRef, {
+    const updateData: any = {
         sessionId,
         userId,
         scoreValue,
         displayName,
         status,
         submittedAt: Timestamp.now()
-    }, { merge: true });
+    };
+
+    // If new score is outlier and we have an old verified one, preserve the old one as fallback
+    if (isOutlier && existingData?.status === 'verified') {
+        updateData.verifiedScoreValue = existingData.scoreValue;
+    } else if (!isOutlier) {
+        // Not an outlier? Clear any existing fallbacks
+        updateData.verifiedScoreValue = deleteField();
+    }
+
+    await setDoc(scoreRef, updateData, { merge: true });
 
     // Check if this is the FIRST score for this session to award bonus XP
     if (snapScores.size === 0) {
@@ -1183,14 +1203,34 @@ export const uploadVerificationImage = async (sessionId: string, userId: string,
 
 export const verifyScore = async (scoreId: string, isApproved: boolean) => {
     const scoreRef = doc(db, "scores", scoreId);
+    const scoreSnap = await getDoc(scoreRef);
 
     if (isApproved) {
         await updateDoc(scoreRef, {
             status: "verified",
-            proofUrl: deleteField() // Remove proof to save storage space
+            verifiedScoreValue: deleteField(), // Clear fallback on approval
+            proofUrl: deleteField(), // Remove proof to save storage space
+            aiVerification: deleteField(),
+            aiVerificationLogs: deleteField()
         });
     } else {
-        await deleteDoc(scoreRef);
+        if (scoreSnap.exists()) {
+            const data = scoreSnap.data();
+            if (data.verifiedScoreValue !== undefined) {
+                // RESTORE Fallback
+                await updateDoc(scoreRef, {
+                    scoreValue: data.verifiedScoreValue,
+                    status: "verified",
+                    verifiedScoreValue: deleteField(),
+                    proofUrl: deleteField(),
+                    aiVerification: deleteField(),
+                    aiVerificationLogs: deleteField()
+                });
+            } else {
+                // No previous score? Delete.
+                await deleteDoc(scoreRef);
+            }
+        }
     }
 };
 
@@ -2012,17 +2052,28 @@ export const getUserPublicProfile = async (userId: string) => {
         totalPoints += d.data().points || 0;
     });
 
-    // 3. Find "Main" Club (the one they have most points in or just the first)
+    // 3. Find "Main" Club (prioritize one with an active session, fallback to most recent)
     let mainClub = null;
+    let selectedClub = clubs[0];
+    let bestSession = null;
+
     if (clubs.length > 0) {
-        // Try to find status in the first club
-        const club = clubs[0];
-        const allStandings = await getSeasonStandings(club.id) as any[];
+        // Search top clubs for an active session
+        const topClubs = clubs.slice(0, 5);
+        const sessions = await Promise.all(topClubs.map(c => getActiveSession(c.id)));
+
+        const foundIdx = sessions.findIndex(s => s !== null);
+        if (foundIdx !== -1) {
+            selectedClub = topClubs[foundIdx];
+            bestSession = sessions[foundIdx];
+        }
+
+        const allStandings = await getSeasonStandings(selectedClub.id) as any[];
         const userStandingIndex = allStandings.findIndex(s => s.userId === userId);
 
         mainClub = {
-            id: club.id,
-            name: club.name,
+            id: selectedClub.id,
+            name: selectedClub.name,
             rank: userStandingIndex !== -1 ? userStandingIndex + 1 : allStandings.length + 1,
             totalMembers: allStandings.length
         };
@@ -2032,12 +2083,8 @@ export const getUserPublicProfile = async (userId: string) => {
     const friendsSnap = await getDocs(query(collection(db, "users", userId, "friends"), limit(500)));
     const friendsCount = friendsSnap.size;
 
-    // 5. Get Current Challenge (from main club)
-    let currentChallenge = null;
-    if (mainClub) {
-        const activeSession = await getActiveSession(mainClub.id);
-        if (activeSession) currentChallenge = activeSession.gameTitle;
-    }
+    // 5. Set Current Challenge
+    const currentChallenge = bestSession?.gameTitle || null;
 
     return {
         uid: userId,

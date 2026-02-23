@@ -8,10 +8,12 @@ import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserProfile } from "@/components/UserProfile";
 import { UserAvatar } from "@/components/UserAvatar";
 import { AuthGate } from "@/components/AuthGate";
-import { supabase } from "@/lib/supabase";
-import { Trophy, Gamepad2, Users, Loader2, Shield, Plus, ArrowRight, Info, Search, CheckCircle2, Circle, Sparkles, XCircle, Layers } from "lucide-react";
+
+import { Trophy, Gamepad2, Users, Loader2, Shield, Plus, ArrowRight, Info, Search, CheckCircle2, Circle, Sparkles, XCircle, Layers, Wrench } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import {
   getActiveSession,
@@ -79,6 +81,21 @@ function HomeContent() {
     // Check if quest was dismissed
     const dismissed = localStorage.getItem('quest_dismissed') === 'true';
     setQuestDismissed(dismissed);
+
+    // ONE-TIME FIX: Patch broken banners
+    const fixBanners = async () => {
+      if (localStorage.getItem('banners_fixed')) return;
+      try {
+        const newUrl = "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=1200&h=400";
+        await updateDoc(doc(db, "clubs", "6GiEgXsWCNgOgkKSapsR"), { bannerUrl: newUrl });
+        await updateDoc(doc(db, "clubs", "UhiAu0qgPtC5eUFe2cSe"), { bannerUrl: newUrl });
+        localStorage.setItem('banners_fixed', 'true');
+        console.log("Successfully patched broken banners.");
+      } catch (err) {
+        console.error("Failed to patch banners:", err);
+      }
+    };
+    fixBanners();
   }, []);
 
   const isHandleDone = !!(user?.displayName && !user.displayName.includes('@'));
@@ -124,19 +141,31 @@ function HomeContent() {
         setClubInvites(invites);
 
         if (clubs.length > 0) {
-          // Get most recent club engagement (clubs are already sorted by lastAccessedAt)
-          const activeClubId = clubs[0].id;
+          // Find the best club to show: priority to the most recent club with an active session
+          let selectedClubId = clubs[0].id;
+          let bestSession = null;
 
-          const session = await getActiveSession(activeClubId);
-          setActiveSession(session);
+          // Check top 5 most recent clubs for an active session to prioritize engagement
+          const topClubs = clubs.slice(0, 5);
+          const sessionResults = await Promise.all(
+            topClubs.map(c => getActiveSession(c.id))
+          );
 
-          if (session) {
-            setGame({ title: session.gameTitle, platform: session.platform, cover_image_url: session.cover_image_url });
-            const leader = await getSessionLeader(session.id);
+          const foundIdx = sessionResults.findIndex(s => s !== null);
+          if (foundIdx !== -1) {
+            selectedClubId = topClubs[foundIdx].id;
+            bestSession = sessionResults[foundIdx];
+          }
+
+          setActiveSession(bestSession);
+
+          if (bestSession) {
+            setGame({ title: bestSession.gameTitle, platform: bestSession.platform, cover_image_url: bestSession.cover_image_url });
+            const leader = await getSessionLeader(bestSession.id);
             setTopScore(leader);
           }
 
-          const currentGotm = await getCurrentGOTM(activeClubId);
+          const currentGotm = await getCurrentGOTM(selectedClubId);
           setGotm(currentGotm);
         } else {
           // Featured Challenge for new users
@@ -291,6 +320,8 @@ function HomeContent() {
                             fill
                             className="object-cover"
                             unoptimized={!!club.logoUrl}
+                            priority
+                            loading="eager"
                           />
                         </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
@@ -326,6 +357,8 @@ function HomeContent() {
                           alt={game.title}
                           fill
                           className="object-cover object-center"
+                          priority
+                          loading="eager"
                         />
                       </div>
                     ) : (
@@ -367,9 +400,8 @@ function HomeContent() {
                                 />
                                 <div>
                                   <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest leading-tight">Current Leader</p>
-                                  <div className="flex items-baseline gap-2">
-                                    <span className="text-white font-black text-2xl italic tracking-tight">{topScore.scoreValue.toLocaleString()}</span>
-                                    <span className="text-sm text-white/50 truncate max-w-[120px]">{topScore.displayName || "Unknown"}</span>
+                                  <div className="flex items-baseline gap-2 mt-0.5">
+                                    <span className="text-white font-black text-xl tracking-tight truncate max-w-[150px]">{topScore.displayName || "Unknown"}</span>
                                   </div>
                                 </div>
                               </div>
@@ -411,7 +443,14 @@ function HomeContent() {
 
                       {gotm?.coverUrl ? (
                         <div className="absolute inset-0 opacity-50 group-hover:scale-105 transition-transform duration-700">
-                          <img src={gotm.coverUrl} className="w-full h-full object-cover" />
+                          <Image
+                            src={gotm.coverUrl}
+                            alt={gotm.title}
+                            fill
+                            className="w-full h-full object-cover"
+                            priority
+                            loading="eager"
+                          />
                         </div>
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-black opacity-50" />
@@ -592,7 +631,14 @@ function HomeContent() {
                             <div className="absolute inset-0 z-10 bg-gradient-to-r from-black via-black/60 to-transparent" />
                             {featuredGame?.cover_image_url ? (
                               <div className="absolute inset-0 opacity-40">
-                                <Image src={featuredGame.cover_image_url} alt={featuredGame.title} fill className="object-cover group-hover:scale-105 transition-transform duration-700" />
+                                <Image
+                                  src={featuredGame.cover_image_url}
+                                  alt={featuredGame.title}
+                                  fill
+                                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                                  priority
+                                  loading="eager"
+                                />
                               </div>
                             ) : (
                               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-purple-900/30 opacity-40" />
@@ -611,8 +657,8 @@ function HomeContent() {
                                 <div className="mt-6 flex items-center gap-3 bg-black/60 backdrop-blur-md p-2 pr-4 rounded-xl border border-yellow-500/20">
                                   <UserAvatar photoURL={featuredLeader.photoURL} displayName={featuredLeader.displayName || ""} size="md" isWinner={true} />
                                   <div className="text-left">
-                                    <p className="text-[9px] text-yellow-500 font-bold uppercase tracking-widest">Top Score</p>
-                                    <p className="text-white font-black italic">{featuredLeader.scoreValue.toLocaleString()}</p>
+                                    <p className="text-[9px] text-yellow-500 font-bold uppercase tracking-widest">Current Leader</p>
+                                    <p className="text-white font-black italic max-w-[150px] truncate">{featuredLeader.displayName || "Unknown"}</p>
                                   </div>
                                 </div>
                               )}
