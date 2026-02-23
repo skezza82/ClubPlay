@@ -10,13 +10,16 @@ import {
     disbandClub,
     updateMemberRole,
     createManualSession,
-    getActiveSessions, // Updated import
+    getActiveSessions,
+    getUpcomingSessions,
     updateSession,
     endSessionEarly,
     deleteScore,
     updateScore,
+    checkAndActivateUpcomingSession,
     getSessionScores,
     processSessionResults,
+    deleteSession,
     type ClubMember,
     updateMemberStats,
     createGOTM,
@@ -29,7 +32,12 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserAvatar } from "@/components/UserAvatar";
-import { Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera, Trash2, Edit, Search, Upload, MessageSquare } from "lucide-react";
+import {
+    Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck,
+    Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera,
+    Trash2, Edit, Search, Upload, MessageSquare, RefreshCw, Wrench
+} from "lucide-react";
+import { bulkSyncAllUsersXp } from "@/lib/firestore-service";
 import { GameSearch } from "@/components/GameSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -46,7 +54,7 @@ function ClubAdminContent() {
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm">("requests");
+    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm" | "maintenance">("requests");
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -76,6 +84,7 @@ function ClubAdminContent() {
         cover_image_url: ""
     });
     const [activeSessions, setActiveSessions] = useState<any[]>([]); // Array of sessions
+    const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]); // Array of scheduled sessions
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null); // Track which session is being edited
     const [viewingScoresSessionId, setViewingScoresSessionId] = useState<string | null>(null); // Track which session's scores are being viewed
     const [editedSession, setEditedSession] = useState({
@@ -111,13 +120,18 @@ function ClubAdminContent() {
 
     // Helper to refresh sessions
     const refreshSessions = async () => {
-        const sessions = await getActiveSessions(clubId as string);
-        setActiveSessions(sessions);
+        // Auto-activate if start time passed
+        await checkAndActivateUpcomingSession(clubId as string);
 
-        // Also refresh scores for the first session if exists (or logic to handle multiple score views later)
-        // For now, let's just clear specific session scores on refresh to avoid confusion, 
-        // or we could fetch scores for the *editing* session if there is one.
-        // Let's just default to empty until a user selects one to view/edit.
+        const [sessions, upcoming] = await Promise.all([
+            getActiveSessions(clubId as string),
+            getUpcomingSessions(clubId as string)
+        ]);
+
+        setActiveSessions(sessions);
+        setUpcomingSessions(upcoming);
+
+        // Also refresh scores for the first session if exists
         if (sessions.length > 0) {
             const targetId = viewingScoresSessionId && sessions.find(s => s.id === viewingScoresSessionId) ? viewingScoresSessionId : sessions[0].id;
             const scores = await getSessionScores(targetId);
@@ -501,6 +515,9 @@ function ClubAdminContent() {
 
                     <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")}>Game</TabButton>
                     <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
+                    {userRole === 'owner' && (
+                        <TabButton active={activeTab === "maintenance"} onClick={() => setActiveTab("maintenance")}>Maintenance</TabButton>
+                    )}
                 </div>
             </div>
 
@@ -842,15 +859,19 @@ function ClubAdminContent() {
                 activeTab === "game" && (
                     <div className="space-y-8 animate-fade-in-up">
 
-                        {/* Create New Challenge Section - Only show if not editing and NO active session */}
-                        {!editingSessionId && activeSessions.length < 1 && (
+                        {/* Create New Challenge Section - Only show if not editing and NO upcoming session */}
+                        {!editingSessionId && upcomingSessions.length < 1 && (
                             <Card className="border-primary/20 bg-surface/40 backdrop-blur-md">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Trophy className="w-5 h-5 text-primary" />
-                                        Create New Challenge
+                                        {activeSessions.length > 0 ? 'Schedule Next Challenge' : 'Create New Challenge'}
                                     </CardTitle>
-                                    <CardDescription>Start a new weekly competition. Only one challenge can be active at a time.</CardDescription>
+                                    <CardDescription>
+                                        {activeSessions.length > 0
+                                            ? "The current challenge is active. This new one will start automatically when the current one ends."
+                                            : "Start a new weekly competition. Only one challenge can be active at a time."}
+                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <form onSubmit={handleManualSession} className="space-y-6">
@@ -1005,8 +1026,8 @@ function ClubAdminContent() {
                                             </div>
                                             <div className="flex items-end">
                                                 <Button type="submit" className="neon-border h-12 font-black uppercase tracking-widest px-8 w-full sm:w-auto" disabled={isUpdating}>
-                                                    {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Gamepad2 className="w-5 h-5 mr-2" />}
-                                                    Start Competition
+                                                    {isUpdating ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Calendar className="w-5 h-5 mr-2" />}
+                                                    {activeSessions.length > 0 ? 'Schedule Competition' : 'Start Competition'}
                                                 </Button>
                                             </div>
                                         </div>
@@ -1150,6 +1171,72 @@ function ClubAdminContent() {
                                     </form>
                                 </CardContent>
                             </Card>
+                        )}
+
+                        {/* Upcoming / Scheduled Sessions */}
+                        {upcomingSessions.length > 0 && (
+                            <div className="space-y-4">
+                                <h3 className="text-xl font-bold text-orange-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Calendar className="w-5 h-5" /> Upcoming Challenge
+                                </h3>
+                                <div className="grid gap-4">
+                                    {upcomingSessions.map((session) => (
+                                        <Card key={session.id} className="border-orange-500/20 bg-orange-500/5">
+                                            <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
+                                                <div className="w-24 h-16 relative bg-black/50 rounded overflow-hidden flex-shrink-0">
+                                                    {session.cover_image_url ? (
+                                                        <img src={session.cover_image_url} alt={session.gameTitle} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Gamepad2 className="w-8 h-8 text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-white text-lg">{session.gameTitle}</h4>
+                                                        <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-black uppercase border border-orange-500/30">Scheduled</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
+                                                        <span className="flex items-center gap-1"><Gamepad2 className="w-3 h-3" /> {session.platform}</span>
+                                                        <span className="flex items-center gap-1"><Trophy className="w-3 h-3" /> {session.challengeType.toUpperCase()}</span>
+                                                        <span className="flex items-center gap-1 text-orange-400"><Calendar className="w-3 h-3" /> Starts: {session.startDate?.toDate ? session.startDate.toDate().toLocaleDateString() : new Date(session.startDate).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="border-white/10 hover:bg-white/5"
+                                                        onClick={() => handleEditClick(session)}
+                                                        disabled={!!editingSessionId}
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"
+                                                        onClick={async () => {
+                                                            if (window.confirm(`Cancel scheduled challenge: "${session.gameTitle}"?`)) {
+                                                                try {
+                                                                    await deleteSession(session.id);
+                                                                    await refreshSessions();
+                                                                    alert("Scheduled challenge cancelled.");
+                                                                } catch (e) {
+                                                                    alert("Failed to cancel challenge.");
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </div>
                         )}
 
                         {/* Active Sessions List */}
@@ -1482,6 +1569,75 @@ function ClubAdminContent() {
                     </div>
                 )
             }
+
+            {activeTab === "maintenance" && userRole === 'owner' && (
+                <div className="grid gap-6 animate-fade-in-up">
+                    <Card className="border-orange-500/20 bg-surface/40 backdrop-blur-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Wrench className="w-5 h-5 text-orange-400" />
+                                Club Maintenance & Repair
+                            </CardTitle>
+                            <CardDescription>Tools to ensure all accounts are synchronized and features are working correctly.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 flex gap-4">
+                                <AlertTriangle className="w-6 h-6 text-orange-400 shrink-0" />
+                                <div>
+                                    <p className="text-sm font-bold text-orange-200">Legacy Account Sync</p>
+                                    <p className="text-xs text-orange-200/60 mt-1">
+                                        Some older accounts may be missing search keywords or profile metadata.
+                                        This tool will scan all memberships, scores, and requests to ensure everyone has a full profile document.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-4">
+                                <div className="flex items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5">
+                                    <div>
+                                        <p className="text-sm font-bold text-white">Bulk Profile & XP Sync</p>
+                                        <p className="text-xs text-muted-foreground">Re-calculates XP for all known players and backfills missing fields.</p>
+                                    </div>
+                                    <Button
+                                        onClick={async () => {
+                                            if (!confirm("This will scan all users and update their profiles. Continue?")) return;
+                                            setIsUpdating(true);
+                                            try {
+                                                const count = await bulkSyncAllUsersXp();
+                                                alert(`Successfully synced ${count} players! 🚀`);
+                                            } catch (e) {
+                                                console.error(e);
+                                                alert("Sync failed. Check console.");
+                                            } finally {
+                                                setIsUpdating(false);
+                                            }
+                                        }}
+                                        disabled={isUpdating}
+                                        className="bg-primary hover:bg-primary/80 transition-all text-black font-black uppercase tracking-widest text-xs px-6 h-10 flex items-center gap-2"
+                                    >
+                                        {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        Run Sync
+                                    </Button>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 rounded-lg bg-background/30 border border-white/5 text-sm">
+                                    <div>
+                                        <p className="text-sm font-bold text-white">Disband Club</p>
+                                        <p className="text-xs text-muted-foreground text-red-400/70">Danger Zone: Permanently delete this club.</p>
+                                    </div>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={handleDisband}
+                                        className="font-black uppercase tracking-widest text-xs px-6 h-10"
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" /> Disband
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </main >
     );
 }

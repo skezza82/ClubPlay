@@ -6,6 +6,7 @@ import {
     getFriends,
     getFriendRequests,
     respondToFriendRequest,
+    unfriend,
     UserPublicProfile,
     FriendRequest,
     getXpLevel
@@ -107,6 +108,23 @@ export default function FriendsPage() {
             await fetchData();
         } catch (error) {
             console.error(`Error ${status} request:`, error);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleUnfriend = async (friendId: string, friendName: string) => {
+        if (!user) return;
+        if (!confirm(`Are you sure you want to unfriend ${friendName}?`)) return;
+
+        setActionLoading(friendId);
+        try {
+            await unfriend(user.uid, friendId);
+            // Update local state
+            setFriends(prev => prev.filter(f => f.uid !== friendId));
+        } catch (error) {
+            console.error("Error unfriending:", error);
+            alert("Failed to unfriend.");
         } finally {
             setActionLoading(null);
         }
@@ -302,12 +320,22 @@ export default function FriendsPage() {
                                             </div>
                                         </div>
                                     </Link>
-                                    <Link
-                                        href={`/user?id=${friend.uid}`}
-                                        className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
-                                    >
-                                        <ArrowRight className="w-5 h-5" />
-                                    </Link>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleUnfriend(friend.uid, friend.displayName)}
+                                            disabled={actionLoading === friend.uid}
+                                            className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                                            title="Unfriend"
+                                        >
+                                            <UserX className="w-5 h-5" />
+                                        </button>
+                                        <Link
+                                            href={`/user?id=${friend.uid}`}
+                                            className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                                        >
+                                            <ArrowRight className="w-5 h-5" />
+                                        </Link>
+                                    </div>
                                 </div>
                             </div>
                         ))}

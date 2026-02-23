@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllClubs, requestJoin, getActiveSessions } from "@/lib/firestore-service";
+import { getAllClubs, requestJoin, getActiveSessions, getUserClubs, getUserPendingRequests } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PremiumLogo } from "@/components/PremiumLogo";
@@ -17,6 +17,8 @@ export default function ClubsPage() {
     const [search, setSearch] = useState("");
     const [sortBy, setSortBy] = useState<"newest" | "name" | "count">("newest");
     const [isLoading, setIsLoading] = useState(true);
+    const [userMemberships, setUserMemberships] = useState<string[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<string[]>([]);
     const { user } = useAuth();
 
     useEffect(() => {
@@ -32,6 +34,27 @@ export default function ClubsPage() {
         };
         fetchClubs();
     }, []);
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            if (user) {
+                try {
+                    const [memberships, pending] = await Promise.all([
+                        getUserClubs(user.uid),
+                        getUserPendingRequests(user.uid)
+                    ]);
+                    setUserMemberships(memberships.map(m => m.id));
+                    setPendingRequests(pending);
+                } catch (error) {
+                    console.error("Error fetching user club data:", error);
+                }
+            } else {
+                setUserMemberships([]);
+                setPendingRequests([]);
+            }
+        };
+        fetchUserData();
+    }, [user]);
 
     const filteredClubs = clubs
         .filter(c =>
@@ -145,6 +168,8 @@ export default function ClubsPage() {
                     <ClubCard
                         key={club.id}
                         club={club}
+                        isMember={userMemberships.includes(club.id)}
+                        isPending={pendingRequests.includes(club.id)}
                         onJoin={() => handleJoinRequest(club.id)}
                     />
                 ))}
@@ -163,13 +188,18 @@ export default function ClubsPage() {
     );
 }
 
-function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
+function ClubCard({ club, onJoin, isMember, isPending }: {
+    club: any,
+    onJoin: () => void,
+    isMember: boolean,
+    isPending: boolean
+}) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeSession, setActiveSession] = useState<any>(null);
     const [isLoadingSession, setIsLoadingSession] = useState(false);
 
     useEffect(() => {
-        if (isExpanded && !activeSession && !isLoadingSession) {
+        if (!activeSession && !isLoadingSession) {
             const fetchSession = async () => {
                 setIsLoadingSession(true);
                 try {
@@ -187,7 +217,7 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
             };
             fetchSession();
         }
-    }, [isExpanded, club.id, activeSession, isLoadingSession]);
+    }, [club.id, activeSession, isLoadingSession]);
 
     return (
         <Card
@@ -201,6 +231,16 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                 <div className="absolute top-0 right-0 p-2 z-10">
                     <span className="bg-primary text-black font-black text-[8px] uppercase px-2 py-1 rounded italic flex items-center gap-1">
                         <Sparkles className="w-2 h-2" /> New
+                    </span>
+                </div>
+            )}
+
+            {/* LIVE NOW Badge */}
+            {activeSession && !activeSession.none && (
+                <div className="absolute top-2 left-2 z-20">
+                    <span className="bg-red-500 text-white font-black text-[7px] uppercase px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-lg border border-red-400/50 animate-pulse">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
+                        Live Now
                     </span>
                 </div>
             )}
@@ -281,7 +321,7 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                 </div>
 
                 <div className="mt-auto pt-2">
-                    {!(["Retro Legends", "Retro Racers", "RPG Realm"].includes(club.name)) && (
+                    {!(["Retro Legends", "Retro Racers", "RPG Realm"].includes(club.name)) && !isMember && !isPending && (
                         <Button
                             className="w-full neon-border font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform"
                             onClick={(e) => {
@@ -291,6 +331,19 @@ function ClubCard({ club, onJoin }: { club: any, onJoin: () => void }) {
                         >
                             Send Join Request
                             <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    )}
+                    {isMember && (
+                        <Link href={`/club?id=${club.id}`} className="w-full" onClick={(e) => e.stopPropagation()}>
+                            <Button className="w-full bg-primary/10 text-primary border border-primary/20 font-black text-xs h-10 uppercase tracking-widest active:scale-95 transition-transform hover:bg-primary/20">
+                                Go to Club
+                                <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                        </Link>
+                    )}
+                    {isPending && (
+                        <Button className="w-full bg-orange-500/10 text-orange-400 border border-orange-500/20 font-black text-xs h-10 uppercase tracking-widest cursor-default opacity-80" onClick={(e) => e.stopPropagation()}>
+                            Request Pending
                         </Button>
                     )}
                 </div>

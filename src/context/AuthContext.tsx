@@ -104,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const createUserDocument = async (user: User) => {
+        console.log("Creating/Updating user document in Firestore for UID:", user.uid);
         const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
 
@@ -125,16 +126,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const name = user.displayName;
         const normalizedName = name ? name.toLowerCase() : "";
 
-        await setDoc(userRef, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            displayNameLowercase: normalizedName,
-            photoURL: user.photoURL,
-            searchKeywords: generateKeywords(user.displayName),
-            lastLogin: serverTimestamp(),
-            role: "user"
-        }, { merge: true });
+        try {
+            await setDoc(userRef, {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                displayNameLowercase: normalizedName,
+                photoURL: user.photoURL,
+                searchKeywords: generateKeywords(user.displayName),
+                lastLogin: serverTimestamp(),
+                role: "user"
+            }, { merge: true });
+            console.log("User document successfully created/updated");
+        } catch (error) {
+            console.error("CRITICAL ERROR in createUserDocument:", error);
+            throw error; // Re-throw so signUp catch block sees it
+        }
     };
 
     const logout = async () => {

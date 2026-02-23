@@ -3,24 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // -------------------------------------------------------------------------
-    // SOCIAL & FRIENDS (Moved to top for clear priority)
-    // -------------------------------------------------------------------------
-    
-    // Friend Requests - Essential for the add/accept flow
-    match /friend_requests/{requestId} {
-      // Allow all authenticated users to read/write requests to support 
-      // existence checks and cross-user updates.
-      allow read, write: if request.auth != null;
-    }
-
-    // Friends Subcollection - Stores the final relationships
-    match /users/{userId}/friends/{friendId} {
-      // Allow reading friends lists and writing (for mutual updates)
-      allow read, write: if request.auth != null;
-    }
-
-    // -------------------------------------------------------------------------
-    // CORE SYSTEM
+    // CORE FUNCTIONS
     // -------------------------------------------------------------------------
 
     function isClubOwner(clubId) {
@@ -36,19 +19,44 @@ service cloud.firestore {
     }
 
     function isDeveloper() {
-      return request.auth != null && (
+      // Safely check for developer status
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'developer' ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('displayName', '').lower() == 'skezza82'
       );
     }
 
-    // User profiles
+    // -------------------------------------------------------------------------
+    // USER PROFILES
+    // -------------------------------------------------------------------------
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && (request.auth.uid == userId || isDeveloper());
+      // Allow public read for username availability checks and discovery
+      allow read: if true;
+      // Allow users to manage their own profile
+      allow create: if request.auth != null && (request.auth.uid == userId || isDeveloper());
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || 
+        isDeveloper() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'questClubJoinedAwarded', 'questHandleAwarded', 'questAvatarAwarded'])
+      );
+      allow delete: if request.auth != null && isDeveloper();
+      
+      // Friends & Social subcollections
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null;
+      }
     }
+
+    // Friend Requests
+    match /friend_requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // -------------------------------------------------------------------------
+    // CLUBS & COMMUNITY
+    // -------------------------------------------------------------------------
     
-    // Clubs
     match /clubs/{clubId} {
       allow read: if true;
       allow create: if request.auth != null;
@@ -62,7 +70,6 @@ service cloud.firestore {
       // Message Board
       match /messages/{messageId} {
         allow read: if true;
-        // Only members can post
         allow create: if request.auth != null && exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + clubId));
       }
     }
@@ -85,7 +92,8 @@ service cloud.firestore {
     match /join_requests/{requestId} {
       allow read: if request.auth != null && (
         resource.data.userId == request.auth.uid || 
-        hasAdminAccess(resource.data.clubId)
+        hasAdminAccess(resource.data.clubId) ||
+        isDeveloper()
       );
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow update, delete: if request.auth != null && (
@@ -94,34 +102,30 @@ service cloud.firestore {
       );
     }
 
-    // Weekly Sessions
+    // -------------------------------------------------------------------------
+    // GAMEPLAY & DATA
+    // -------------------------------------------------------------------------
+
     match /weekly_sessions/{sessionId} {
       allow read: if true;
-      allow create: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
-      allow update: if request.auth != null && hasAdminAccess(resource.data.clubId);
-      allow delete: if request.auth != null && hasAdminAccess(resource.data.clubId);
+      allow create, update, delete: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
     }
 
-    // Scores
     match /scores/{scoreId} {
       allow read: if true;
       allow write: if request.auth != null; 
     }
 
-    // Season Standings
     match /season_standings/{standingId} {
       allow read: if true;
       allow write: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
     }
 
-    // GOTM
     match /gotm/{gotmId} {
       allow read: if true;
-      allow create: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
-      allow update, delete: if request.auth != null && hasAdminAccess(resource.data.clubId);
+      allow create, update, delete: if request.auth != null && hasAdminAccess(request.resource.data.clubId);
     }
 
-    // GOTM Reviews
     match /gotm_reviews/{reviewId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;

@@ -9,6 +9,10 @@ const config: CapacitorConfig = {
       presentationOptions: ["badge", "sound", "alert"],
     },
   },
+  android: {
+    // @ts-expect-error Types missing for Capacitor 8 edge-to-edge
+    adjustMarginsForEdgeToEdge: "auto"
+  }
 };
 
 export default config;

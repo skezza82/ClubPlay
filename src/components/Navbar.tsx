@@ -6,10 +6,23 @@ import { UserProfile } from "./UserProfile";
 import { useAuth } from "@/context/AuthContext";
 import { Compass, Gamepad2, PlusSquare, Search, Users } from "lucide-react";
 import { useGamepad } from "@/hooks/useGamepad";
+import { useEffect, useState } from "react";
+import { listenToFriendRequests } from "@/lib/firestore-service";
 
 export function Navbar() {
     const { user } = useAuth();
     const { hasGamepadAccess } = useGamepad();
+    const [pendingCount, setPendingCount] = useState(0);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const unsubscribe = listenToFriendRequests(user.uid, (requests) => {
+            setPendingCount(requests.length);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
 
     if (!user) return null;
 
@@ -28,8 +41,15 @@ export function Navbar() {
                             <Gamepad2 className="w-4 h-4" />
                             Arcade
                         </Link>
-                        <Link href="/friends" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
-                            <Users className="w-4 h-4" />
+                        <Link href="/friends" className="text-sm font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors flex items-center gap-2 relative">
+                            <div className="relative">
+                                <Users className="w-4 h-4" />
+                                {pendingCount > 0 && (
+                                    <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[8px] font-black text-black">
+                                        {pendingCount}
+                                    </span>
+                                )}
+                            </div>
                             Friends
                         </Link>
                     </div>
@@ -51,8 +71,15 @@ export function Navbar() {
                         <Gamepad2 className="w-5 h-5 group-active:scale-90 transition-transform" />
                         <span>Arcade</span>
                     </Link>
-                    <Link href="/friends" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group">
-                        <Users className="w-5 h-5 group-active:scale-90 transition-transform" />
+                    <Link href="/friends" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground hover:text-primary transition-all flex flex-col items-center gap-1 group relative">
+                        <div className="relative">
+                            <Users className="w-5 h-5 group-active:scale-90 transition-transform" />
+                            {pendingCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-black text-black shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]">
+                                    {pendingCount}
+                                </span>
+                            )}
+                        </div>
                         <span>Friends</span>
                     </Link>
                 </div>

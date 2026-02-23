@@ -33,8 +33,8 @@ export const metadata: Metadata = {
     title: "ClubPlay",
   },
   icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
 };
 

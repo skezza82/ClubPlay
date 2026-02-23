@@ -325,23 +325,25 @@ export default function ProfilePage() {
 
                 <div className="flex flex-col md:flex-row gap-8 items-start">
                     <div className="w-full md:w-1/3 space-y-6">
-                        <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden">
-                            <div className="aspect-square relative group bg-black/20 flex items-center justify-center">
-                                {avatarUrl ? (
-                                    <img
-                                        src={avatarUrl}
-                                        alt="Profile Avatar"
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <User className="w-32 h-32 text-white/10" />
-                                )}
-                                {isUploading && (
-                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
-                                        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                        <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden relative">
+                            {avatarUrl ? (
+                                <div className="aspect-square relative group bg-black/20 flex items-center justify-center">
+                                    <img src={avatarUrl} alt="Profile Avatar" className="w-full h-full object-cover" />
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center bg-primary/5 flex flex-col items-center justify-center aspect-square gap-4">
+                                    <PartyPopper className="w-16 h-16 text-primary animate-bounce" />
+                                    <div className="space-y-2">
+                                        <h3 className="text-xl font-black uppercase tracking-tighter">Welcome!</h3>
+                                        <p className="text-sm text-muted-foreground font-medium">Select an avatar or upload your own below to complete your profile.</p>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
+                            {isUploading && (
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
+                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                                </div>
+                            )}
                             <CardHeader className="text-center">
                                 <CardTitle className="text-xl">{nickname || "Adventurer"}</CardTitle>
                                 <CardDescription className="flex items-center justify-center gap-1">

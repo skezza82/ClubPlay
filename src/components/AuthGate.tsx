@@ -31,28 +31,38 @@ export function AuthGate({ initialMode = "login" }: { initialMode?: "login" | "r
         setSuccessMessage("");
 
         try {
+            console.log("=== AUTH START ===");
             if (mode === "login") {
                 await signIn(email, password);
+                console.log("LOGIN SUCCESS");
             } else if (mode === "register") {
-                // Check username availability first
+                console.log("STEP 1: Checking username:", displayName);
                 const isAvailable = await checkUsernameAvailability(displayName);
+                console.log("STEP 1 RESULT:", isAvailable);
+
                 if (!isAvailable) {
-                    throw new Error("Username is already taken. Please choose another.");
+                    throw new Error("Username is already taken.");
                 }
 
+                console.log("STEP 2: Signing up...");
                 await signUp(email, password, displayName);
-                // Redirect to profile to set avatar
+                console.log("STEP 2 SUCCESS");
+
                 router.push("/profile");
             } else if (mode === "reset") {
                 await sendPasswordResetEmail(auth, resetEmail);
-                setSuccessMessage("Password reset email sent! Check your inbox.");
-                setResetEmail("");
+                setSuccessMessage("Reset email sent.");
             }
-        } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : "An error occurred";
-            setError(errorMessage);
+        } catch (err: any) {
+            console.error("DEBUG AUTH ERROR:", {
+                code: err.code,
+                message: err.message,
+                stack: err.stack
+            });
+            setError(err.message || "An error occurred");
         } finally {
             setLoading(false);
+            console.log("=== AUTH FINISH ===");
         }
     };
 

@@ -2,9 +2,9 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { getUserPublicProfile, UserPublicProfile, sendFriendRequest, checkFriendshipStatus, getXpLevel, getXpProgress } from "@/lib/firestore-service";
+import { getUserPublicProfile, UserPublicProfile, sendFriendRequest, unfriend, checkFriendshipStatus, getXpLevel, getXpProgress } from "@/lib/firestore-service";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Users, Trophy, Target, Award, UserPlus, Check, ExternalLink, Heart, Loader2, AlertCircle, Shield } from "lucide-react";
+import { ArrowLeft, Users, Trophy, Target, Award, UserPlus, UserX, Check, ExternalLink, Heart, Loader2, AlertCircle, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
@@ -46,6 +46,19 @@ function UserProfileContent() {
         } catch (err: any) {
             console.error("Failed to send request:", err);
             alert(err.message || "Failed to send friend request. Ensure you are signed in.");
+        }
+    };
+
+    const handleUnfriend = async () => {
+        if (!user || !id || !profile) return;
+        if (!confirm(`Are you sure you want to unfriend ${profile.displayName}?`)) return;
+
+        try {
+            await unfriend(user.uid, id as string);
+            setIsFriend(false);
+        } catch (err) {
+            console.error("Failed to unfriend:", err);
+            alert("Failed to unfriend.");
         }
     };
 
@@ -132,8 +145,17 @@ function UserProfileContent() {
                         {user?.uid !== id && (
                             <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                                 {isFriend ? (
-                                    <div className="px-6 py-3 rounded-xl font-bold bg-primary/10 text-primary border border-primary/20 flex items-center gap-2 shadow-lg">
-                                        <Heart className="w-5 h-5 fill-primary" /> Already Friends
+                                    <div className="flex gap-3">
+                                        <div className="px-6 py-3 rounded-xl font-bold bg-primary/10 text-primary border border-primary/20 flex items-center gap-2 shadow-lg">
+                                            <Heart className="w-5 h-5 fill-primary" /> Already Friends
+                                        </div>
+                                        <button
+                                            onClick={handleUnfriend}
+                                            className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                                            title="Unfriend"
+                                        >
+                                            <UserX className="w-5 h-5" />
+                                        </button>
                                     </div>
                                 ) : (
                                     <button

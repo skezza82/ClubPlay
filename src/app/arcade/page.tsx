@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Gamepad2, LogOut, Play, Zap, Trophy } from "lucide-react";
 import Image from "next/image";
 // Tetris import removed
 
+
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { addXp } from "@/lib/firestore-service";
 
 interface ArcadeGame {
     id: string;
@@ -59,6 +63,16 @@ const GAMES: ArcadeGame[] = [
 
 export default function ArcadePage() {
     const [activeGame, setActiveGame] = useState<ArcadeGame | null>(null);
+    const { user } = useAuth();
+
+    useEffect(() => {
+        // Mark arcade as visited for the Rookie Quest
+        const visited = localStorage.getItem('arcade_visited') === 'true';
+        if (!visited && user) {
+            addXp(user.uid, 25, "Arcade Explorer Quest");
+            localStorage.setItem('arcade_visited', 'true');
+        }
+    }, [user]);
 
     return (
         <main className="min-h-screen pt-24 pb-20 px-4 container mx-auto">

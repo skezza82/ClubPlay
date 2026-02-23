@@ -128,6 +128,17 @@ export interface FriendRequest {
     createdAt: string;
 }
 
+export interface ClubInvite {
+    id: string;
+    clubId: string;
+    clubName: string;
+    senderId: string;
+    senderName: string;
+    receiverId: string;
+    status: 'pending' | 'accepted' | 'rejected';
+    createdAt: string;
+}
+
 export interface UserPublicProfile {
     uid: string;
     displayName: string;
@@ -211,6 +222,26 @@ export const getActiveSessions = async (clubId: string) => {
 
     // Sort by endDate ascending
     return sessions.sort((a, b) => a.endDate.localeCompare(b.endDate));
+};
+
+export const getUpcomingSessions = async (clubId: string) => {
+    const sessionsRef = collection(db, "weekly_sessions");
+    const q = query(
+        sessionsRef,
+        where("clubId", "==", clubId),
+        where("isActive", "==", false),
+        where("isProcessed", "==", false)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const sessions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+
+    // Sort by startDate ascending
+    return sessions.sort((a, b) => {
+        const startA = a.startDate?.toDate ? a.startDate.toDate().toISOString() : (a.startDate as string);
+        const startB = b.startDate?.toDate ? b.startDate.toDate().toISOString() : (b.startDate as string);
+        return (startA || "").localeCompare(startB || "");
+    });
 };
 
 export const getClubSessions = async (clubId: string) => {
@@ -338,7 +369,10 @@ export const createClub = async (
 
             // Award XP to creator (100 XP)
             const userRef = doc(db, "users", ownerId);
-            transaction.update(userRef, { xp: increment(100) });
+            transaction.update(userRef, {
+                xp: increment(100),
+                questClubJoinedAwarded: true
+            });
 
             return clubId;
         });
@@ -659,10 +693,13 @@ export const respondToJoinRequest = async (requestId: string, clubId: string, us
             }
 
             // XP Rewards
-            // New Member: 50 XP
+            // First Club Quest: 100 XP
             // Club Owner: 10 XP
             const memberRef = doc(db, "users", userId);
-            transaction.update(memberRef, { xp: increment(50) });
+            transaction.update(memberRef, {
+                xp: increment(100),
+                questClubJoinedAwarded: true
+            });
 
             if (clubDoc.exists()) {
                 const ownerId = clubDoc.data().ownerId;
@@ -806,10 +843,24 @@ export const syncRetroactiveXp = async (userId: string) => {
 
     // Use setDoc with merge to ensure the user document exists and has a name if possible
     const userRef = doc(db, "users", userId);
-    const updateData: any = { xp: totalXp };
+    const updateData: any = {
+        uid: userId,
+        xp: totalXp,
+        updatedAt: new Date().toISOString()
+    };
+
     if (bestDisplayName) {
         updateData.displayName = bestDisplayName;
         updateData.displayNameLowercase = (bestDisplayName as string).toLowerCase();
+
+        // Generate keywords for search
+        const parts = (bestDisplayName as string).toLowerCase().split(/\s+/);
+        const keywords = new Set<string>();
+        parts.forEach(p => {
+            if (p.length > 1) keywords.add(p);
+        });
+        keywords.add((bestDisplayName as string).toLowerCase());
+        updateData.searchKeywords = Array.from(keywords);
     }
 
     await setDoc(userRef, updateData, { merge: true });
@@ -829,12 +880,21 @@ export const bulkSyncAllUsersXp = async () => {
             if (uid) uniqueUserIds.add(uid);
         });
 
-        // Also check scores for users who might not be in a club anymore
-        const scoresRef = collection(db, "scores");
-        const scoresSnap = await getDocs(query(scoresRef, limit(1000)));
-        scoresSnap.docs.forEach(d => {
-            const uid = d.data().userId;
-            if (uid) uniqueUserIds.add(uid);
+        // Also check friend requests
+        const friendsQ = query(collection(db, "friend_requests"), limit(1000));
+        const friendsSnap = await getDocs(friendsQ);
+        friendsSnap.docs.forEach(d => {
+            const data = d.data();
+            if (data.senderId) uniqueUserIds.add(data.senderId);
+            if (data.receiverId) uniqueUserIds.add(data.receiverId);
+        });
+
+        // Also check join requests
+        const joinQ = query(collection(db, "join_requests"), limit(1000));
+        const joinSnap = await getDocs(joinQ);
+        joinSnap.docs.forEach(d => {
+            const data = d.data();
+            if (data.userId) uniqueUserIds.add(data.userId);
         });
 
         console.log(`[Bulk XP Sync] Starting sync for ${uniqueUserIds.size} unique players...`);
@@ -861,9 +921,32 @@ export const bulkSyncAllUsersXp = async () => {
 // User Management
 export const updateUserProfile = async (userId: string, data: { displayName?: string, photoURL?: string }) => {
     const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.exists() ? userDoc.data() : {};
 
     // Generate search keywords for case-insensitive indexing
     const updateData: any = { ...data };
+
+    // XP Awarding Logic for Quests
+    let xpToAdd = 0;
+    if (data.displayName && !userData.questHandleAwarded && data.displayName.trim().length > 2) {
+        // Only award if it's not a raw email address
+        const isEmail = data.displayName.includes('@') && data.displayName.includes('.');
+        if (!isEmail) {
+            xpToAdd += 50;
+            updateData.questHandleAwarded = true;
+        }
+    }
+
+    if (data.photoURL && !userData.questAvatarAwarded && !data.photoURL.includes('default') && !data.photoURL.includes('gravatar')) {
+        xpToAdd += 50;
+        updateData.questAvatarAwarded = true;
+    }
+
+    if (xpToAdd > 0) {
+        updateData.xp = increment(xpToAdd);
+    }
+
     if (data.displayName) {
         const name = data.displayName;
         updateData.displayNameLowercase = name.toLowerCase();
@@ -889,12 +972,58 @@ export const updateUserProfile = async (userId: string, data: { displayName?: st
     }
 };
 
+export const syncQuestProgress = async (userId: string, userClubsLength: number, currentDisplayName: string, currentPhotoURL: string) => {
+    const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) return;
+    const userData = userDoc.data();
+
+    let xpToAdd = 0;
+    const updateData: any = {};
+
+    // 1. Club Quest (100 XP)
+    if (userClubsLength > 0 && !userData.questClubJoinedAwarded) {
+        xpToAdd += 100;
+        updateData.questClubJoinedAwarded = true;
+    }
+
+    // 2. Handle Quest (50 XP)
+    if (currentDisplayName && !userData.questHandleAwarded) {
+        const isEmail = currentDisplayName.includes('@') && currentDisplayName.includes('.');
+        if (!isEmail && currentDisplayName.length > 2) {
+            xpToAdd += 50;
+            updateData.questHandleAwarded = true;
+        }
+    }
+
+    // 3. Avatar Quest (50 XP)
+    if (currentPhotoURL && !userData.questAvatarAwarded) {
+        if (!currentPhotoURL.includes('default') && !currentPhotoURL.includes('gravatar')) {
+            xpToAdd += 50;
+            updateData.questAvatarAwarded = true;
+        }
+    }
+
+    if (xpToAdd > 0) {
+        updateData.xp = increment(xpToAdd);
+        await updateDoc(userRef, updateData);
+        console.log(`[QuestSync] Awarded ${xpToAdd} missing XP to ${userId}`);
+    }
+};
+
 export const getUserClubs = async (userId: string) => {
     const membershipsRef = collection(db, "memberships");
     const q = query(membershipsRef, where("userId", "==", userId));
 
     const snapshot = await getDocs(q);
-    const memberships = snapshot.docs.map(doc => doc.data() as Membership & { role?: string });
+    const memberships = snapshot.docs.map(doc => doc.data() as Membership & { role?: string, lastAccessedAt?: string });
+
+    // Sort heavily by lastAccessedAt. Fallback to joinedAt.
+    memberships.sort((a, b) => {
+        const dateA = new Date(a.lastAccessedAt || a.joinedAt || 0).getTime();
+        const dateB = new Date(b.lastAccessedAt || b.joinedAt || 0).getTime();
+        return dateB - dateA;
+    });
 
     // Fetch details for each club
     const clubs = await Promise.all(memberships.map(async (membership) => {
@@ -911,6 +1040,18 @@ export const getUserClubs = async (userId: string) => {
 
     console.log(`[getUserClubs] Found ${memberships.length} memberships for user ${userId}`);
     return clubs.filter(c => c !== null) as (Club & { role: string, logoUrl?: string })[];
+};
+
+export const updateClubLastAccessed = async (userId: string, clubId: string) => {
+    if (!userId || !clubId) return;
+    try {
+        const membershipRef = doc(db, "memberships", `${userId}_${clubId}`);
+        await updateDoc(membershipRef, {
+            lastAccessedAt: new Date().toISOString()
+        });
+    } catch (e) {
+        console.error("Failed to update lastAccessedAt:", e);
+    }
 };
 
 export const leaveClub = async (userId: string, clubId: string) => {
@@ -1216,6 +1357,114 @@ export const checkPendingRequest = async (userId: string, clubId: string) => {
         return true;
     }
     return false;
+};
+
+export const sendClubInvite = async (
+    clubId: string,
+    clubName: string,
+    senderId: string,
+    senderName: string,
+    receiverId: string
+) => {
+    const membershipRef = doc(db, "memberships", `${receiverId}_${clubId}`);
+    const memSnap = await getDoc(membershipRef);
+    if (memSnap.exists()) {
+        throw new Error("User is already a member of this club.");
+    }
+
+    const q = query(
+        collection(db, "club_invites"),
+        where("clubId", "==", clubId),
+        where("receiverId", "==", receiverId),
+        where("status", "==", "pending")
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+        throw new Error("An invite to this club is already pending for this user.");
+    }
+
+    const inviteRef = collection(db, "club_invites");
+    await addDoc(inviteRef, {
+        clubId,
+        clubName,
+        senderId,
+        senderName,
+        receiverId,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    });
+};
+
+export const getPendingClubInvites = async (userId: string) => {
+    const q = query(
+        collection(db, "club_invites"),
+        where("receiverId", "==", userId),
+        where("status", "==", "pending")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ClubInvite[];
+};
+
+export const respondToClubInvite = async (inviteId: string, action: 'accepted' | 'rejected', userId: string, displayName: string, photoURL?: string) => {
+    const inviteRef = doc(db, "club_invites", inviteId);
+
+    if (action === 'rejected') {
+        await deleteDoc(inviteRef);
+        return;
+    }
+
+    await runTransaction(db, async (transaction) => {
+        const inviteDoc = await transaction.get(inviteRef);
+        if (!inviteDoc.exists()) return;
+        const inviteData = inviteDoc.data();
+        const clubId = inviteData.clubId;
+
+        const clubRef = doc(db, "clubs", clubId);
+        const clubDoc = await transaction.get(clubRef);
+
+        const membershipRef = doc(db, "memberships", `${userId}_${clubId}`);
+
+        const newMembership = {
+            clubId,
+            userId,
+            displayName: displayName || null,
+            photoURL: photoURL || null,
+            role: 'member',
+            joinedAt: new Date().toISOString()
+        };
+
+        transaction.set(membershipRef, newMembership);
+        transaction.delete(inviteRef);
+
+        if (clubDoc.exists()) {
+            const currentCount = clubDoc.data().memberCount || 0;
+            transaction.update(clubRef, { memberCount: currentCount + 1 });
+        }
+
+        const memberRef = doc(db, "users", userId);
+        transaction.set(memberRef, {
+            xp: increment(100),
+            questClubJoinedAwarded: true
+        }, { merge: true });
+
+        if (clubDoc.exists()) {
+            const ownerId = clubDoc.data().ownerId;
+            if (ownerId && ownerId !== userId) {
+                const ownerRef = doc(db, "users", ownerId);
+                transaction.set(ownerRef, { xp: increment(10) }, { merge: true });
+            }
+        }
+    });
+};
+
+export const getUserPendingRequests = async (userId: string) => {
+    const q = query(
+        collection(db, "join_requests"),
+        where("userId", "==", userId),
+        where("status", "==", "pending")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data().clubId) as string[];
 };
 
 // Score Management
@@ -1578,6 +1827,19 @@ export const getFriendRequests = async (userId: string) => {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as FriendRequest[];
 };
 
+export const listenToFriendRequests = (userId: string, callback: (requests: FriendRequest[]) => void) => {
+    const q = query(
+        collection(db, "friend_requests"),
+        where("receiverId", "==", userId),
+        where("status", "==", "pending")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const requests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as FriendRequest[];
+        callback(requests);
+    });
+};
+
 export const respondToFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
     const requestRef = doc(db, "friend_requests", requestId);
     const requestDoc = await getDoc(requestRef);
@@ -1607,10 +1869,39 @@ export const respondToFriendRequest = async (requestId: string, status: 'accepte
             // XP Rewards: 25 XP for both
             const sRef = doc(db, "users", data.senderId);
             const rRef = doc(db, "users", data.receiverId);
-            transaction.update(sRef, { xp: increment(25) });
-            transaction.update(rRef, { xp: increment(25) });
+
+            // Use set with merge instead of update to handle legacy accounts without a user document
+            transaction.set(sRef, {
+                xp: increment(25),
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+
+            transaction.set(rRef, {
+                xp: increment(25),
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
         });
     }
+};
+
+export const unfriend = async (userId: string, friendId: string) => {
+    if (!userId || !friendId) return;
+
+    await runTransaction(db, async (transaction) => {
+        const userFriendRef = doc(db, "users", userId, "friends", friendId);
+        const friendUserRef = doc(db, "users", friendId, "friends", userId);
+
+        transaction.delete(userFriendRef);
+        transaction.delete(friendUserRef);
+
+        // Also remove any accepted friend requests if they exist (optional but good for cleanup)
+        const q1 = query(collection(db, "friend_requests"), where("senderId", "==", userId), where("receiverId", "==", friendId));
+        const q2 = query(collection(db, "friend_requests"), where("senderId", "==", friendId), where("receiverId", "==", userId));
+
+        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+        snap1.docs.forEach(d => transaction.delete(doc(db, "friend_requests", d.id)));
+        snap2.docs.forEach(d => transaction.delete(doc(db, "friend_requests", d.id)));
+    });
 };
 
 export const getFriends = async (userId: string) => {

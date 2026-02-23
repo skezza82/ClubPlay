@@ -27,7 +27,11 @@ import {
     getPastGOTMs,
     getGOTMReviews,
     getJoinRequests,
-    subscribeToJoinRequests
+    subscribeToJoinRequests,
+    unfriend,
+    sendClubInvite,
+    checkAndActivateUpcomingSession,
+    updateClubLastAccessed
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -51,7 +55,7 @@ import {
     ThumbsUp,
     ThumbsDown,
     UserPlus,
-
+    UserX,
     Info,
     Star,
     Settings
@@ -86,7 +90,7 @@ function CountdownTimer({ targetDate }: { targetDate: any }) {
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date().getTime();
-            const target = new Date(targetDate).getTime();
+            const target = targetDate?.toDate ? targetDate.toDate().getTime() : new Date(targetDate).getTime();
             const diff = target - now;
 
             if (diff <= 0) {
@@ -236,13 +240,85 @@ function HowToWinModal({ onClose }: { onClose: () => void }) {
     );
 }
 
-function UserProfileModal({ user: profileUser, onClose, currentUser, isFriend, isPending, onSendRequest }: {
+function ClubInviteModal({ isOpen, onClose, club, members, friends, user }: any) {
+    const [invitingId, setInvitingId] = useState<string | null>(null);
+
+    const handleInvite = async (friendId: string, friendName: string) => {
+        if (!user || !club) return;
+        setInvitingId(friendId);
+        try {
+            await sendClubInvite(
+                club.id,
+                club.name,
+                user.uid,
+                user.displayName || "Unknown User",
+                friendId
+            );
+            alert(`Invite sent to ${friendName}!`);
+        } catch (e: any) {
+            console.error(e);
+            alert(e.message || "Failed to send invite.");
+        } finally {
+            setInvitingId(null);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    // Filter out friends who are already members
+    const eligibleFriends = friends.filter((f: any) => !members.some((m: any) => m.userId === f.uid));
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all" onClick={onClose}>
+            <div className="relative w-full max-w-md bg-surface/80 border border-primary/30 rounded-3xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-white/50 hover:text-white"
+                >
+                    ×
+                </button>
+                <div className="text-center mb-6">
+                    <h3 className="text-2xl font-black italic uppercase">Invite Friends</h3>
+                    <p className="text-sm text-muted-foreground uppercase tracking-widest">Recruit members to {club.name}</p>
+                </div>
+
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {eligibleFriends.length === 0 ? (
+                        <p className="text-center text-white/50 py-8 italic">All your friends are already in this club, or you have no friends to invite!</p>
+                    ) : (
+                        eligibleFriends.map((friend: any) => (
+                            <div key={friend.uid} className="flex flex-row items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:border-primary/30 transition-all">
+                                <div className="flex items-center gap-3">
+                                    <UserAvatar photoURL={friend.photoURL} displayName={friend.displayName} xp={friend.xp} size="sm" />
+                                    <div className="text-left">
+                                        <div className="font-bold text-sm text-white">{friend.displayName}</div>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={() => handleInvite(friend.uid, friend.displayName)}
+                                    disabled={invitingId === friend.uid}
+                                    className="h-8 bg-primary/20 hover:bg-primary text-primary hover:text-black border border-primary/30 transition-all"
+                                >
+                                    {invitingId === friend.uid ? <Loader2 className="w-4 h-4 animate-spin" /> : "Invite"}
+                                </Button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function UserProfileModal({ user: profileUser, onClose, currentUser, isFriend, isPending, onSendRequest, onUnfriend }: {
     user: any,
     onClose: () => void,
     currentUser: any,
     isFriend: boolean,
     isPending: boolean,
-    onSendRequest: (userId: string) => Promise<void>
+    onSendRequest: (userId: string) => Promise<void>,
+    onUnfriend: (userId: string) => Promise<void>
 }) {
     const [isVisible, setIsVisible] = useState(false);
 
@@ -329,12 +405,21 @@ function UserProfileModal({ user: profileUser, onClose, currentUser, isFriend, i
                 )}
 
                 {isFriend && (
-                    <Button
-                        disabled
-                        className="w-full bg-green-500/20 text-green-500 font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg opacity-50 border border-green-500/20"
-                    >
-                        Already Friends
-                    </Button>
+                    <div className="flex gap-3">
+                        <Button
+                            disabled
+                            className="flex-1 bg-green-500/20 text-green-500 font-black uppercase tracking-[0.2em] py-6 rounded-xl text-lg opacity-50 border border-green-500/20"
+                        >
+                            Already Friends
+                        </Button>
+                        <button
+                            onClick={() => onUnfriend(profileUser.userId)}
+                            className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                            title="Unfriend"
+                        >
+                            <UserX className="w-5 h-5" />
+                        </button>
+                    </div>
                 )}
 
                 {isMe && (
@@ -359,6 +444,7 @@ function ClubContent() {
     const [isPendingJoin, setIsPendingJoin] = useState(false);
     const [showBio, setShowBio] = useState(false);
     const [showHowTo, setShowHowTo] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
 
     const [club, setClub] = useState<any>(null);
@@ -396,6 +482,7 @@ function ClubContent() {
     const [isRequesting, setIsRequesting] = useState(false);
     const [sentRequests, setSentRequests] = useState<string[]>([]);
     const [friendsList, setFriendsList] = useState<string[]>([]);
+    const [friendsData, setFriendsData] = useState<any[]>([]);
 
     useEffect(() => {
         if (!clubId) {
@@ -408,13 +495,21 @@ function ClubContent() {
                 const clubData = await getClub(clubId);
                 setClub(clubData);
 
+                // Check for scheduled sessions that should be active
+                await checkAndActivateUpcomingSession(clubId);
+
                 const membersData = await getClubMembers(clubId);
                 setMembers(membersData);
 
                 const sessions = await getClubSessions(clubId);
                 const now = new Date();
-                const active = sessions.filter(s => new Date(s.endDate) > now);
-                const pastRaw = sessions.filter(s => new Date(s.endDate) <= now).sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+                const active = sessions.filter(s => s.isActive);
+                const upcoming = sessions.filter(s => !s.isActive && !s.isProcessed);
+                const pastRaw = sessions.filter(s => s.isProcessed || (!s.isActive && (s.endDate ? new Date(s.endDate) <= now : true))).sort((a, b) => {
+                    const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
+                    const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
+                    return dateB - dateA;
+                });
 
                 // Fetch top scores for each past session with robust error handling
                 const pastEnriched = await Promise.all(pastRaw.map(async (session) => {
@@ -437,10 +532,12 @@ function ClubContent() {
                     }
                 }));
 
-                setActiveSessions(active);
+                setActiveSessions([...active, ...upcoming]);
                 setPastSessions(pastEnriched);
                 if (active.length > 0) {
                     setSelectedSession(active[0]);
+                } else if (upcoming.length > 0) {
+                    setSelectedSession(upcoming[0]);
                 } else if (pastRaw.length > 0) {
                     // Fallback to most recent past session for display
                     setSelectedSession(pastRaw[0]);
@@ -467,13 +564,18 @@ function ClubContent() {
                     const sent = await getSentFriendRequests(user.uid);
                     setSentRequests(sent);
                     const friends = await getFriends(user.uid);
+                    setFriendsData(friends);
                     setFriendsList(friends.map(f => f.uid));
 
-                    // Fetch pending requests count if admin
+                    // Fetch pending requests count if admin and mark club as accessed
                     const userMembership = membersData.find((m: any) => m.userId === user.uid);
-                    if (userMembership && (userMembership.role === 'admin' || userMembership.role === 'owner')) {
-                        const requests = await getJoinRequests(clubId);
-                        setPendingRequestsCount(requests.length);
+                    if (userMembership) {
+                        updateClubLastAccessed(user.uid, clubId);
+
+                        if (userMembership.role === 'admin' || userMembership.role === 'owner') {
+                            const requests = await getJoinRequests(clubId);
+                            setPendingRequestsCount(requests.length);
+                        }
                     }
                 }
 
@@ -530,7 +632,8 @@ function ClubContent() {
         }
     }, [clubId, isAdmin, subscribeToJoinRequests]);
 
-    const isSessionActive = selectedSession && new Date(selectedSession.endDate) > new Date();
+    const isSessionActive = selectedSession && selectedSession.isActive;
+    const isSessionUpcoming = selectedSession && !selectedSession.isActive && !selectedSession.isProcessed;
 
     const handleJoinRequest = async () => {
         if (!user || !clubId) return;
@@ -632,7 +735,7 @@ function ClubContent() {
     return (
         <main className="min-h-screen bg-background pb-20">
             {/* Hero / Header Section */}
-            <div className="relative h-[40vh] min-h-[300px] overflow-hidden">
+            <div className="relative h-[25vh] min-h-[180px] overflow-hidden">
                 <div className="absolute inset-0 z-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
                     <div className="absolute inset-0 bg-primary/10 mix-blend-overlay z-10" />
@@ -648,26 +751,26 @@ function ClubContent() {
                     )}
                 </div>
 
-                <div className="relative z-20 h-full container mx-auto max-w-3xl px-6 flex flex-col justify-end pb-8">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform rotate-3 overflow-hidden">
+                <div className="relative z-20 h-full container mx-auto max-w-3xl px-6 flex flex-col items-center text-center justify-end pb-4">
+                    <div className="flex flex-col items-center gap-3 mb-4">
+                        <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center shadow-lg transform rotate-3 overflow-hidden mb-1">
                             {club.logoUrl ? (
                                 <Image
                                     src={club.logoUrl}
                                     alt={club.name}
-                                    width={64}
-                                    height={64}
+                                    width={80}
+                                    height={80}
                                     className="w-full h-full object-cover"
                                 />
                             ) : (
-                                <Users className="w-8 h-8 text-black" />
+                                <Users className="w-10 h-10 text-black" />
                             )}
                         </div>
                         <div>
-                            <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic">
+                            <h1 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter italic">
                                 {club.name}
                             </h1>
-                            <div className="flex items-center gap-3 text-muted-foreground font-bold tracking-widest text-xs uppercase mt-1">
+                            <div className="flex items-center justify-center gap-3 text-muted-foreground font-bold tracking-widest text-xs uppercase mt-2">
                                 <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {members.length} Members</span>
                                 <span className="w-1 h-1 bg-white/20 rounded-full" />
                                 <span>Est. {new Date(club.createdAt).getFullYear()}</span>
@@ -675,8 +778,8 @@ function ClubContent() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2">
-                        {isAdmin ? (
+                    <div className="flex justify-center gap-2 flex-wrap">
+                        {isAdmin && (
                             <Link href={`/club/admin?id=${clubId}`}>
                                 <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative">
                                     Admin Dashboard
@@ -687,9 +790,15 @@ function ClubContent() {
                                     )}
                                 </Button>
                             </Link>
-                        ) : isMember ? (
-                            <Button variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleLeave}>
-                                <LogOut className="w-4 h-4 mr-2" /> Leave Club
+                        )}
+                        {isMember && (
+                            <Button variant="outline" size="icon" className="border-primary/30 text-primary hover:bg-primary/20" onClick={() => setShowInviteModal(true)} title="Invite Friends">
+                                <UserPlus className="w-4 h-4" />
+                            </Button>
+                        )}
+                        {isMember ? (
+                            <Button variant="outline" size="icon" className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={handleLeave} title="Leave Club">
+                                <LogOut className="w-4 h-4" />
                             </Button>
                         ) : (
                             !(["Retro Legends", "Retro Racers", "RPG Realm"].includes(club?.name || "")) && (
@@ -712,11 +821,12 @@ function ClubContent() {
                         )}
                         <Button
                             variant="outline"
+                            size="icon"
                             className="border-white/10 text-white hover:bg-white/10"
                             onClick={() => setShowBio(!showBio)}
+                            title="Club Bio"
                         >
-                            <Info className="w-4 h-4 mr-2" />
-                            Bio
+                            <Info className="w-4 h-4" />
                         </Button>
 
                     </div>
@@ -776,6 +886,15 @@ function ClubContent() {
                 <HowToWinModal onClose={() => setShowHowTo(false)} />
             )}
 
+            <ClubInviteModal
+                isOpen={showInviteModal}
+                onClose={() => setShowInviteModal(false)}
+                club={club}
+                members={members}
+                friends={friendsData}
+                user={user}
+            />
+
             {selectedUser && (
                 <UserProfileModal
                     user={selectedUser}
@@ -788,17 +907,27 @@ function ClubContent() {
                         try {
                             await sendFriendRequest(user.uid, targetId);
                             setSentRequests(prev => [...prev, targetId]);
-                            alert("Friend request sent!");
                         } catch (e) {
                             console.error(e);
                             alert("Failed to send request");
+                        }
+                    }}
+                    onUnfriend={async (targetId) => {
+                        if (!user) return;
+                        if (!confirm("Are you sure you want to unfriend this player?")) return;
+                        try {
+                            await unfriend(user.uid, targetId);
+                            setFriendsList(prev => prev.filter(id => id !== targetId));
+                        } catch (e) {
+                            console.error(e);
+                            alert("Failed to unfriend");
                         }
                     }}
                 />
             )}
 
             {/* Navigation */}
-            <div className="container mx-auto max-w-3xl px-6 mt-8 mb-8">
+            <div className="container mx-auto max-w-3xl px-6 mt-2 mb-4">
                 <div className="grid grid-cols-4 gap-1 border-b border-white/10 pb-1">
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
                     <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Leaderboard</TabButton>
@@ -808,7 +937,7 @@ function ClubContent() {
             </div>
 
             {/* Content Area */}
-            <div className="container mx-auto max-w-3xl px-6 space-y-8 animate-fade-in-up">
+            <div className="container mx-auto max-w-3xl px-6 space-y-6 animate-fade-in-up">
 
                 {/* OVERVIEW TAB */}
                 {activeTab === "overview" && (
@@ -840,7 +969,7 @@ function ClubContent() {
                                     <CardHeader>
                                         <div className="flex justify-between items-center">
                                             <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">
-                                                {isSessionActive ? "Current Challenge" : "Previous Challenge"}
+                                                {isSessionActive ? "Current Challenge" : (isSessionUpcoming ? "Upcoming Challenge" : "Previous Challenge")}
                                             </CardDescription>
                                             <button
                                                 type="button"
@@ -897,9 +1026,9 @@ function ClubContent() {
 
                                                 <div className="mt-4 pt-4 border-t border-primary/20">
                                                     <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                                                        <Timer className="w-3 h-3" /> Time Remaining
+                                                        <Timer className="w-3 h-3" /> {isSessionUpcoming ? "Starts In" : "Time Remaining"}
                                                     </h4>
-                                                    <CountdownTimer targetDate={selectedSession.endDate} />
+                                                    <CountdownTimer targetDate={isSessionUpcoming ? selectedSession.startDate : selectedSession.endDate} />
                                                 </div>
                                                 {game?.platform && (
                                                     <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase">
@@ -936,13 +1065,17 @@ function ClubContent() {
                                                         </div>
                                                     </div>
                                                 </form>
+                                            ) : isSessionUpcoming ? (
+                                                <div className="bg-primary/5 p-4 rounded-xl text-center border border-primary/20">
+                                                    <p className="text-xs text-primary uppercase tracking-wider font-bold">Challenge Starts Soon</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-1">Get ready, the battle is about to begin!</p>
+                                                </div>
                                             ) : (
                                                 <div className="bg-white/5 p-4 rounded-xl text-center border border-white/5">
                                                     <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Challenge Has Ended</p>
-                                                    {/* Show Winner Here? */}
-                                                    {club?.latestWinnerName && (
+                                                    {(selectedSession?.winnerName || club?.latestWinnerName) && (
                                                         <p className="text-sm text-yellow-500 font-bold mt-2">
-                                                            Winner: {club.latestWinnerName} 🏆
+                                                            Winner: {selectedSession?.winnerName || club?.latestWinnerName} 🏆
                                                         </p>
                                                     )}
                                                 </div>
