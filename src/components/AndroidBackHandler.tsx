@@ -31,8 +31,8 @@ export function AndroidBackHandler() {
                     pathnameRef.current === '/welcome';
 
                 if (!isRoot) {
-                    // Navigate back in Next.js router
-                    router.back();
+                    // Navigate to home page as requested
+                    router.push('/');
                 } else {
                     // If on root page, exit or minimize. 
                     // App.exitApp() is the standard "close" behavior.
