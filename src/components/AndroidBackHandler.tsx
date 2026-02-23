@@ -24,11 +24,13 @@ export function AndroidBackHandler() {
         const setupListener = async () => {
             listenerHandle = await App.addListener('backButton', (data) => {
                 // If we can go back in app history
-                // Determine "root" pages where back button should probably exit (or minimize)
-                const isRoot = pathnameRef.current === '/' ||
-                    pathnameRef.current === '/login' ||
-                    pathnameRef.current === '/profile' ||
-                    pathnameRef.current === '/welcome';
+                // Use both Next.js router ref and native window location to catch all edges
+                const currentPath = pathnameRef.current || window.location.pathname;
+
+                const isRoot = currentPath === '/' ||
+                    currentPath === '/login' ||
+                    currentPath === '/profile' ||
+                    currentPath === '/welcome';
 
                 if (!isRoot) {
                     // Navigate to home page as requested
