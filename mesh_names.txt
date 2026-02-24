@@ -1,0 +1,11 @@
+arcade_sideL_low
+arcade_sideR_low
+arcade_main_low
+arcade_stick_low
+arcade_buttonB_low
+arcade_buttonT_low
+arcade_panel_low
+arcade_coinSlotR_low
+arcade_coinSlotL_low
+arcade_knobR_low
+arcade_knobL_low

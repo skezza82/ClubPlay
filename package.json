@@ -46,7 +46,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "firebase-tools": "^15.5.1",
+    "gltf-pipeline": "^4.3.0",
+    "jsdom": "^28.1.0",
     "tailwindcss": "^4",
+    "three-stdlib": "^2.36.1",
     "typescript": "^5"
   }
 }

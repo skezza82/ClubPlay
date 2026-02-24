@@ -2,7 +2,7 @@
 
 import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Edges } from '@react-three/drei';
+import { useFBX, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { ArcadeGame } from '@/app/arcade/page';
 
@@ -17,7 +17,6 @@ interface ArcadeMachineProps {
 
 export function ArcadeMachine({ game, position, rotation, isActive, onClick, onPlay }: ArcadeMachineProps) {
     const groupRef = useRef<THREE.Group>(null);
-    const screenRef = useRef<THREE.Mesh>(null);
 
     // Fallback texture for the screen
     const dummyTexture = useMemo(() => {
@@ -60,15 +59,50 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
                 groupRef.current.position.y += Math.sin(state.clock.elapsedTime * 2) * 0.002;
             }
         }
-        if (screenRef.current && isActive && (texture || dummyTexture)) {
-            // Very subtle screen pulse effect
-            (screenRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5 + Math.sin(state.clock.elapsedTime * 4) * 0.2;
-        }
     });
 
-    const arcadeColor = isActive ? '#7c3aed' : '#1a1a1a';
-    const emissiveColor = isActive ? '#7c3aed' : '#000000';
-    const panelColor = isActive ? '#2a2a2a' : '#111111';
+    // Load FBX Model and PBR Textures
+    const fbx = useFBX('/models/midway-pacman/02_arcade.fbx');
+    const [albedoMap, emissionMap, metallicMap, normalMap] = useTexture([
+        '/models/midway-pacman/arcade_arcade_MAT_AlbedoTransparency.png',
+        '/models/midway-pacman/arcade_arcade_MAT_Emission.png',
+        '/models/midway-pacman/arcade_arcade_MAT_MetallicSmoothness.png',
+        '/models/midway-pacman/arcade_arcade_MAT_Normal.png',
+    ]);
+
+    // Clone the FBX so each machine gets its own instance and materials can be modified independently
+    const clonedFbx = useMemo(() => {
+        const clone = fbx.clone(true);
+        clone.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+
+                // Create a standard material with our PBR maps
+                const material = new THREE.MeshStandardMaterial({
+                    map: albedoMap,
+                    emissiveMap: emissionMap,
+                    emissive: new THREE.Color('#ffffff'),
+                    // Set a default low emission so the marquee glows slightly even when inactive
+                    emissiveIntensity: isActive ? 1.0 : 0.2,
+                    metalnessMap: metallicMap,
+                    normalMap: normalMap,
+                    roughness: 0.5,
+                    metalness: 1.0,
+                });
+
+                mesh.material = material;
+            }
+        });
+
+        // Scale and position fixes often needed for raw FBX imports
+        clone.scale.set(0.015, 0.015, 0.015);
+        // Sometimes models face the wrong way
+        clone.rotation.set(0, Math.PI, 0);
+        // Adjust vertical alignment to sit on the floor
+        clone.position.set(0, 0, 0);
+
+        return clone;
+    }, [fbx, albedoMap, emissionMap, metallicMap, normalMap, texture, dummyTexture, isActive]);
 
     return (
         <group
@@ -86,102 +120,19 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             onPointerOver={() => document.body.style.cursor = 'pointer'}
             onPointerOut={() => document.body.style.cursor = 'auto'}
         >
-            {/* Main Cabinet Body */}
-            <mesh position={[0, 1.5, -0.6]}>
-                <boxGeometry args={[1.5, 3, 1.2]} />
-                <meshStandardMaterial color={arcadeColor} roughness={0.8} />
-            </mesh>
+            {/* The Loaded Midway Pac-Man Model */}
+            <primitive object={clonedFbx} />
 
-            {/* Screen Hood (Top extended out) */}
-            <mesh position={[0, 2.8, 0.1]}>
-                <boxGeometry args={[1.5, 0.4, 0.6]} />
-                <meshStandardMaterial color={arcadeColor} />
-            </mesh>
-
-            {/* Screen Panel (Slanted) */}
-            <mesh position={[0, 2.0, -0.1]} rotation={[-Math.PI / 8, 0, 0]}>
-                <boxGeometry args={[1.3, 1.2, 0.1]} />
-                <meshStandardMaterial color="#000" />
-            </mesh>
-
-            {/* The Screen Display */}
-            <mesh ref={screenRef} position={[0, 2.0, -0.04]} rotation={[-Math.PI / 8, 0, 0]}>
-                <planeGeometry args={[1.2, 1.1]} />
+            {/* The Screen Display Overlay - We lay this Plane precisely over the physical screen area on the FBX */}
+            <mesh position={[0, 2.0, 0.15]} rotation={[-Math.PI / 10, 0, 0]}>
+                {/* Adjust Plane args to fit the screen shape of the midway cabinet */}
+                <planeGeometry args={[0.9, 0.8]} />
                 <meshStandardMaterial
                     map={texture || dummyTexture}
                     emissive={isActive ? '#ffffff' : '#000000'}
                     emissiveMap={texture || dummyTexture}
-                    emissiveIntensity={isActive ? 0.5 : 0}
+                    emissiveIntensity={isActive ? 0.8 : 0}
                 />
-            </mesh>
-
-            {/* Control Panel Base */}
-            <mesh position={[0, 1.2, 0.4]} rotation={[Math.PI / 12, 0, 0]}>
-                <boxGeometry args={[1.5, 0.15, 0.7]} />
-                <meshStandardMaterial color={panelColor} roughness={0.5} />
-            </mesh>
-
-            {/* Joystick Base */}
-            <mesh position={[-0.4, 1.3, 0.4]}>
-                <cylinderGeometry args={[0.08, 0.1, 0.05]} />
-                <meshStandardMaterial color="#111" />
-            </mesh>
-            {/* Joystick Stick */}
-            <mesh position={[-0.4, 1.4, 0.4]} rotation={[0.1, 0, 0.1]}>
-                <cylinderGeometry args={[0.02, 0.02, 0.2]} />
-                <meshStandardMaterial color="#ccc" metalness={0.8} />
-            </mesh>
-            {/* Joystick Ball */}
-            <mesh position={[-0.41, 1.5, 0.41]}>
-                <sphereGeometry args={[0.08]} />
-                <meshStandardMaterial color="#ef4444" roughness={0.2} />
-            </mesh>
-
-            {/* Buttons */}
-            <mesh position={[0.2, 1.28, 0.35]}>
-                <cylinderGeometry args={[0.05, 0.05, 0.02]} />
-                <meshStandardMaterial color="#3b82f6" roughness={0.2} />
-            </mesh>
-            <mesh position={[0.4, 1.28, 0.45]}>
-                <cylinderGeometry args={[0.05, 0.05, 0.02]} />
-                <meshStandardMaterial color="#eab308" roughness={0.2} />
-            </mesh>
-            <mesh position={[0.6, 1.28, 0.35]}>
-                <cylinderGeometry args={[0.05, 0.05, 0.02]} />
-                <meshStandardMaterial color="#ef4444" roughness={0.2} />
-            </mesh>
-
-            {/* Marquee Glowing Sign */}
-            <mesh position={[0, 2.8, 0.41]}>
-                <planeGeometry args={[1.4, 0.3]} />
-                <meshStandardMaterial
-                    color={emissiveColor}
-                    emissive={emissiveColor}
-                    emissiveIntensity={isActive ? 1.5 : 0.2}
-                />
-            </mesh>
-            {/* Game Title on Marquee */}
-            {dummyTexture && (
-                <Text
-                    position={[0, 2.8, 0.42]}
-                    fontSize={isActive ? 0.15 : 0.12}
-                    color="#ffffff"
-                    anchorX="center"
-                    anchorY="middle"
-                    maxWidth={1.3}
-                >
-                    {game.title}
-                </Text>
-            )}
-
-            {/* Coin slots */}
-            <mesh position={[-0.3, 0.6, -0.05]}>
-                <boxGeometry args={[0.1, 0.2, 0.05]} />
-                <meshStandardMaterial color="#555" metalness={0.8} />
-            </mesh>
-            <mesh position={[0.3, 0.6, -0.05]}>
-                <boxGeometry args={[0.1, 0.2, 0.05]} />
-                <meshStandardMaterial color="#555" metalness={0.8} />
             </mesh>
 
             {/* Glowing effect below for active machine */}
