@@ -1008,8 +1008,8 @@ function ClubContent() {
                     <div className="flex justify-center gap-2 flex-wrap">
                         {isAdmin && (
                             <Link href={`/club/admin?id=${clubId}`}>
-                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative">
-                                    Admin Dashboard
+                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative text-xs md:text-sm h-10 px-3 md:px-4">
+                                    Admin
                                     {pendingRequestsCount > 0 && (
                                         <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-black text-[10px] font-black border border-surface z-20 shadow-[0_0_10px_rgba(102,252,241,0.5)] animate-pulse">
                                             {pendingRequestsCount}
