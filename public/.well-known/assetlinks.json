@@ -1,0 +1,16 @@
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls",
+            "delegate_permission/common.get_login_creds"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.clubplaygaming.app",
+            "sha256_cert_fingerprints": [
+                "40:4B:91:6C:98:F3:03:6D:BE:9C:87:38:97:ED:0B:AB:38:D3:9E:87:EF:9E:9E:EA:16:8B:CA:EB:C2:61:45:42",
+                "32:A9:8F:3C:4F:3D:60:6A:55:A1:F8:86:A4:9E:85:E6:F5:63:C0:EF:0B:87:9D:41:6A:24:C4:C4:0D:F4:3D:ED"
+            ]
+        }
+    }
+]
