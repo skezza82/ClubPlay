@@ -783,42 +783,6 @@ export default function ProfilePage() {
                             </Card>
                         )}
 
-                        {!isNative && (
-                            <div className="pt-8 border-t border-white/5 space-y-4">
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/60 text-center">
-                                    Get the Native App
-                                </p>
-                                <div className="flex flex-wrap justify-center gap-4">
-                                    <a
-                                        href="https://play.google.com/store/apps/details?id=com.clubplaygaming.app"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-block"
-                                    >
-                                        <Button size="sm" className="bg-black hover:bg-neutral-900 border border-white/10 text-white h-10 px-4 rounded-xl flex items-center gap-3 transition-all">
-                                            <Gamepad2 className="w-4 h-4 text-white" />
-                                            <div className="flex flex-col items-start leading-none">
-                                                <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Get it on</span>
-                                                <span className="text-[11px] font-black italic tracking-tighter">Google Play</span>
-                                            </div>
-                                        </Button>
-                                    </a>
-
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="border-white/5 bg-white/2 text-white h-10 px-4 rounded-xl flex items-center gap-3 opacity-50 cursor-not-allowed"
-                                        disabled
-                                    >
-                                        <Layers className="w-4 h-4 text-white" />
-                                        <div className="flex flex-col items-start leading-none">
-                                            <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Coming Soon</span>
-                                            <span className="text-[11px] font-black italic tracking-tighter opacity-70">App Store</span>
-                                        </div>
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
 
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">

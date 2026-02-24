@@ -66,6 +66,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { GOTMHistoryModal } from "@/components/GOTMHistoryModal";
+import { Share } from "@capacitor/share";
+import { Capacitor } from "@capacitor/core";
 
 
 // Add the missing getLibretroBoxartUrl helper
@@ -851,11 +853,18 @@ function ClubContent() {
     const handleShareClub = async () => {
         if (!club) return;
 
-        const shareUrl = `${window.location.origin}/club?id=${club.id}`;
+        // Use production URL if on native platform to avoid localhost issue
+        const baseUrl = Capacitor.isNativePlatform()
+            ? "https://clubplay.web.app"
+            : window.location.origin;
+
+        const shareUrl = `${baseUrl}/club?id=${club.id}`;
+
         const shareData = {
             title: `Join ${club.name} on Club Play!`,
             text: `Come join my club "${club.name}" and compete in retro game challenges!`,
-            url: shareUrl
+            url: shareUrl,
+            dialogTitle: `Share ${club.name}`
         };
 
         const fallbackCopy = async () => {
@@ -896,14 +905,17 @@ function ClubContent() {
         };
 
         try {
-            if (navigator.share) {
+            if (Capacitor.isNativePlatform() && (await Share.canShare()).value) {
+                await Share.share(shareData);
+            } else if (navigator.share) {
                 await navigator.share(shareData);
             } else {
                 await fallbackCopy();
             }
         } catch (err) {
             console.error('Error sharing:', err);
-            // If user cancels, it throws AbortError. Ignore it.
+            // If user cancels, it throws AbortError (web). 
+            // Handle if it's an error.
             if (err instanceof Error && err.name === 'AbortError') {
                 return;
             }
