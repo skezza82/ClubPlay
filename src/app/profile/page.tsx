@@ -15,8 +15,6 @@ import { getUserClubs, updateUserProfile, getFriendRequests, respondToFriendRequ
 import { db } from "@/lib/firebase";
 import { doc, getDoc, query, where, collection, onSnapshot } from "firebase/firestore";
 import { getXpLevel, getXpProgress, addXp, setXp } from "@/lib/firestore-service";
-import { usePWA } from "@/context/PWAContext";
-import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import { useTheme, ThemeType, BgType } from "@/context/ThemeContext";
@@ -47,6 +45,7 @@ export default function ProfilePage() {
     const [targetXp, setTargetXp] = useState("");
     const [isUpdatingXp, setIsUpdatingXp] = useState(false);
     const [isXpLoaded, setIsXpLoaded] = useState(false);
+    const [isNative, setIsNative] = useState(false);
 
     const XP_TASKS = [
         { id: "review", name: "Post GOTM Review", xp: 50 },
@@ -134,6 +133,7 @@ export default function ProfilePage() {
             }
         };
         fetchAppInfo();
+        setIsNative(!!(window as any).Capacitor);
     }, [user]);
 
     const router = useRouter();
@@ -605,7 +605,6 @@ export default function ProfilePage() {
                             </CardContent>
                         </Card>
 
-                        <InstallAppButton />
 
                         {/* Developer Console (Test Buttons) - Admin Only */}
                         {isDeveloper && (
@@ -784,9 +783,46 @@ export default function ProfilePage() {
                             </Card>
                         )}
 
+                        {!isNative && (
+                            <div className="pt-8 border-t border-white/5 space-y-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/60 text-center">
+                                    Get the Native App
+                                </p>
+                                <div className="flex flex-wrap justify-center gap-4">
+                                    <a
+                                        href="https://play.google.com/store/apps/details?id=com.clubplaygaming.app"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-block"
+                                    >
+                                        <Button size="sm" className="bg-black hover:bg-neutral-900 border border-white/10 text-white h-10 px-4 rounded-xl flex items-center gap-3 transition-all">
+                                            <Gamepad2 className="w-4 h-4 text-white" />
+                                            <div className="flex flex-col items-start leading-none">
+                                                <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Get it on</span>
+                                                <span className="text-[11px] font-black italic tracking-tighter">Google Play</span>
+                                            </div>
+                                        </Button>
+                                    </a>
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-white/5 bg-white/2 text-white h-10 px-4 rounded-xl flex items-center gap-3 opacity-50 cursor-not-allowed"
+                                        disabled
+                                    >
+                                        <Layers className="w-4 h-4 text-white" />
+                                        <div className="flex flex-col items-start leading-none">
+                                            <span className="text-[8px] uppercase font-bold text-muted-foreground tracking-widest">Coming Soon</span>
+                                            <span className="text-[11px] font-black italic tracking-tighter opacity-70">App Store</span>
+                                        </div>
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
-                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v1.71"}
+                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v2.0.1"}
                             </p>
                             <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
                                 Update: {new Date().toLocaleString('en-US', {
@@ -805,65 +841,3 @@ export default function ProfilePage() {
     );
 }
 
-function InstallAppButton() {
-    const { isInstallable, install, isIOS, isInstalled } = usePWA();
-    const [showInstructions, setShowInstructions] = useState(false);
-
-    // Hide if already running as PWA
-    if (isInstalled) return null;
-
-    // Determine mode: Native Trigger vs Manual Instructions
-    const hasNativeTrigger = isInstallable;
-
-    // Instructions content based on platform
-    // Default to generic "Browser Menu" instructions if not iOS
-    const isGenericBrowser = !isIOS && !hasNativeTrigger;
-
-    const handleClick = () => {
-        if (hasNativeTrigger) {
-            install();
-        } else {
-            setShowInstructions(!showInstructions);
-        }
-    };
-
-    return (
-        <Card className="border-primary/20 bg-surface/40 backdrop-blur-md overflow-hidden animate-fade-in-up">
-            <CardContent className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                        <Download className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-white uppercase tracking-wider">Install App</h4>
-                        <p className="text-xs text-muted-foreground">Get the full experience</p>
-                    </div>
-                </div>
-                <Button
-                    onClick={handleClick}
-                    className="neon-border font-bold uppercase tracking-widest"
-                >
-                    {hasNativeTrigger ? "Install Now" : (showInstructions ? "Close Help" : "How to Install")}
-                </Button>
-            </CardContent>
-
-            {/* Instructions Dropdown */}
-            {showInstructions && (
-                <div className="bg-primary/5 p-4 border-t border-white/5 animate-fade-in">
-                    {isIOS ? (
-                        <p className="text-white text-sm leading-relaxed mb-3">
-                            Tap <span className="inline-block px-1 border border-white/20 rounded bg-white/5 mx-1 font-bold italic">Share</span> then select <span className="text-primary font-bold italic">"Add to Home Screen"</span>
-                        </p>
-                    ) : (
-                        <p className="text-white text-sm leading-relaxed mb-3">
-                            Tap your browser's menu (usually <span className="font-bold">⋮</span> or <span className="font-bold">☰</span>) and select <span className="text-primary font-bold italic">"Install App"</span> or <span className="text-primary font-bold italic">"Add to Home Screen"</span>
-                        </p>
-                    )}
-                    <div className="flex justify-center text-primary">
-                        <Download className="w-4 h-4 animate-bounce" />
-                    </div>
-                </div>
-            )}
-        </Card>
-    )
-}

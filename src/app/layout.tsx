@@ -52,7 +52,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log("ClubPlay App Version: %cBuild 2026-02-18 17:55", "color: #00ff00; font-weight: bold;");
+  console.log("ClubPlay App Version: %cBuild 2026-02-24 11:13 (v2.0.1)", "color: #00ff00; font-weight: bold;");
 
   return (
     <html lang="en" className="dark">
@@ -80,6 +80,7 @@ export default function RootLayout({
 
               <AndroidBackHandler />
               <Navbar />
+              <InstallPrompt />
               <main className="pb-16 min-h-screen relative z-10">
                 {children}
               </main>

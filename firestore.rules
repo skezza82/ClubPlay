@@ -11,11 +11,8 @@ service cloud.firestore {
     }
 
     function hasAdminAccess(clubId) {
-      let membershipPath = /databases/$(database)/documents/memberships/$(request.auth.uid + '_' + clubId);
-      return request.auth != null && (
-        exists(membershipPath) && 
-        (get(membershipPath).data.role == 'admin' || get(membershipPath).data.role == 'owner')
-      );
+      let membership = get(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + clubId));
+      return request.auth != null && membership != null && (membership.data.role == 'admin' || membership.data.role == 'owner');
     }
 
     function isDeveloper() {

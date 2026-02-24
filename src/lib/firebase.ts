@@ -6,7 +6,7 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCVuiErt5sljD3XrDpjn-N4OE41Z_CkRUE",
-    authDomain: "club-play-app.firebaseapp.com",
+    authDomain: "clubplay.web.app",
     projectId: "club-play-app",
     storageBucket: "club-play-app.firebasestorage.app",
     messagingSenderId: "160859763710",

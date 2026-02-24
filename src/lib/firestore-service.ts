@@ -649,9 +649,10 @@ export const subscribeToJoinRequests = (clubId: string, callback: (requests: any
     );
 
     return onSnapshot(q, (snapshot) => {
-        // Simple map first to get IDs, enrichment can happen in callback or here
         const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(requests);
+    }, (error) => {
+        console.error(`Error subscribing to join requests for club ${clubId}:`, error);
     });
 };
 
@@ -1634,86 +1635,130 @@ export const sendClubMessage = async (clubId: string, userId: string, text: stri
 };
 
 export const processSessionResults = async (sessionId: string, clubId: string) => {
-    // 1. Fetch scores for the session
-    const scores = await getSessionScores(sessionId);
+    // We use a transaction to ensure that if multiple users trigger this simultaneously, 
+    // only one succeeds in awarding XP and points.
+    return await runTransaction(db, async (transaction) => {
+        const sessionRef = doc(db, "weekly_sessions", sessionId);
+        const sessionDoc = await transaction.get(sessionRef);
 
-    if (scores.length === 0) {
-        // Just mark processed
-        await markSessionProcessed(sessionId);
-        return 0;
-    }
+        if (!sessionDoc.exists()) throw new Error("Session not found");
+        const sessionData = sessionDoc.data() as WeeklySession;
 
-    // 1.5 Fetch session to check challenge type
-    const sessionDocRef = doc(db, "weekly_sessions", sessionId);
-    const sessionDoc = await getDoc(sessionDocRef);
-    if (!sessionDoc.exists()) throw new Error("Session not found");
-    const sessionData = sessionDoc.data() as WeeklySession;
-
-    // 2. Sort scores with tie-breaker
-    const sortedScores = [...scores].sort((a, b) => {
-        // Primary Sort: Score Value
-        if (sessionData.challengeType === 'speed') {
-            if (a.scoreValue !== b.scoreValue) {
-                return a.scoreValue - b.scoreValue; // Lower is better
-            }
-        } else {
-            if (a.scoreValue !== b.scoreValue) {
-                return b.scoreValue - a.scoreValue; // Higher is better
-            }
+        // 0. IDEMPOTENCY CHECK: If already processed, exit gracefully
+        if (sessionData.isProcessed) {
+            console.log(`Session ${sessionId} already processed. Skipping.`);
+            return 0;
         }
 
-        // Secondary Sort: Submission Time (Earlier is better)
-        // If submittedAt is missing, treat as "infinity" (latest possible) to penalize
-        const timeA = a.submittedAt ? (a.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
-        const timeB = b.submittedAt ? (b.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+        // 1. Fetch scores for the session (Scores are usually many, so we fetch them outside or handle them carefully)
+        // Note: Transactions have limits on getDocs. We'll fetch scores normally but 
+        // the transaction protects the "isProcessed" flag update.
+        const scores = await getSessionScores(sessionId);
 
-        return timeA - timeB;
-    });
+        if (scores.length === 0) {
+            transaction.update(sessionRef, { isProcessed: true, isActive: false });
+            return 0;
+        }
 
-    // 3. Calculate points
-    const updates: { userId: string, pointsToAdd: number, isWinner?: boolean, displayName?: string }[] = [];
-
-    sortedScores.forEach((score, index) => {
-        let points = 25;
-        if (index === 0) points = 100;
-        else if (index === 1) points = 75;
-        else if (index === 2) points = 50;
-
-        updates.push({
-            userId: score.userId,
-            pointsToAdd: points,
-            isWinner: index === 0,
-            displayName: score.displayName
+        // 2. Sort scores with tie-breaker
+        const sortedScores = [...scores].sort((a, b) => {
+            if (sessionData.challengeType === 'speed') {
+                if (a.scoreValue !== b.scoreValue) return a.scoreValue - b.scoreValue;
+            } else {
+                if (a.scoreValue !== b.scoreValue) return b.scoreValue - a.scoreValue;
+            }
+            const timeA = a.submittedAt ? (a.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+            const timeB = b.submittedAt ? (b.submittedAt.seconds || 0) : Number.MAX_SAFE_INTEGER;
+            return timeA - timeB;
         });
+
+        const winner = sortedScores[0];
+
+        // 3. Prepare Standings Updates
+        const updates: { userId: string, pointsToAdd: number, isWinner?: boolean, displayName?: string }[] = [];
+        sortedScores.forEach((score, index) => {
+            let points = 25;
+            if (index === 0) points = 100;
+            else if (index === 1) points = 75;
+            else if (index === 2) points = 50;
+
+            updates.push({
+                userId: score.userId,
+                pointsToAdd: points,
+                isWinner: index === 0,
+                displayName: score.displayName
+            });
+
+            // Update user standing ref in transaction
+            const standingId = `${clubId}_${score.userId}`;
+            const standingRef = doc(db, "season_standings", standingId);
+            transaction.set(standingRef, {
+                clubId,
+                userId: score.userId,
+                points: increment(points),
+                wins: index === 0 ? increment(1) : increment(0),
+                displayName: score.displayName || "Unknown"
+            }, { merge: true });
+        });
+
+        // 4. Update Session Status
+        transaction.update(sessionRef, {
+            isProcessed: true,
+            isActive: false,
+            endDate: new Date().toISOString(),
+            winnerId: winner.userId,
+            winnerName: winner.displayName || "Unknown"
+        });
+
+        // 5. Update Club with latest winner
+        const clubRef = doc(db, "clubs", clubId);
+        transaction.update(clubRef, {
+            latestWinnerId: winner.userId,
+            latestWinnerName: winner.displayName || "Unknown"
+        });
+
+        // 6. Award XP to Winner (250 XP)
+        const userRef = doc(db, "users", winner.userId);
+        transaction.update(userRef, {
+            xp: increment(250)
+        });
+
+        return updates.length;
     });
+};
 
-    // 4. Update Standings
-    await updateClubStandings(clubId, updates);
+export const checkAndEndActiveSessions = async (clubId: string) => {
+    const sessionsRef = collection(db, "weekly_sessions");
+    const q = query(
+        sessionsRef,
+        where("clubId", "==", clubId),
+        where("isActive", "==", true),
+        where("isProcessed", "==", false)
+    );
 
-    // 5. Mark Session Processed & Inactive & Store Winner
-    const winner = sortedScores.length > 0 ? sortedScores[0] : null;
-    const sessionRef = doc(db, "weekly_sessions", sessionId);
-    await updateDoc(sessionRef, {
-        isProcessed: true,
-        isActive: false,
-        endDate: new Date().toISOString(),
-        winnerId: winner ? winner.userId : null,
-        winnerName: winner ? (winner.displayName || "Unknown") : null
-    });
+    const snapshot = await getDocs(q);
+    const now = new Date();
 
-    // 6. Update Club with latest winner
-    const clubRef = doc(db, "clubs", clubId);
-    await updateDoc(clubRef, {
-        latestWinnerId: winner ? winner.userId : null,
-        latestWinnerName: winner ? (winner.displayName || "Unknown") : null
-    });
+    for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        let endDate: Date;
+        if (data.endDate && data.endDate.toDate) {
+            endDate = data.endDate.toDate();
+        } else if (data.endDate) {
+            endDate = new Date(data.endDate);
+        } else {
+            continue;
+        }
 
-    // 7. Award XP to Winner (250 XP)
-    if (winner && winner.userId) {
-        await addXp(winner.userId, 250, "Won Weekly Challenge");
+        if (endDate <= now) {
+            console.log(`Auto-ending active session ${docSnap.id}`);
+            try {
+                await processSessionResults(docSnap.id, clubId);
+            } catch (err) {
+                console.error("Failed to auto-end session:", docSnap.id, err);
+            }
+        }
     }
-
-    return updates.length;
 };
 
 export const deleteSession = async (sessionId: string) => {
@@ -1944,6 +1989,8 @@ export const listenToFriendRequests = (userId: string, callback: (requests: Frie
         callback(requests);
     });
 };
+
+
 
 export const respondToFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
     const requestRef = doc(db, "friend_requests", requestId);
@@ -2225,6 +2272,45 @@ export const getUserGOTMReview = async (gotmId: string, userId: string) => {
     const snap = await getDoc(reviewRef);
     if (snap.exists()) {
         return snap.data() as GOTMReview;
+    }
+    return null;
+};
+
+/**
+ * Marks the Arcade Explorer quest as completed in Firestore
+ */
+export const markArcadeVisited = async (userId: string) => {
+    if (!userId) return;
+    try {
+        const userRef = doc(db, "users", userId);
+        await setDoc(userRef, {
+            questArcadeVisitedAwarded: true,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+        console.log(`[Quest] Marked Arcade as visited for ${userId} in Firestore`);
+    } catch (e) {
+        console.error("Error marking arcade quest as done:", e);
+    }
+};
+
+/**
+ * Retrieves the status of various "Rookie Quests" from Firestore
+ */
+export const getUserQuestStatus = async (userId: string) => {
+    if (!userId) return null;
+    try {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        if (userDoc.exists()) {
+            const data = userDoc.data();
+            return {
+                arcadeVisited: !!data.questArcadeVisitedAwarded,
+                avatarAwarded: !!data.questAvatarAwarded,
+                handleAwarded: !!data.questHandleAwarded,
+                clubJoinedAwarded: !!data.questClubJoinedAwarded
+            };
+        }
+    } catch (e) {
+        console.error("Error fetching user quest status:", e);
     }
     return null;
 };

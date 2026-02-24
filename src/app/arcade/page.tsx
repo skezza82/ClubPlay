@@ -10,7 +10,7 @@ import Image from "next/image";
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { addXp } from "@/lib/firestore-service";
+import { addXp, markArcadeVisited } from "@/lib/firestore-service";
 
 interface ArcadeGame {
     id: string;
@@ -70,6 +70,7 @@ export default function ArcadePage() {
         const visited = localStorage.getItem('arcade_visited') === 'true';
         if (!visited && user) {
             addXp(user.uid, 25, "Arcade Explorer Quest");
+            markArcadeVisited(user.uid); // Persist to Firestore
             localStorage.setItem('arcade_visited', 'true');
         }
     }, [user]);

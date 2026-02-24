@@ -31,6 +31,7 @@ import {
     unfriend,
     sendClubInvite,
     checkAndActivateUpcomingSession,
+    checkAndEndActiveSessions,
     updateClubLastAccessed,
     uploadVerificationImage
 } from "@/lib/firestore-service";
@@ -499,29 +500,18 @@ function ClubContent() {
             return;
         }
 
-        const fetchData = async () => {
-            try {
-                const clubData = await getClub(clubId);
-                setClub(clubData);
+        const setSessionsState = (sessions: any[], now: Date) => {
+            const active = sessions.filter(s => s.isActive && !s.isProcessed && (s.endDate ? new Date(s.endDate) > now : true));
+            const pastRaw = sessions.filter(s => s.isProcessed || (!s.isActive && (s.endDate ? new Date(s.endDate) <= now : true))).sort((a, b) => {
+                const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
+                const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
+                return dateB - dateA;
+            });
 
-                // Check for scheduled sessions that should be active
-                await checkAndActivateUpcomingSession(clubId);
-
-                const membersData = await getClubMembers(clubId);
-                setMembers(membersData);
-
-                const sessions = await getClubSessions(clubId);
-                const now = new Date();
-                const active = sessions.filter(s => s.isActive);
-                const upcoming = sessions.filter(s => !s.isActive && !s.isProcessed);
-                const pastRaw = sessions.filter(s => s.isProcessed || (!s.isActive && (s.endDate ? new Date(s.endDate) <= now : true))).sort((a, b) => {
-                    const dateA = a.endDate ? new Date(a.endDate).getTime() : 0;
-                    const dateB = b.endDate ? new Date(b.endDate).getTime() : 0;
-                    return dateB - dateA;
-                });
-
-                // Fetch top scores for each past session with robust error handling
-                const pastEnriched = await Promise.all(pastRaw.map(async (session) => {
+            // Enrich only recent past sessions to save performance
+            const enrich = async () => {
+                const recentPast = pastRaw.slice(0, 10);
+                const pastEnriched = await Promise.all(recentPast.map(async (session) => {
                     try {
                         const scores = await getClubSessionScores(session.id);
                         const sorted = [...scores].sort((a, b) => {
@@ -533,7 +523,7 @@ function ClubContent() {
                         return {
                             ...session,
                             topScores: sorted.slice(0, 3),
-                            challengeType: session.challengeType || 'score' // Ensure type exists
+                            challengeType: session.challengeType || 'score'
                         };
                     } catch (e) {
                         console.error(`Error fetching scores for session ${session.id}:`, e);
@@ -541,16 +531,40 @@ function ClubContent() {
                     }
                 }));
 
-                setActiveSessions([...active, ...upcoming]);
-                setPastSessions(pastEnriched);
+                // Append the remaining non-enriched sessions if needed, or just show top 10
+                const remainingRaw = pastRaw.slice(10).map(s => ({ ...s, topScores: [] }));
+
+                setActiveSessions(active);
+                setPastSessions([...pastEnriched, ...remainingRaw]);
+
+                // Default selection logic
                 if (active.length > 0) {
                     setSelectedSession(active[0]);
-                } else if (upcoming.length > 0) {
-                    setSelectedSession(upcoming[0]);
                 } else if (pastRaw.length > 0) {
-                    // Fallback to most recent past session for display
                     setSelectedSession(pastRaw[0]);
                 }
+            };
+            enrich();
+        };
+
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                const clubData = await getClub(clubId);
+                setClub(clubData);
+
+                // Check for scheduled sessions that should be active
+                await checkAndActivateUpcomingSession(clubId);
+                // Auto-end expired sessions
+                await checkAndEndActiveSessions(clubId);
+
+                const membersData = await getClubMembers(clubId);
+                setMembers(membersData);
+
+                const sessions = await getClubSessions(clubId);
+                const now = new Date();
+
+                setSessionsState(sessions, now);
 
                 const standings = await getSeasonStandings(clubId);
                 setSeasonStandings(standings);
@@ -587,10 +601,9 @@ function ClubContent() {
                         }
                     }
                 }
-
-                setLoading(false);
-            } catch (error) {
-                console.error("Error fetching club data:", error);
+            } catch (err) {
+                console.error("Error loading club details:", err);
+            } finally {
                 setLoading(false);
             }
         };
@@ -1336,7 +1349,7 @@ function ClubContent() {
                                                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Join this club to submit scores</p>
                                             </div>
                                         ) : (
-                                            <div className="text-center py-4 text-muted-foreground italic">No active challenge right now.</div>
+                                            <div className="text-center py-4 text-muted-foreground italic">The admin hasn't set the next challenge game yet.</div>
                                         )}
                                     </CardContent>
                                 </Card>

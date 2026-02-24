@@ -551,3 +551,112 @@ Do not include markdown formatting or backticks, just raw JSON.`;
         res.status(500).send({ error: "Internal server error during verification", details: error.message });
     }
 });
+
+/**
+ * Automatically processes expired challenges every 10 minutes.
+ * Requires Blaze plan for scheduled functions.
+ */
+exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").onRun(async (context) => {
+    const db = admin.firestore();
+    const now = new Date();
+
+    console.log("Running auto-process-challenges at", now.toISOString());
+
+    try {
+        // Find active sessions that have passed their end date
+        const expiredSessions = await db.collection("weekly_sessions")
+            .where("isActive", "==", true)
+            .where("isProcessed", "==", false)
+            .get();
+
+        if (expiredSessions.empty) {
+            console.log("No expired challenges found.");
+            return null;
+        }
+
+        const processPromises = [];
+
+        for (const doc of expiredSessions.docs) {
+            const data = doc.data();
+            const endDate = new Date(data.endDate);
+
+            if (endDate <= now) {
+                console.log(`Challenge ${doc.id} (${data.gameTitle}) has expired. Processing...`);
+                // We'll wrap the processing logic similar to processSessionResults but using admin SDK
+                processPromises.push((async () => {
+                    const sessionId = doc.id;
+                    const clubId = data.clubId;
+
+                    // Fetch scores
+                    const scoresSnap = await db.collection("scores")
+                        .where("sessionId", "==", sessionId)
+                        .get();
+
+                    const scores = scoresSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                    if (scores.length === 0) {
+                        await doc.ref.update({ isProcessed: true, isActive: false });
+                        return;
+                    }
+
+                    // Sort
+                    scores.sort((a, b) => {
+                        if (data.challengeType === "speed") {
+                            if (a.scoreValue !== b.scoreValue) return a.scoreValue - b.scoreValue;
+                        } else {
+                            if (a.scoreValue !== b.scoreValue) return b.scoreValue - a.scoreValue;
+                        }
+                        return (a.submittedAt?.seconds || 0) - (b.submittedAt?.seconds || 0);
+                    });
+
+                    const winner = scores[0];
+
+                    // Transactional Update
+                    await db.runTransaction(async (t) => {
+                        // User XP
+                        const userRef = db.collection("users").doc(winner.userId);
+                        t.update(userRef, { xp: admin.firestore.FieldValue.increment(250) });
+
+                        // Club Standing Updates
+                        for (let i = 0; i < scores.length; i++) {
+                            const s = scores[i];
+                            let points = 25;
+                            if (i === 0) points = 100;
+                            else if (i === 1) points = 75;
+                            else if (i === 2) points = 50;
+
+                            const standingRef = db.collection("season_standings").doc(`${clubId}_${s.userId}`);
+                            t.set(standingRef, {
+                                clubId,
+                                userId: s.userId,
+                                points: admin.firestore.FieldValue.increment(points),
+                                wins: i === 0 ? admin.firestore.FieldValue.increment(1) : admin.firestore.FieldValue.increment(0),
+                                displayName: s.displayName || "Unknown"
+                            }, { merge: true });
+                        }
+
+                        // Session
+                        t.update(doc.ref, {
+                            isProcessed: true,
+                            isActive: false,
+                            winnerId: winner.userId,
+                            winnerName: winner.displayName || "Unknown"
+                        });
+
+                        // Club
+                        t.update(db.collection("clubs").doc(clubId), {
+                            latestWinnerId: winner.userId,
+                            latestWinnerName: winner.displayName || "Unknown"
+                        });
+                    });
+                })());
+            }
+        }
+
+        await Promise.all(processPromises);
+        console.log(`Finished processing ${processPromises.length} challenges.`);
+    } catch (err) {
+        console.error("Auto-process failed:", err);
+    }
+    return null;
+});

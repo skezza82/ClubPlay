@@ -11,6 +11,12 @@ export function InstallPrompt() {
     const [isIOS, setIsIOS] = useState(false);
 
     useEffect(() => {
+        // If running in native Capacitor app, don't show PWA prompt
+        if ((window as any).Capacitor) {
+            setIsVisible(false);
+            return;
+        }
+
         setIsIOS(contextIsIOS);
 
         if (deferredPrompt) {
