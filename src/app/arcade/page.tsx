@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Gamepad2, LogOut, Play, Zap, Trophy } from "lucide-react";
-import Image from "next/image";
+import { Gamepad2, LogOut, Play } from "lucide-react";
 // Tetris import removed
 
 
-import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { addXp, markArcadeVisited } from "@/lib/firestore-service";
+import dynamic from "next/dynamic";
 
-interface ArcadeGame {
+const ArcadeCarousel = dynamic(() => import('@/components/3d/ArcadeCarousel'), { ssr: false });
+
+export interface ArcadeGame {
     id: string;
     title: string;
     description: string;
@@ -62,7 +62,8 @@ const GAMES: ArcadeGame[] = [
 ];
 
 export default function ArcadePage() {
-    const [activeGame, setActiveGame] = useState<ArcadeGame | null>(null);
+    const [activeGameId, setActiveGameId] = useState<string | null>(null);
+    const [playingGame, setPlayingGame] = useState<ArcadeGame | null>(null);
     const { user } = useAuth();
 
     useEffect(() => {
@@ -89,57 +90,45 @@ export default function ArcadePage() {
                 </p>
             </div>
 
-            {/* Game Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {GAMES.map((game) => (
-                    <Card
-                        key={game.id}
-                        className="group overflow-hidden border-white/10 bg-surface/50 hover:border-primary/50 transition-all duration-300 cursor-pointer hover:shadow-[0_0_30px_rgba(124,58,237,0.2)]"
-                        onClick={() => setActiveGame(game)}
-                    >
-                        <div className="aspect-video bg-black relative overflow-hidden">
-                            <Image
-                                src={game.image}
-                                alt={game.title}
-                                fill
-                                className="object-contain p-8 group-hover:scale-110 transition-transform duration-500"
-                            />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                <Button className="text-lg font-black italic uppercase tracking-widest neon-border scale-90 group-hover:scale-100 transition-transform">
-                                    <Play className="w-5 h-5 mr-2" /> Play Now
-                                </Button>
-                            </div>
-                            {/* Publisher Badge */}
-                            <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold uppercase text-white/50 border border-white/10">
-                                {game.publisher}
-                            </div>
-                        </div>
-                        <CardHeader className="relative">
-                            <div className="absolute top-0 transform -translate-y-1/2 right-4 w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-lg group-hover:bg-white transition-colors">
-                                <Zap className="w-5 h-5 text-black" />
-                            </div>
-                            <CardTitle className="text-2xl font-black text-white italic uppercase">{game.title}</CardTitle>
-                            <CardDescription className="text-white/60">{game.description}</CardDescription>
-                        </CardHeader>
+            {/* Arcade 3D Carousel */}
+            <div className="w-full relative h-[60vh] md:h-[70vh]">
+                <ArcadeCarousel
+                    games={GAMES}
+                    activeGameId={activeGameId}
+                    setActiveGameId={setActiveGameId}
+                    onPlay={setPlayingGame}
+                />
 
-
-                    </Card>
-                ))}
+                {/* Play Button Overlay */}
+                {activeGameId && (
+                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-fade-in-up flex flex-col items-center gap-4 pointer-events-none">
+                        <Button
+                            className="text-lg font-black italic uppercase tracking-widest neon-border h-14 px-8 shadow-[0_0_30px_rgba(124,58,237,0.5)] pointer-events-auto hover:scale-105 hover:bg-white hover:text-black transition-all group animate-pulse-slow"
+                            onClick={() => {
+                                const game = GAMES.find(g => g.id === activeGameId);
+                                if (game) setPlayingGame(game);
+                            }}
+                        >
+                            <Play className="w-6 h-6 mr-3 group-hover:scale-110 transition-transform" />
+                            Play {GAMES.find(g => g.id === activeGameId)?.title}
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Game Modal */}
-            {activeGame && (
+            {playingGame && (
                 <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex flex-col animate-in fade-in duration-300">
                     {/* Modal Header */}
                     <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-surface/50">
                         <div className="flex items-center gap-3">
                             <Gamepad2 className="w-6 h-6 text-primary" />
-                            <span className="font-black text-lg text-white italic uppercase tracking-wider">{activeGame.title}</span>
+                            <span className="font-black text-lg text-white italic uppercase tracking-wider">{playingGame.title}</span>
                         </div>
                         <Button
                             variant="ghost"
                             className="text-muted-foreground hover:text-white hover:bg-white/10"
-                            onClick={() => setActiveGame(null)}
+                            onClick={() => setPlayingGame(null)}
                         >
                             <span className="mr-2 text-xs font-bold uppercase tracking-widest hidden sm:inline-block">Exit Arcade</span>
                             <LogOut className="w-5 h-5" />
@@ -149,8 +138,8 @@ export default function ArcadePage() {
                     {/* Game Viewport */}
                     <div className="flex-1 bg-black/50 relative flex items-center justify-center p-0 pb-8 md:p-4 md:pb-4 overflow-hidden safe-area-bottom">
                         <iframe
-                            src={activeGame.url}
-                            className="w-full h-full border-0 select-none"
+                            src={playingGame.url}
+                            className="w-full h-full border-0 select-none bg-black"
                             allow="autoplay; fullscreen; gamepad; focus-without-user-activation"
                         />
                     </div>
