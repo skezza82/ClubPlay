@@ -2,7 +2,7 @@
 
 import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useFBX, useTexture } from '@react-three/drei';
+import { useFBX, useTexture, Clone } from '@react-three/drei';
 import * as THREE from 'three';
 import { ArcadeGame } from '@/app/arcade/page';
 
@@ -70,39 +70,31 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
         '/models/midway-pacman/arcade_arcade_MAT_Normal.png',
     ]);
 
-    // Clone the FBX so each machine gets its own instance and materials can be modified independently
-    const clonedFbx = useMemo(() => {
-        const clone = fbx.clone(true);
-        clone.traverse((child) => {
+    // Apply materials ONCE to the base FBX object so that all clones share it
+    useEffect(() => {
+        if (!fbx || !albedoMap) return;
+
+        const material = new THREE.MeshStandardMaterial({
+            map: albedoMap,
+            emissiveMap: emissionMap,
+            emissive: new THREE.Color('#ffffff'),
+            // Keep base emission static since all machines share this material now. 
+            // We use the independent screen overlay for active highlighting.
+            emissiveIntensity: 0.2,
+            metalnessMap: metallicMap,
+            normalMap: normalMap,
+            roughness: 0.5,
+            metalness: 1.0,
+        });
+
+        fbx.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
                 const mesh = child as THREE.Mesh;
-
-                // Create a standard material with our PBR maps
-                const material = new THREE.MeshStandardMaterial({
-                    map: albedoMap,
-                    emissiveMap: emissionMap,
-                    emissive: new THREE.Color('#ffffff'),
-                    // Set a default low emission so the marquee glows slightly even when inactive
-                    emissiveIntensity: isActive ? 1.0 : 0.2,
-                    metalnessMap: metallicMap,
-                    normalMap: normalMap,
-                    roughness: 0.5,
-                    metalness: 1.0,
-                });
-
                 mesh.material = material;
             }
         });
 
-        // Scale and position fixes often needed for raw FBX imports
-        clone.scale.set(0.015, 0.015, 0.015);
-        // Sometimes models face the wrong way
-        clone.rotation.set(0, Math.PI, 0);
-        // Adjust vertical alignment to sit on the floor
-        clone.position.set(0, 0, 0);
-
-        return clone;
-    }, [fbx, albedoMap, emissionMap, metallicMap, normalMap, texture, dummyTexture, isActive]);
+    }, [fbx, albedoMap, emissionMap, metallicMap, normalMap]);
 
     return (
         <group
@@ -121,8 +113,10 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             onPointerOver={() => document.body.style.cursor = 'pointer'}
             onPointerOut={() => document.body.style.cursor = 'auto'}
         >
-            {/* The Loaded Midway Pac-Man Model */}
-            <primitive object={clonedFbx} />
+            {/* The Cloned Midway Pac-Man Model using instancing for high performance */}
+            <group scale={[0.015, 0.015, 0.015]} rotation={[0, Math.PI, 0]} position={[0, 0, 0]}>
+                <Clone object={fbx} />
+            </group>
 
             {/* The Screen Display Overlay - Placed roughly over the original monitor.
                 The midway pacman screen is slanted far back and high up. */}

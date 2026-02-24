@@ -18,74 +18,45 @@ function CarouselGroup({ games, activeGameId, setActiveGameId, onPlay }: ArcadeC
     const groupRef = useRef<THREE.Group>(null);
     const { camera } = useThree();
 
-    // Find active index
-    let activeIndex = games.findIndex(g => g.id === activeGameId);
-    if (activeIndex === -1) activeIndex = 0; // Default to first game facing camera if none active
+    const pacmanGame: ArcadeGame = {
+        id: 'pacman',
+        title: 'Pac-Man',
+        description: 'Classic arcade maze game.',
+        // We'll use a placeholder or known image, assuming it exists
+        image: '/images/retro-club-bg.png',
+        url: 'https://archive.org/embed/arcade_pacman',
+        publisher: 'Midway',
+        type: 'iframe'
+    };
 
-    const count = games.length;
-
-    // We want the models to sit comfortably side-by-side. 
-    // Assuming each model is roughly 2.5 units wide (after scaling).
-    const arcLengthPerMachine = 3.0; // Spacing per machine
-
-    // Circumference = count * arcLengthPerMachine = 2 * PI * r
-    // r = (count * arcLengthPerMachine) / (2 * PI)
-    // We enforce a minimum radius so a small number of games still forms a nice arc
-    const radius = Math.max(3.5, (count * arcLengthPerMachine) / (Math.PI * 2));
-
-    const angleStep = (Math.PI * 2) / count;
-
-    // Target rotation based on active game: we rotate the group negatively so that
-    // the machine at activeIndex * angleStep is brought back to 0 (facing camera).
-    const targetGroupRotationY = -activeIndex * angleStep;
-
+    // The camera logic is simplified for a single, static machine.
+    // It will always look at the center where the Pac-Man machine is.
     useFrame((state, delta) => {
-        if (groupRef.current) {
-            // Smoothly rotate the entire carousel
-            groupRef.current.rotation.y = THREE.MathUtils.damp(
-                groupRef.current.rotation.y,
-                targetGroupRotationY,
-                4,
-                delta
-            );
-        }
-
-        // Gentle camera zoom effect based on active state. 
+        // Gentle camera zoom effect based on active state.
         // We position the camera *outside* the circle relative to the active radius
-        const targetZ = activeGameId ? radius + 5.5 : radius + 8.5;
+        const targetZ = activeGameId ? 5.5 : 8.5; // Closer when active, further when not
         const targetY = activeGameId ? 5.5 : 8.5; // Raised camera higher for the 2x scaled models
 
         // Use lerp for smooth camera movement
         const targetPosition = new THREE.Vector3(0, targetY, targetZ);
         camera.position.lerp(targetPosition, delta * 4);
 
-        // Always look towards the *active* machine's position at the front of the circle (which is at z = radius)
-        // rather than the center of the carousel (z = 0), otherwise the camera clips through cabinets 
-        // when the radius gets large. We look slightly up to see the marquee.
-        const lookTarget = new THREE.Vector3(0, 4.0, radius);
+        // Always look towards the single machine at the center
+        const lookTarget = new THREE.Vector3(0, 4.0, 0);
         camera.lookAt(lookTarget);
     });
 
     return (
         <group ref={groupRef}>
-            {games.map((game, i) => {
-                const angle = i * angleStep;
-                const x = Math.sin(angle) * radius;
-                const z = Math.cos(angle) * radius;
-
-                return (
-                    <ArcadeMachine
-                        key={game.id}
-                        game={game}
-                        position={[x, 0, z]}
-                        // The machine rotates to face outwards from the center
-                        rotation={[0, angle, 0]}
-                        isActive={game.id === activeGameId}
-                        onClick={() => setActiveGameId(game.id)}
-                        onPlay={() => onPlay(game)}
-                    />
-                );
-            })}
+            <ArcadeMachine
+                key={pacmanGame.id}
+                game={pacmanGame}
+                position={[0, 0, 0]}
+                rotation={[0, 0, 0]}
+                isActive={true} // Hardcoding to always active for now
+                onClick={() => { }} // No-op
+                onPlay={() => onPlay(pacmanGame)}
+            />
         </group>
     );
 }
