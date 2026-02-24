@@ -83,7 +83,6 @@ export function ArcadeCarousel(props: ArcadeCarouselProps) {
     return (
         <div className="w-full h-full min-h-[500px] relative pointer-events-auto">
             <Canvas camera={{ position: [0, 3.5, 8.5], fov: 45 }}>
-                <color attach="background" args={['transparent']} />
                 <ambientLight intensity={0.4} />
                 <directionalLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
                 <spotLight
@@ -97,18 +96,11 @@ export function ArcadeCarousel(props: ArcadeCarouselProps) {
 
                 <CarouselGroup {...props} />
 
-                {/* Floor shadow component */}
-                <ContactShadows
-                    position={[0, 0, 0]}
-                    opacity={0.8}
-                    scale={20}
-                    blur={2.5}
-                    far={4}
-                    color="#000000"
-                />
-
-                {/* Environment reflections helps make materials look metallic/glassy */}
-                <Environment preset="night" />
+                {/* Minimal shadow alternative */}
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+                    <planeGeometry args={[20, 20]} />
+                    <meshBasicMaterial color="#000000" transparent opacity={0.5} />
+                </mesh>
 
                 {/* Allows user to marginally drag/look around, restricted so they can't break view */}
                 <OrbitControls

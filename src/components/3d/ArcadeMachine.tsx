@@ -90,7 +90,6 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             <mesh position={[0, 1.5, -0.6]}>
                 <boxGeometry args={[1.5, 3, 1.2]} />
                 <meshStandardMaterial color={arcadeColor} roughness={0.8} />
-                <Edges color={isActive ? '#a78bfa' : '#333'} threshold={15} />
             </mesh>
 
             {/* Screen Hood (Top extended out) */}
@@ -120,7 +119,6 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             <mesh position={[0, 1.2, 0.4]} rotation={[Math.PI / 12, 0, 0]}>
                 <boxGeometry args={[1.5, 0.15, 0.7]} />
                 <meshStandardMaterial color={panelColor} roughness={0.5} />
-                <Edges color={isActive ? '#a78bfa' : '#333'} />
             </mesh>
 
             {/* Joystick Base */}
