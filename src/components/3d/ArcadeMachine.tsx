@@ -50,13 +50,13 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
 
     useFrame((state) => {
         if (groupRef.current) {
-            // Hover animation for active machine
-            const targetY = isActive ? position[1] + 0.3 : position[1];
+            // Hover animation for active machine. Since we scaled by 2, hover height needs to be higher.
+            const targetY = isActive ? position[1] + 0.6 : position[1];
             groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, 0.1);
 
             // Subtle floating if active
             if (isActive) {
-                groupRef.current.position.y += Math.sin(state.clock.elapsedTime * 2) * 0.002;
+                groupRef.current.position.y += Math.sin(state.clock.elapsedTime * 2) * 0.004;
             }
         }
     });
@@ -109,6 +109,7 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             ref={groupRef}
             position={position}
             rotation={rotation}
+            scale={[2, 2, 2]} // Scale the entire machine by 2x
             onClick={(e) => {
                 e.stopPropagation();
                 if (isActive) {
@@ -123,10 +124,10 @@ export function ArcadeMachine({ game, position, rotation, isActive, onClick, onP
             {/* The Loaded Midway Pac-Man Model */}
             <primitive object={clonedFbx} />
 
-            {/* The Screen Display Overlay - We lay this Plane precisely over the physical screen area on the FBX */}
-            <mesh position={[0, 2.0, 0.15]} rotation={[-Math.PI / 10, 0, 0]}>
-                {/* Adjust Plane args to fit the screen shape of the midway cabinet */}
-                <planeGeometry args={[0.9, 0.8]} />
+            {/* The Screen Display Overlay - Placed roughly over the original monitor.
+                The midway pacman screen is slanted far back and high up. */}
+            <mesh position={[0, 1.48, 0.35]} rotation={[-Math.PI / 4, 0, 0]}>
+                <planeGeometry args={[0.6, 0.6]} />
                 <meshStandardMaterial
                     map={texture || dummyTexture}
                     emissive={isActive ? '#ffffff' : '#000000'}

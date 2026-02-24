@@ -23,8 +23,16 @@ function CarouselGroup({ games, activeGameId, setActiveGameId, onPlay }: ArcadeC
     if (activeIndex === -1) activeIndex = 0; // Default to first game facing camera if none active
 
     const count = games.length;
-    // We want the active machine to face the camera. 
-    // If we place them evenly on a circle, and angle 0 is facing outward towards Z
+
+    // We want the models to sit comfortably side-by-side. 
+    // Assuming each model is roughly 2.5 units wide (after scaling).
+    const arcLengthPerMachine = 3.0; // Spacing per machine
+
+    // Circumference = count * arcLengthPerMachine = 2 * PI * r
+    // r = (count * arcLengthPerMachine) / (2 * PI)
+    // We enforce a minimum radius so a small number of games still forms a nice arc
+    const radius = Math.max(3.5, (count * arcLengthPerMachine) / (Math.PI * 2));
+
     const angleStep = (Math.PI * 2) / count;
 
     // Target rotation based on active game: we rotate the group negatively so that
@@ -42,18 +50,21 @@ function CarouselGroup({ games, activeGameId, setActiveGameId, onPlay }: ArcadeC
             );
         }
 
-        // Gentle camera zoom effect based on active state
-        const targetZ = activeGameId ? 5.5 : 8.5;
-        const targetY = activeGameId ? 2.5 : 3.5;
+        // Gentle camera zoom effect based on active state. 
+        // We position the camera *outside* the circle relative to the active radius
+        const targetZ = activeGameId ? radius + 5.5 : radius + 8.5;
+        const targetY = activeGameId ? 5.5 : 8.5; // Raised camera higher for the 2x scaled models
 
-        // Use lerp instead of individual assignments to satisfy mutability linters
+        // Use lerp for smooth camera movement
         const targetPosition = new THREE.Vector3(0, targetY, targetZ);
         camera.position.lerp(targetPosition, delta * 4);
 
-        camera.lookAt(0, 2.0, 0); // Always look towards center of scene
+        // Always look towards the *active* machine's position at the front of the circle (which is at z = radius)
+        // rather than the center of the carousel (z = 0), otherwise the camera clips through cabinets 
+        // when the radius gets large. We look slightly up to see the marquee.
+        const lookTarget = new THREE.Vector3(0, 4.0, radius);
+        camera.lookAt(lookTarget);
     });
-
-    const radius = Math.max(3.5, count * 0.8); // Scale radius dynamically based on number of games
 
     return (
         <group ref={groupRef}>
