@@ -786,7 +786,7 @@ export default function ProfilePage() {
 
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
-                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v2.0.1"}
+                                {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v2.0.2"}
                             </p>
                             <p className="text-[8px] font-medium text-muted-foreground uppercase tracking-widest">
                                 Update: {new Date().toLocaleString('en-US', {
