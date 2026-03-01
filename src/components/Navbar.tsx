@@ -19,13 +19,13 @@ export function Navbar() {
         if (!user) return;
 
         // Android WebViews and standalone PWAs sometimes fail to report safe-area-inset-top correctly.
-        // Fallback to 35px (Standard Android Status Bar height) just for them.
+        // Fallback to 32px (Standard Android Status Bar height) just for them.
         const isCapacitor = (window as any).Capacitor !== undefined;
         const isAndroidWebView = /wv/.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches && /Android/.test(navigator.userAgent);
 
         if (isCapacitor || isAndroidWebView || isStandalone) {
-            setTopPadding("max(env(safe-area-inset-top), 48px)");
+            setTopPadding("max(env(safe-area-inset-top), 32px)");
         }
 
         const unsubscribe = listenToFriendRequests(user.uid, (requests) => {
@@ -51,7 +51,9 @@ export function Navbar() {
             </div>
 
             {/* Spacer for the fixed header */}
-            <div className="h-16" style={{ paddingTop: topPadding }} />
+            <div style={{ paddingTop: topPadding }}>
+                <div className="h-16" />
+            </div>
 
             {/* Scrolling Navigation Row: Moves with the page */}
             <nav className="bg-background/20 border-b border-white/5 overflow-x-auto scrollbar-hide">
