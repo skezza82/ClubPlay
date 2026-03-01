@@ -24,6 +24,28 @@ import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "fire
 import { db, auth } from "./firebase";
 import { updateProfile } from "firebase/auth";
 
+// Caches for profiles to optimize performance across the app
+const userCache = new Map<string, any>();
+const userWaiters = new Map<string, Promise<any>>();
+const clubCache = new Map<string, any>();
+const clubWaiters = new Map<string, Promise<any>>();
+
+export const getCachedUser = async (userId: string) => {
+    if (userCache.has(userId)) return userCache.get(userId);
+    if (userWaiters.has(userId)) return userWaiters.get(userId);
+
+    const waiter = (async () => {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        const data = userDoc.exists() ? userDoc.data() : null;
+        userCache.set(userId, data);
+        userWaiters.delete(userId);
+        return data;
+    })();
+
+    userWaiters.set(userId, waiter);
+    return waiter;
+};
+
 export const checkUsernameAvailability = async (username: string): Promise<boolean> => {
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("displayNameLowercase", "==", username.toLowerCase()));
@@ -279,14 +301,13 @@ export const getSessionLeader = async (sessionId: string) => {
     const docSnap = querySnapshot.docs[0];
     const scoreData = docSnap.data();
 
-    // Fetch the user's latest profile
-    const userDoc = await getDoc(doc(db, "users", scoreData.userId));
+    // Fetch the user's latest profile using cache
+    const userData = await getCachedUser(scoreData.userId);
     let displayName = scoreData.displayName;
     let photoURL = scoreData.photoURL;
     let xp = scoreData.xp;
 
-    if (userDoc.exists()) {
-        const userData = userDoc.data();
+    if (userData) {
         displayName = userData.displayName || displayName;
         photoURL = userData.photoURL || photoURL;
         xp = userData.xp || xp;
@@ -412,17 +433,16 @@ export const getSessionScores = async (sessionId: string) => {
     const scores = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
 
-        // Always try to fetch latest user profile to ensure names match everywhere
-        const userDoc = await getDoc(doc(db, "users", data.userId));
+        // Use cached user profile
+        const userData = await getCachedUser(data.userId);
         let displayName = data.displayName;
-        let photoURL = null;
+        let photoURL = data.photoURL;
 
-        if (userDoc.exists()) {
-            const userData = userDoc.data();
+        if (userData) {
             if (userData.displayName && userData.displayName !== "Unknown") {
                 displayName = userData.displayName;
             }
-            photoURL = userData.photoURL;
+            photoURL = userData.photoURL || photoURL;
         }
 
         return {
@@ -431,7 +451,7 @@ export const getSessionScores = async (sessionId: string) => {
             userId: data.userId,
             displayName: displayName || "Unknown",
             photoURL: photoURL,
-            xp: userDoc.exists() ? userDoc.data().xp : 0,
+            xp: userData ? userData.xp : 0,
             submittedAt: data.submittedAt,
             status: data.status,
             proofUrl: data.proofUrl,
@@ -458,21 +478,20 @@ export const getSeasonStandings = async (clubId: string) => {
 
     const standings = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
-        const userDoc = await getDoc(doc(db, "users", data.userId));
-        const userData = userDoc.exists() ? userDoc.data() : {};
+        const userData = await getCachedUser(data.userId);
 
         // Helper to check if a name is "real"
         const isValidName = (name: string) => name && name !== "Unknown" && name !== "Unknown Member" && name !== "Unknown User";
 
-        const userDisplayName = isValidName(userData.displayName) ? userData.displayName : null;
+        const userDisplayName = userData && isValidName(userData.displayName) ? userData.displayName : null;
         const storedDisplayName = isValidName(data.displayName) ? data.displayName : null;
 
         return {
             id: docSnap.id,
             ...data,
             displayName: userDisplayName || storedDisplayName || "Unknown Member",
-            photoURL: userData.photoURL,
-            xp: userData.xp || 0
+            photoURL: userData?.photoURL || data.photoURL,
+            xp: userData?.xp || 0
         };
     }));
 
@@ -601,18 +620,72 @@ export const getClubMembers = async (clubId: string) => {
     // Enrich with user data (displayName, photoUrl)
     const members = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
-        const userDoc = await getDoc(doc(db, "users", data.userId));
-        const userData = userDoc.exists() ? userDoc.data() : {};
+        const userData = await getCachedUser(data.userId);
         return {
             id: docSnap.id,
             ...data,
-            displayName: userData.displayName || data.displayName || "Unknown User",
-            photoURL: userData.photoURL || data.photoURL || null,
-            xp: userData.xp || 0
+            displayName: userData?.displayName || data.displayName || "Unknown User",
+            photoURL: userData?.photoURL || data.photoURL || null,
+            xp: userData?.xp || data.xp || 0
         };
     }));
 
-    return members as ClubMember[];
+    // Deduplicate by userId just in case
+    const uniqueMembers = new Map();
+    members.forEach((m: any) => {
+        if (!uniqueMembers.has(m.userId) || m.role === 'admin' || m.role === 'owner') {
+            uniqueMembers.set(m.userId, m);
+        }
+    });
+
+    return Array.from(uniqueMembers.values()) as ClubMember[];
+};
+
+export const getMembership = async (clubId: string, userId: string): Promise<ClubMember | null> => {
+    if (!clubId || !userId) return null;
+
+    // Try the canonical ID format first
+    const membershipId = `${userId}_${clubId}`;
+    const docRef = doc(db, "memberships", membershipId);
+    const snap = await getDoc(docRef);
+
+    if (snap.exists()) {
+        const data = snap.data();
+        // Enrich
+        const userData = await getCachedUser(userId);
+
+        return {
+            id: snap.id,
+            ...data,
+            displayName: userData?.displayName || data.displayName || "Unknown User",
+            photoURL: userData?.photoURL || data.photoURL || null,
+            xp: userData?.xp || data.xp || 0
+        } as ClubMember;
+    }
+
+    // Fallback: search by query if ID format is different
+    const q = query(
+        collection(db, "memberships"),
+        where("clubId", "==", clubId),
+        where("userId", "==", userId),
+        limit(1)
+    );
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+        const d = qSnap.docs[0];
+        const data = d.data();
+        const userData = await getCachedUser(userId);
+
+        return {
+            id: d.id,
+            ...data,
+            displayName: userData?.displayName || data.displayName || "Unknown User",
+            photoURL: userData?.photoURL || data.photoURL || null,
+            xp: userData?.xp || data.xp || 0
+        } as ClubMember;
+    }
+
+    return null;
 };
 
 export const getJoinRequests = async (clubId: string) => {
@@ -626,14 +699,13 @@ export const getJoinRequests = async (clubId: string) => {
     // Enrich with user data
     const requests = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
-        const userDoc = await getDoc(doc(db, "users", data.userId));
-        const userData = userDoc.exists() ? userDoc.data() : {};
+        const userData = await getCachedUser(data.userId);
         return {
             id: docSnap.id,
             ...data,
-            displayName: userData.displayName || data.displayName || "Unknown User",
-            photoURL: userData.photoURL || data.photoURL || null,
-            xp: userData.xp || 0,
+            displayName: userData?.displayName || data.displayName || "Unknown User",
+            photoURL: userData?.photoURL || data.photoURL || null,
+            xp: userData?.xp || 0,
             createdAt: data.createdAt
         };
     }));
@@ -1023,6 +1095,22 @@ export const syncQuestProgress = async (userId: string, userClubsLength: number,
     }
 };
 
+export const getCachedClub = async (clubId: string) => {
+    if (clubCache.has(clubId)) return clubCache.get(clubId);
+    if (clubWaiters.has(clubId)) return clubWaiters.get(clubId);
+
+    const waiter = (async () => {
+        const clubDoc = await getDoc(doc(db, "clubs", clubId));
+        const data = clubDoc.exists() ? { id: clubDoc.id, ...clubDoc.data() } : null;
+        clubCache.set(clubId, data);
+        clubWaiters.delete(clubId);
+        return data;
+    })();
+
+    clubWaiters.set(clubId, waiter);
+    return waiter;
+};
+
 export const getUserClubs = async (userId: string) => {
     const membershipsRef = collection(db, "memberships");
     const q = query(membershipsRef, where("userId", "==", userId));
@@ -1037,21 +1125,28 @@ export const getUserClubs = async (userId: string) => {
         return dateB - dateA;
     });
 
-    // Fetch details for each club
+    // Fetch details for each club using cache
     const clubs = await Promise.all(memberships.map(async (membership) => {
-        const clubDoc = await getDoc(doc(db, "clubs", membership.clubId));
-        if (clubDoc.exists()) {
+        const clubData = await getCachedClub(membership.clubId);
+        if (clubData) {
             return {
-                id: clubDoc.id,
-                ...clubDoc.data(),
-                role: membership.role || 'member' // 'owner', 'admin', 'member'
-            } as Club & { role: string, logoUrl?: string };
+                ...clubData,
+                role: membership.role || 'member'
+            };
         }
         return null;
     }));
 
-    console.log(`[getUserClubs] Found ${memberships.length} memberships for user ${userId}`);
-    return clubs.filter(c => c !== null) as (Club & { role: string, logoUrl?: string })[];
+    // Deduplicate by clubId just in case
+    const uniqueClubs = new Map();
+    clubs.forEach(c => {
+        if (c && !uniqueClubs.has(c.id)) {
+            uniqueClubs.set(c.id, c);
+        }
+    });
+
+    console.log(`[getUserClubs] Found ${uniqueClubs.size} unique clubs for user ${userId}`);
+    return Array.from(uniqueClubs.values()) as (Club & { role: string, logoUrl?: string })[];
 };
 
 export const updateClubLastAccessed = async (userId: string, clubId: string) => {

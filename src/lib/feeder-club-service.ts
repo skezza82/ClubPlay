@@ -38,14 +38,15 @@ export const ensureFeederClubMembership = async (userId: string, displayName: st
             await setDoc(sessionRef, {
                 id: FEEDER_SESSION_ID,
                 clubId: FEEDER_CLUB_ID,
+                name: "The 6-Month Marathon",
+                description: "The ultimate long-term test of endurance. One score, 6 months.",
                 gameId: "pacman",
-                gameTitle: "Pac-Man",
-                platform: "Arcade",
-                rules: "Get the highest score possible in the 6-month rookie period!",
-                isActive: true,
-                challengeType: "score",
-                cover_image_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/Pac_Man.svg/1200px-Pac_Man.svg.png",
+                gameName: "Pac-Man",
+                logoUrl: "/pacman/shots/pac.png",
+                bannerUrl: "/pacman/shots/pac.png",
+                cover_image_url: "/pacman/shots/pac.png",
                 isProcessed: false,
+                isActive: true, // Ensure it's active so it shows on board
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString()
             });

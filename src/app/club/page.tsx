@@ -553,54 +553,60 @@ function ClubContent() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const clubData = await getClub(clubId);
+
+                // 1. Fetch core club data in parallel
+                const [
+                    clubData,
+                    membersData,
+                    sessions,
+                    standings,
+                    gotmData,
+                    pastG
+                ] = await Promise.all([
+                    getClub(clubId),
+                    getClubMembers(clubId),
+                    getClubSessions(clubId),
+                    getSeasonStandings(clubId),
+                    getGameOfTheMonth(clubId),
+                    getPastGOTMs(clubId)
+                ]);
+
+                // 2. Set initial state from core data
                 setClub(clubData);
-
-                // Check for scheduled sessions that should be active
-                await checkAndActivateUpcomingSession(clubId);
-                // Auto-end expired sessions
-                await checkAndEndActiveSessions(clubId);
-
-                const membersData = await getClubMembers(clubId);
                 setMembers(membersData);
-
-                const sessions = await getClubSessions(clubId);
-                const now = new Date();
-
-                setSessionsState(sessions, now);
-
-                const standings = await getSeasonStandings(clubId);
                 setSeasonStandings(standings);
-
-                const gotmData = await getGameOfTheMonth(clubId);
                 setGotm(gotmData);
-
-                const pastG = await getPastGOTMs(clubId);
                 setPastGOTMs(pastG);
 
-                if (user && gotmData) {
-                    const review = await getUserGOTMReview(gotmData.id, user.uid);
-                    setUserReview(review);
-                }
+                const now = new Date();
+                setSessionsState(sessions, now);
 
+                // 3. Trigger maintenance tasks (fire and forget as they don't block UI)
+                checkAndActivateUpcomingSession(clubId);
+                checkAndEndActiveSessions(clubId);
+
+                // 4. Fetch user-specific data in parallel
                 if (user) {
-                    const pending = await checkPendingRequest(user.uid, clubId);
-                    setIsPendingJoin(pending);
+                    const [pending, sent, friends, review] = await Promise.all([
+                        checkPendingRequest(user.uid, clubId),
+                        getSentFriendRequests(user.uid),
+                        getFriends(user.uid),
+                        gotmData ? getUserGOTMReview(gotmData.id, user.uid) : Promise.resolve(null)
+                    ]);
 
-                    const sent = await getSentFriendRequests(user.uid);
+                    setIsPendingJoin(pending);
                     setSentRequests(sent);
-                    const friends = await getFriends(user.uid);
                     setFriendsData(friends);
                     setFriendsList(friends.map(f => f.uid));
+                    if (review) setUserReview(review);
 
-                    // Fetch pending requests count if admin and mark club as accessed
+                    // Fetch admin-only data if applicable
                     const userMembership = membersData.find((m: any) => m.userId === user.uid);
                     if (userMembership) {
                         updateClubLastAccessed(user.uid, clubId);
 
                         if (userMembership.role === 'admin' || userMembership.role === 'owner') {
-                            const requests = await getJoinRequests(clubId);
-                            setPendingRequestsCount(requests.length);
+                            getJoinRequests(clubId).then(requests => setPendingRequestsCount(requests.length));
                         }
                     }
                 }
@@ -1273,7 +1279,7 @@ function ClubContent() {
                                             <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
                                         </div>
                                     </CardHeader>
-                                    <CardContent onClick={(e) => e.stopPropagation()}>
+                                    <CardContent>
                                         <div
                                             className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden cursor-pointer group-hover:border-primary/50 transition-colors"
                                             onClick={() => {
@@ -1318,7 +1324,7 @@ function ClubContent() {
                                         )}
 
                                         {selectedSession?.rules && (
-                                            <div className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                                            <div onClick={(e) => e.stopPropagation()} className="mb-8 p-4 rounded-xl bg-primary/5 border border-primary/20">
                                                 <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
                                                     <Shield className="w-3 h-3" /> Challenge Rules
                                                 </h4>
@@ -1343,7 +1349,7 @@ function ClubContent() {
 
                                         {isMember && selectedSession ? (
                                             isSessionActive ? (
-                                                <form onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
+                                                <form onClick={(e) => e.stopPropagation()} onSubmit={handleScoreSubmit} className="space-y-4 pt-4 border-t border-white/10">
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
                                                             {selectedSession?.challengeType === 'speed' ? "Your Time (Total Seconds)" : "Enter Your Score"}

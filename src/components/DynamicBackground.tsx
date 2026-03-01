@@ -409,7 +409,7 @@ export const DynamicBackground: React.FC = () => {
     return (
         <canvas
             ref={canvasRef}
-            className="fixed top-0 left-0 w-full h-full -z-50 pointer-events-none opacity-90"
+            className="fixed top-0 left-0 w-full h-full -z-[100] pointer-events-none opacity-30"
         />
     );
 };

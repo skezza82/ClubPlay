@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
     getClub,
     getClubMembers,
+    getMembership,
     getJoinRequests,
     respondToJoinRequest,
     updateClub,
@@ -326,17 +327,18 @@ function ClubAdminContent() {
                 }
 
                 // 3. Fetch Members
-                const memData = await getClubMembers(clubId as string) as ClubMember[];
+                const memData = await getClubMembers(clubId as string);
                 setMembers(memData);
 
-                // Verify Access (Owner or Admin)
-                const currentUserMembership = memData.find(m => m.userId === user.uid);
-                if (!currentUserMembership || (currentUserMembership.role !== 'owner' && currentUserMembership.role !== 'admin')) {
+                // Verify Access (Owner or Admin) - Use direct fetch for robustness
+                const currentMembership = await getMembership(clubId as string, user.uid);
+
+                if (!currentMembership || (currentMembership.role !== 'owner' && currentMembership.role !== 'admin')) {
                     alert("Access Denied: You do not have permission to manage this club.");
                     router.push("/clubs");
                     return;
                 }
-                setUserRole(currentUserMembership.role);
+                setUserRole(currentMembership.role);
 
                 setClub(clubData);
                 setClubName(clubData.name);
@@ -391,8 +393,7 @@ function ClubAdminContent() {
             setRequests(requests.filter(r => r.id !== requestId));
 
             if (action === 'accepted') {
-                // Determine user details from request (if available) or wait for re-fetch
-                // For now, let's just trigger a re-fetch of members to be safe
+                // Refresh members list to show the new member
                 const memData = await getClubMembers(clubId as string);
                 setMembers(memData);
                 alert("Request Accepted!");
