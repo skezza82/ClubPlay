@@ -14,15 +14,17 @@ const firebaseConfig = {
     measurementId: "G-6B4HDZNCCJ"
 };
 
-import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 // Initialize Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Firestore with settings to prevent 400 Bad Request on stream listeners
+// Initialize Firestore with settings to allow multi-tab persistence and prevent stream errors
 const db = initializeFirestore(app, {
-    localCache: persistentLocalCache(),
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    }),
     experimentalForceLongPolling: true, // Forces long polling to avoid streaming errors in dev
 });
 const storage = getStorage(app);

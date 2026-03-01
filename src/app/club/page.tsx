@@ -61,7 +61,8 @@ import {
     Info,
     Star,
     Settings,
-    Share2
+    Share2,
+    LayoutDashboard
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -1008,10 +1009,10 @@ function ClubContent() {
                     <div className="flex justify-center gap-2 flex-wrap">
                         {isAdmin && (
                             <Link href={`/club/admin?id=${clubId}`}>
-                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative text-xs md:text-sm h-10 px-3 md:px-4">
-                                    Admin
+                                <Button variant="ghost" className="border border-white/10 text-white hover:bg-white/10 relative h-10 w-10 p-0" title="Admin Dashboard">
+                                    <Settings className="w-4 h-4" />
                                     {pendingRequestsCount > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-black text-[10px] font-black border border-surface z-20 shadow-[0_0_10px_rgba(102,252,241,0.5)] animate-pulse">
+                                        <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-black text-[9px] font-black border border-surface z-20 shadow-[0_0_10px_rgba(102,252,241,0.5)] animate-pulse">
                                             {pendingRequestsCount}
                                         </span>
                                     )}
@@ -1204,11 +1205,11 @@ function ClubContent() {
 
             {/* Navigation */}
             <div className="container mx-auto max-w-3xl px-6 mt-2 mb-4">
-                <div className="grid grid-cols-4 gap-1 border-b border-white/10 pb-1">
-                    <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
-                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")}>Leaderboard</TabButton>
-                    <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>GOTM</TabButton>
+                <div className="flex justify-between items-center border-b border-white/10 pb-1">
+                    <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")} icon={<LayoutDashboard className="w-4 h-4" />}>Overview</TabButton>
+                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")} icon={<Trophy className="w-4 h-4" />}>Leaderboard</TabButton>
+                    <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")} icon={<Users className="w-4 h-4" />}>Members</TabButton>
+                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")} icon={<Star className="w-4 h-4" />}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -1240,12 +1241,21 @@ function ClubContent() {
                                 )}
 
                                 {/* Active Game Card */}
-                                <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
+                                <Card className={`border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group ${game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman' ? 'cursor-pointer hover:border-primary/80 transition-all shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]' : ''}`}
+                                    onClick={() => {
+                                        if (game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') {
+                                            router.push('/arcade');
+                                        }
+                                    }}
+                                >
                                     <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     <CardHeader>
                                         <div className="flex justify-between items-center">
                                             <CardDescription className="text-primary font-bold tracking-widest uppercase text-xs">
                                                 {isSessionActive ? "Current Challenge" : (isSessionUpcoming ? "Upcoming Challenge" : "Previous Challenge")}
+                                                {(game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') && (
+                                                    <span className="ml-2 text-yellow-400 animate-pulse bg-yellow-400/10 px-2 py-0.5 rounded-full border border-yellow-400/20 text-[10px]">Tap to Play!</span>
+                                                )}
                                             </CardDescription>
                                             <button
                                                 type="button"
@@ -1263,19 +1273,35 @@ function ClubContent() {
                                             <Gamepad2 className="w-8 h-8 text-white/20 group-hover:text-primary transition-colors" />
                                         </div>
                                     </CardHeader>
-                                    <CardContent>
-                                        <div className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden">
+                                    <CardContent onClick={(e) => e.stopPropagation()}>
+                                        <div
+                                            className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden cursor-pointer group-hover:border-primary/50 transition-colors"
+                                            onClick={() => {
+                                                if (game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') {
+                                                    router.push('/arcade');
+                                                }
+                                            }}
+                                        >
                                             {game?.cover_image_url || (game?.title && game?.platform) ? (
-                                                <Image
-                                                    src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
-                                                    alt={game.title}
-                                                    fill
-                                                    className="object-cover opacity-60 group-hover:opacity-100 transition-opacity"
-                                                    onError={(e: any) => {
-                                                        e.target.srcset = PLACEHOLDER_BOXART_URL;
-                                                        e.target.src = PLACEHOLDER_BOXART_URL;
-                                                    }}
-                                                />
+                                                <>
+                                                    <Image
+                                                        src={game.cover_image_url || getLibretroBoxartUrl(game.title, game.platform)}
+                                                        alt={game.title}
+                                                        fill
+                                                        className={`object-cover transition-all duration-500 ${game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman' ? 'opacity-60 group-hover:opacity-80 group-hover:scale-105' : 'opacity-60 group-hover:opacity-100'}`}
+                                                        onError={(e: any) => {
+                                                            e.target.srcset = PLACEHOLDER_BOXART_URL;
+                                                            e.target.src = PLACEHOLDER_BOXART_URL;
+                                                        }}
+                                                    />
+                                                    {(game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') && (
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                                                            <div className="bg-primary text-black font-black italic uppercase tracking-widest py-3 px-6 rounded-full transform scale-90 group-hover:scale-100 transition-transform shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)]">
+                                                                Play in Arcade →
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : (
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Gamepad2 className="w-8 h-8 opacity-20" />
@@ -2087,13 +2113,20 @@ function ClubContent() {
     );
 }
 
-function TabButton({ children, active, onClick }: { children: React.ReactNode, active: boolean, onClick: () => void }) {
+function TabButton({ children, active, onClick, icon, badge }: { children: React.ReactNode, active: boolean, onClick: () => void, icon?: React.ReactNode, badge?: number }) {
     return (
         <button
             onClick={onClick}
-            className={`px-1 md:px-4 py-2 text-[10px] md:text-sm font-bold uppercase tracking-wider border-b-2 transition-colors truncate ${active ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
+            className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1.5 px-1 py-3 text-[10px] md:text-xs font-black uppercase tracking-widest border-b-2 transition-all relative ${active ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-white hover:bg-white/5'}`}
         >
-            {children}
+            {icon && <span className={`${active ? 'text-primary' : 'text-muted-foreground'}`}>{icon}</span>}
+            <span className="hidden sm:inline">{children}</span>
+            <span className="sm:hidden">{active ? children : null}</span>
+            {badge !== undefined && badge > 0 && (
+                <span className="absolute top-1 right-1 bg-primary text-black text-[8px] font-black px-1 rounded-full min-w-[14px]">
+                    {badge}
+                </span>
+            )}
         </button>
     );
 }

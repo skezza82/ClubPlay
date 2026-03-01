@@ -1,0 +1,256 @@
+[
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "status": "pending",
+    "createdAt": "2026-02-16T14:30:37.154Z",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderName": "Skezza82",
+    "receiverId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73"
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_OgBcQtpcOBZoJwr4sGt4lEw98Dy2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "senderXp": 2300,
+    "status": "accepted",
+    "createdAt": "2026-02-23T12:37:34.527Z",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderName": "Skezza82",
+    "receiverId": "OgBcQtpcOBZoJwr4sGt4lEw98Dy2"
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "createdAt": "2026-02-16T14:36:29.915Z",
+    "status": "accepted",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderName": "Skezza82",
+    "receiverId": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2"
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "receiverId": "YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderName": "Skezza82",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "createdAt": "2026-02-16T20:05:07.686Z",
+    "status": "accepted"
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_mock_holly",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "createdAt": "2026-02-21T13:26:14.157Z",
+    "status": "pending",
+    "senderName": "Skezza82",
+    "receiverId": "mock_holly",
+    "senderXp": 2235
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "createdAt": "2026-02-18T12:16:45.752Z",
+    "status": "pending",
+    "senderName": "Skezza82",
+    "receiverId": "mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "senderXp": 2375,
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258"
+  },
+  {
+    "id": "5VQtDbmp99YAZdCPTdiq4qY6Ia62_qnwDilimbddv97zg60v2lqsYxOW2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2F5VQtDbmp99YAZdCPTdiq4qY6Ia62%2F1770124843657_unnamed.jpg?alt=media&token=ec16b22a-4b74-485f-b9a7-5d3099024258",
+    "receiverId": "qnwDilimbddv97zg60v2lqsYxOW2",
+    "senderName": "Skezza82",
+    "senderId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "createdAt": "2026-02-16T13:20:39.099Z",
+    "status": "accepted"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51",
+    "receiverId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderName": "Karlos",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:03.649Z",
+    "senderXp": 1050
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_NxJWPiFiZWMrwX5BUb5VlvSvfBe2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51",
+    "senderXp": 1050,
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:09.253Z",
+    "receiverId": "NxJWPiFiZWMrwX5BUb5VlvSvfBe2",
+    "senderName": "Karlos"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51",
+    "senderXp": 1050,
+    "receiverId": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderName": "Karlos",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:11.730Z"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_X9RgGptWKmZNHa4gKLt3b5e1rTF2",
+    "senderName": "Karlos",
+    "receiverId": "X9RgGptWKmZNHa4gKLt3b5e1rTF2",
+    "createdAt": "2026-02-28T19:08:15.027Z",
+    "status": "pending",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderXp": 1050,
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:17.330Z",
+    "receiverId": "YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderName": "Karlos",
+    "senderXp": 1050,
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_grPG6WJjcqc6uZsMOuIPl6WMTJg2",
+    "senderXp": 1050,
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:23.352Z",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderName": "Karlos",
+    "receiverId": "grPG6WJjcqc6uZsMOuIPl6WMTJg2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "senderXp": 1050,
+    "senderName": "Karlos",
+    "receiverId": "mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "createdAt": "2026-02-28T19:08:26.391Z",
+    "status": "pending",
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_qnwDilimbddv97zg60v2lqsYxOW2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51",
+    "senderXp": 1050,
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "status": "pending",
+    "createdAt": "2026-02-28T19:08:32.806Z",
+    "receiverId": "qnwDilimbddv97zg60v2lqsYxOW2",
+    "senderName": "Karlos"
+  },
+  {
+    "id": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73_yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FEq57yqLUJBe1w1b2ZgG5nv1PLM73%2F1771277892673_1000034863.jpg?alt=media&token=291aaec9-2f0a-4444-9792-46540bb07a51",
+    "senderXp": 1050,
+    "senderId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "createdAt": "2026-02-28T19:08:38.858Z",
+    "status": "pending",
+    "senderName": "Karlos",
+    "receiverId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83"
+  },
+  {
+    "id": "OgBcQtpcOBZoJwr4sGt4lEw98Dy2_yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "senderId": "OgBcQtpcOBZoJwr4sGt4lEw98Dy2",
+    "status": "pending",
+    "createdAt": "2026-02-23T12:53:01.348Z",
+    "receiverId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "senderName": "SkezzneyHawx",
+    "senderXp": 75,
+    "senderPhoto": "/avatars/avatar_ninja.png"
+  },
+  {
+    "id": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2_Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderName": "Wolverwulf",
+    "receiverId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "createdAt": "2026-02-16T20:56:45.587Z",
+    "status": "pending",
+    "senderId": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FU0aIoKdyBAcyz1xf6BhnLtLXR4f2%2F1770379243539_1000051736.webp?alt=media&token=b75b7b13-d15f-45aa-b644-b95ae1425353"
+  },
+  {
+    "id": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2_mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "status": "pending",
+    "createdAt": "2026-02-16T20:58:09.077Z",
+    "senderId": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderName": "Wolverwulf",
+    "receiverId": "mpqacTuy5UZhpByoGCXp6VXyY6o1",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FU0aIoKdyBAcyz1xf6BhnLtLXR4f2%2F1770379243539_1000051736.webp?alt=media&token=b75b7b13-d15f-45aa-b644-b95ae1425353"
+  },
+  {
+    "id": "YsvOFFYSONenHJhNDvFYN7FRO6G3_OgBcQtpcOBZoJwr4sGt4lEw98Dy2",
+    "senderXp": 520,
+    "senderName": "Preston_UTV",
+    "receiverId": "OgBcQtpcOBZoJwr4sGt4lEw98Dy2",
+    "createdAt": "2026-02-23T12:55:46.526Z",
+    "status": "accepted",
+    "senderId": "YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderPhoto": "https://firebasestorage.googleapis.com/v0/b/club-play-app.firebasestorage.app/o/avatars%2FYsvOFFYSONenHJhNDvFYN7FRO6G3%2F1069.jpg?alt=media&token=dc8e3e72-cd9c-40fa-b10d-bc349e2038fe"
+  },
+  {
+    "id": "grPG6WJjcqc6uZsMOuIPl6WMTJg2_5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderPhoto": "/avatars/avatar_zombie.png",
+    "senderXp": 0,
+    "senderName": "Mitch.xd",
+    "receiverId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "status": "accepted",
+    "createdAt": "2026-02-18T21:47:43.188Z",
+    "senderId": "grPG6WJjcqc6uZsMOuIPl6WMTJg2"
+  },
+  {
+    "id": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83_5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderXp": 0,
+    "senderId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "status": "accepted",
+    "createdAt": "2026-02-17T21:35:01.103Z",
+    "senderName": "Wildcat85",
+    "receiverId": "5VQtDbmp99YAZdCPTdiq4qY6Ia62",
+    "senderPhoto": "/avatars/spaceman.png"
+  },
+  {
+    "id": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83_Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "senderName": "Wildcat85",
+    "receiverId": "Eq57yqLUJBe1w1b2ZgG5nv1PLM73",
+    "createdAt": "2026-02-18T13:26:04.471Z",
+    "status": "pending",
+    "senderId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "senderXp": 25,
+    "senderPhoto": "/avatars/avatar_female_adventurer.png"
+  },
+  {
+    "id": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83_NxJWPiFiZWMrwX5BUb5VlvSvfBe2",
+    "senderPhoto": "/avatars/avatar_female_adventurer.png",
+    "senderXp": 25,
+    "senderId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "status": "pending",
+    "createdAt": "2026-02-18T13:26:08.359Z",
+    "receiverId": "NxJWPiFiZWMrwX5BUb5VlvSvfBe2",
+    "senderName": "Wildcat85"
+  },
+  {
+    "id": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83_U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "status": "pending",
+    "createdAt": "2026-02-18T13:26:11.264Z",
+    "receiverId": "U0aIoKdyBAcyz1xf6BhnLtLXR4f2",
+    "senderName": "Wildcat85",
+    "senderXp": 25,
+    "senderPhoto": "/avatars/avatar_female_adventurer.png"
+  },
+  {
+    "id": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83_YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderXp": 25,
+    "receiverId": "YsvOFFYSONenHJhNDvFYN7FRO6G3",
+    "senderName": "Wildcat85",
+    "senderId": "yvWJRBlHp7eaPBmPBQJdj0Jp4p83",
+    "createdAt": "2026-02-18T13:26:15.770Z",
+    "status": "accepted",
+    "senderPhoto": "/avatars/avatar_female_adventurer.png"
+  }
+]

@@ -631,7 +631,7 @@ function HomeContent() {
 
                 {/* Hide other initial CTA stuff if player has clubs */}
                 {userClubs.length === 0 && (
-                  <>
+                  <div className="space-y-24">
                     {/* Featured Challenge Glimpse */}
                     {featuredSession && (
                       <div className="space-y-6 animate-fade-in-up stagger-3">
@@ -706,66 +706,14 @@ function HomeContent() {
                         </Link>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </section>
           )}
         </>
-      )
-      }
-
-      {!isNative && (
-        <div className="mt-24 mb-12 flex flex-col items-center gap-10 border-t border-white/5 pt-12 animate-fade-in-up stagger-6">
-          <div className="flex items-center gap-6 w-full max-w-2xl px-4">
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            <p className="text-[11px] font-black uppercase tracking-[0.5em] text-primary/60 whitespace-nowrap drop-shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]">
-              Experience ClubPlay Everywhere
-            </p>
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-6 px-4">
-            <a
-              href="https://play.google.com/store/apps/details?id=com.clubplaygaming.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group"
-            >
-              <Button className="bg-black hover:bg-neutral-900 border border-white/10 hover:border-primary/50 text-white h-16 px-10 rounded-2xl flex items-center gap-5 transition-all hover:scale-[1.05] hover:shadow-[0_0_30px_rgba(var(--primary-rgb),0.3)] active:scale-95">
-                <div className="relative">
-                  <div className="absolute -inset-1.5 bg-gradient-to-br from-[#4285F4] via-[#EA4335] to-[#FBBC05] rounded-xl blur opacity-40 group-hover:opacity-80 transition-opacity" />
-                  <div className="relative w-10 h-10 rounded-xl bg-black flex items-center justify-center border border-white/10">
-                    <Gamepad2 className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-                <div className="flex flex-col items-start leading-none gap-0.5">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Get it on</span>
-                  <span className="text-xl font-black italic tracking-tighter">Google Play</span>
-                </div>
-              </Button>
-            </a>
-
-            <div className="relative group">
-              <div className="absolute -inset-0.5 bg-white/5 rounded-2xl blur opacity-10" />
-              <Button
-                variant="outline"
-                className="relative border-white/5 bg-white/2 backdrop-blur-md text-white h-16 px-10 rounded-2xl flex items-center gap-5 opacity-50 cursor-not-allowed group-hover:opacity-60 transition-opacity"
-                disabled
-              >
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
-                  <Layers className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex flex-col items-start leading-none gap-0.5">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Coming Soon</span>
-                  <span className="text-xl font-black italic tracking-tighter opacity-70">App Store</span>
-                </div>
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
-    </main >
+    </main>
   );
 }
 

@@ -784,6 +784,48 @@ export default function ProfilePage() {
                         )}
 
 
+                        {!isNative && (
+                            <div className="pt-8 pb-4 flex flex-col items-center gap-4 animate-fade-in-up">
+                                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-primary/40">
+                                    Mobile Access
+                                </p>
+                                <div className="flex flex-wrap justify-center gap-3">
+                                    <a
+                                        href="https://play.google.com/store/apps/details?id=com.clubplaygaming.app"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group"
+                                    >
+                                        <Button className="bg-black hover:bg-neutral-900 border border-white/5 hover:border-primary/40 text-white h-10 px-5 rounded-lg flex items-center gap-2.5 transition-all hover:scale-[1.02]">
+                                            <div className="relative w-5 h-5 rounded bg-black flex items-center justify-center border border-white/10">
+                                                <Gamepad2 className="w-3 h-3 text-white" />
+                                            </div>
+                                            <div className="flex flex-col items-start leading-none gap-0.5">
+                                                <span className="text-[6px] uppercase font-bold text-muted-foreground">Download</span>
+                                                <span className="text-xs font-black italic">Google Play</span>
+                                            </div>
+                                        </Button>
+                                    </a>
+
+                                    <div className="relative group">
+                                        <Button
+                                            variant="outline"
+                                            className="relative border-white/5 bg-white/2 text-white h-10 px-5 rounded-lg flex items-center gap-2.5 opacity-30 cursor-not-allowed"
+                                            disabled
+                                        >
+                                            <div className="w-5 h-5 rounded bg-white/5 flex items-center justify-center border border-white/5">
+                                                <Layers className="w-3 h-3 text-white" />
+                                            </div>
+                                            <div className="flex flex-col items-start leading-none gap-0.5">
+                                                <span className="text-[6px] uppercase font-bold text-muted-foreground">Coming Soon</span>
+                                                <span className="text-xs font-black italic">App Store</span>
+                                            </div>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="pt-8 text-center space-y-1 opacity-30 group pb-8">
                             <p className="text-[10px] font-bold text-white uppercase tracking-[0.2em]">
                                 {appInfo ? `ClubPlay Native v${appInfo.version} (${appInfo.build})` : "ClubPlay Web v2.0.2"}

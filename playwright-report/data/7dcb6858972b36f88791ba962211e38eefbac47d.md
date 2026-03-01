@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - link "CLUBPLAY" [ref=e9] [cursor=pointer]:
+          - /url: /
+          - heading "CLUBPLAY" [level=1] [ref=e10]
+      - generic [ref=e11]:
+        - link "IamVengeance LVL 1 IamVengeance 1" [ref=e12] [cursor=pointer]:
+          - /url: /user/?id=X9RgGptWKmZNHa4gKLt3b5e1rTF2
+          - generic [ref=e13]:
+            - paragraph [ref=e14]: IamVengeance
+            - paragraph [ref=e15]: LVL 1
+          - generic [ref=e16]:
+            - img "IamVengeance" [ref=e18]
+            - generic [ref=e19]: "1"
+        - generic [ref=e20]:
+          - link [ref=e21] [cursor=pointer]:
+            - /url: /profile/
+            - button [ref=e22]:
+              - img [ref=e23]
+          - button [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+    - navigation [ref=e31]:
+      - generic [ref=e32]:
+        - link "Clubs" [ref=e33] [cursor=pointer]:
+          - /url: /clubs/
+          - img [ref=e35]
+          - generic [ref=e38]: Clubs
+        - link "Arcade" [ref=e39] [cursor=pointer]:
+          - /url: /arcade/
+          - img [ref=e41]
+          - generic [ref=e43]: Arcade
+        - link "Friends" [ref=e44] [cursor=pointer]:
+          - /url: /friends/
+          - img [ref=e47]
+          - generic [ref=e52]: Friends
+  - main [ref=e53]:
+    - img [ref=e55]
+  - button "Open Next.js Dev Tools" [ref=e62] [cursor=pointer]:
+    - img [ref=e63]
+  - alert [ref=e66]
+```

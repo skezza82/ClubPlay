@@ -13,9 +13,19 @@ export function Navbar() {
     const { user } = useAuth();
     const { hasGamepadAccess } = useGamepad();
     const [pendingCount, setPendingCount] = useState(0);
+    const [topPadding, setTopPadding] = useState("env(safe-area-inset-top)");
 
     useEffect(() => {
         if (!user) return;
+
+        // Android WebViews and standalone PWAs sometimes fail to report safe-area-inset-top correctly.
+        // Fallback to 35px (Standard Android Status Bar height) just for them.
+        const isAndroidWebView = /wv/.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches && /Android/.test(navigator.userAgent);
+
+        if (isAndroidWebView || isStandalone) {
+            setTopPadding("max(env(safe-area-inset-top), 35px)");
+        }
 
         const unsubscribe = listenToFriendRequests(user.uid, (requests) => {
             setPendingCount(requests.length);
@@ -29,7 +39,10 @@ export function Navbar() {
     return (
         <div className="relative z-[100] w-full">
             {/* fixed Header Row: Anchored to the very top of the viewport */}
-            <div className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 pt-[env(safe-area-inset-top)] shadow-xl">
+            <div
+                className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 shadow-xl"
+                style={{ paddingTop: topPadding }}
+            >
                 <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                     <PremiumLogo />
                     <UserProfile />
@@ -37,7 +50,7 @@ export function Navbar() {
             </div>
 
             {/* Spacer for the fixed header */}
-            <div className="h-16 pt-[env(safe-area-inset-top)]" />
+            <div className="h-16" style={{ paddingTop: topPadding }} />
 
             {/* Scrolling Navigation Row: Moves with the page */}
             <nav className="bg-background/20 border-b border-white/5 overflow-x-auto scrollbar-hide">

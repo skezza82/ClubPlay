@@ -1,0 +1,169 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - link "CLUBPLAY" [ref=e9] [cursor=pointer]:
+          - /url: /
+          - heading "CLUBPLAY" [level=1] [ref=e10]
+      - generic [ref=e11]:
+        - link "IamVengeance LVL 1 IamVengeance 1" [ref=e12] [cursor=pointer]:
+          - /url: /user/?id=X9RgGptWKmZNHa4gKLt3b5e1rTF2
+          - generic [ref=e13]:
+            - paragraph [ref=e14]: IamVengeance
+            - paragraph [ref=e15]: LVL 1
+          - generic [ref=e16]:
+            - img "IamVengeance" [ref=e18]
+            - generic [ref=e19]: "1"
+        - generic [ref=e20]:
+          - link [ref=e21] [cursor=pointer]:
+            - /url: /profile/
+            - button [ref=e22]:
+              - img [ref=e23]
+          - button [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+    - navigation [ref=e31]:
+      - generic [ref=e32]:
+        - link "Clubs" [ref=e33] [cursor=pointer]:
+          - /url: /clubs/
+          - img [ref=e35]
+          - generic [ref=e38]: Clubs
+        - link "Arcade" [ref=e39] [cursor=pointer]:
+          - /url: /arcade/
+          - img [ref=e41]
+          - generic [ref=e43]: Arcade
+        - link "Friends" [ref=e44] [cursor=pointer]:
+          - /url: /friends/
+          - img [ref=e47]
+          - generic [ref=e52]: Friends
+  - main [ref=e53]:
+    - main [ref=e54]:
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - heading "Gamer Network" [level=1] [ref=e57]:
+            - img [ref=e58]
+            - text: Gamer Network
+          - paragraph [ref=e63]: Manage your connections and find new rivals.
+        - generic [ref=e64]:
+          - img [ref=e65]
+          - textbox "Search players by name..." [ref=e68]
+      - generic [ref=e69]:
+        - heading "My Allies (5)" [level=2] [ref=e72]
+        - generic [ref=e74]:
+          - generic [ref=e76]:
+            - link "Wolverwulf 2 Wolverwulf Level 2 2 Friends Puzzle Bobble/Bust-A-Move" [ref=e77] [cursor=pointer]:
+              - /url: /user/?id=U0aIoKdyBAcyz1xf6BhnLtLXR4f2
+              - generic [ref=e78]:
+                - img "Wolverwulf" [ref=e80]
+                - generic [ref=e81]: "2"
+              - generic [ref=e82]:
+                - heading "Wolverwulf" [level=3] [ref=e83]
+                - generic [ref=e84]:
+                  - paragraph [ref=e85]: Level 2
+                  - paragraph [ref=e86]:
+                    - img [ref=e87]
+                    - text: 2 Friends
+                  - paragraph [ref=e92]:
+                    - img [ref=e93]
+                    - text: Puzzle Bobble/Bust-A-Move
+            - generic [ref=e99]:
+              - button "Unfriend" [ref=e100]:
+                - img [ref=e101]
+              - link [ref=e106] [cursor=pointer]:
+                - /url: /user/?id=U0aIoKdyBAcyz1xf6BhnLtLXR4f2
+                - img [ref=e107]
+          - generic [ref=e110]:
+            - link "Preston_UTV 1 Preston_UTV Level 1 4 Friends Battlefield 6" [ref=e111] [cursor=pointer]:
+              - /url: /user/?id=YsvOFFYSONenHJhNDvFYN7FRO6G3
+              - generic [ref=e112]:
+                - img "Preston_UTV" [ref=e114]
+                - generic [ref=e115]: "1"
+              - generic [ref=e116]:
+                - heading "Preston_UTV" [level=3] [ref=e117]
+                - generic [ref=e118]:
+                  - paragraph [ref=e119]: Level 1
+                  - paragraph [ref=e120]:
+                    - img [ref=e121]
+                    - text: 4 Friends
+                  - paragraph [ref=e126]:
+                    - img [ref=e127]
+                    - text: Battlefield 6
+            - generic [ref=e133]:
+              - button "Unfriend" [ref=e134]:
+                - img [ref=e135]
+              - link [ref=e140] [cursor=pointer]:
+                - /url: /user/?id=YsvOFFYSONenHJhNDvFYN7FRO6G3
+                - img [ref=e141]
+          - generic [ref=e144]:
+            - link "Mitch.xd 1 Mitch.xd Level 1 2 Friends Puzzle Bobble/Bust-A-Move" [ref=e145] [cursor=pointer]:
+              - /url: /user/?id=grPG6WJjcqc6uZsMOuIPl6WMTJg2
+              - generic [ref=e146]:
+                - img "Mitch.xd" [ref=e148]
+                - generic [ref=e149]: "1"
+              - generic [ref=e150]:
+                - heading "Mitch.xd" [level=3] [ref=e151]
+                - generic [ref=e152]:
+                  - paragraph [ref=e153]: Level 1
+                  - paragraph [ref=e154]:
+                    - img [ref=e155]
+                    - text: 2 Friends
+                  - paragraph [ref=e160]:
+                    - img [ref=e161]
+                    - text: Puzzle Bobble/Bust-A-Move
+            - generic [ref=e167]:
+              - button "Unfriend" [ref=e168]:
+                - img [ref=e169]
+              - link [ref=e174] [cursor=pointer]:
+                - /url: /user/?id=grPG6WJjcqc6uZsMOuIPl6WMTJg2
+                - img [ref=e175]
+          - generic [ref=e178]:
+            - link "Skezza 2 Skezza Level 2 2 Friends Puzzle Bobble/Bust-A-Move" [ref=e179] [cursor=pointer]:
+              - /url: /user/?id=qnwDilimbddv97zg60v2lqsYxOW2
+              - generic [ref=e180]:
+                - img "Skezza" [ref=e182]
+                - generic [ref=e183]: "2"
+              - generic [ref=e184]:
+                - heading "Skezza" [level=3] [ref=e185]
+                - generic [ref=e186]:
+                  - paragraph [ref=e187]: Level 2
+                  - paragraph [ref=e188]:
+                    - img [ref=e189]
+                    - text: 2 Friends
+                  - paragraph [ref=e194]:
+                    - img [ref=e195]
+                    - text: Puzzle Bobble/Bust-A-Move
+            - generic [ref=e201]:
+              - button "Unfriend" [ref=e202]:
+                - img [ref=e203]
+              - link [ref=e208] [cursor=pointer]:
+                - /url: /user/?id=qnwDilimbddv97zg60v2lqsYxOW2
+                - img [ref=e209]
+          - generic [ref=e212]:
+            - link "Wildcat85 1 Wildcat85 Level 1 3 Friends Puzzle Bobble/Bust-A-Move" [ref=e213] [cursor=pointer]:
+              - /url: /user/?id=yvWJRBlHp7eaPBmPBQJdj0Jp4p83
+              - generic [ref=e214]:
+                - img "Wildcat85" [ref=e216]
+                - generic [ref=e217]: "1"
+              - generic [ref=e218]:
+                - heading "Wildcat85" [level=3] [ref=e219]
+                - generic [ref=e220]:
+                  - paragraph [ref=e221]: Level 1
+                  - paragraph [ref=e222]:
+                    - img [ref=e223]
+                    - text: 3 Friends
+                  - paragraph [ref=e228]:
+                    - img [ref=e229]
+                    - text: Puzzle Bobble/Bust-A-Move
+            - generic [ref=e235]:
+              - button "Unfriend" [ref=e236]:
+                - img [ref=e237]
+              - link [ref=e242] [cursor=pointer]:
+                - /url: /user/?id=yvWJRBlHp7eaPBmPBQJdj0Jp4p83
+                - img [ref=e243]
+  - button "Open Next.js Dev Tools" [ref=e250] [cursor=pointer]:
+    - img [ref=e251]
+  - alert [ref=e254]
+```

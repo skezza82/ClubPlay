@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const createUserDocument = async (user: User) => {
         console.log("Creating/Updating user document in Firestore for UID:", user.uid);
-        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+        const { doc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
 
         const userRef = doc(db, "users", user.uid);
@@ -126,6 +126,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const name = user.displayName;
         const normalizedName = name ? name.toLowerCase() : "";
 
+        let needsFeederClub = false;
+        try {
+            const userSnap = await getDoc(userRef);
+            if (!userSnap.exists() || !userSnap.data()?.hasJoinedFeederClub) {
+                needsFeederClub = true;
+            }
+        } catch (e) {
+            console.error("Error checking user feeder club status", e);
+        }
+
         try {
             await setDoc(userRef, {
                 uid: user.uid,
@@ -138,6 +148,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 role: "user"
             }, { merge: true });
             console.log("User document successfully created/updated");
+
+            if (needsFeederClub) {
+                const { ensureFeederClubMembership } = await import("@/lib/feeder-club-service");
+                await ensureFeederClubMembership(user.uid, user.displayName, user.photoURL);
+                await setDoc(userRef, { hasJoinedFeederClub: true }, { merge: true });
+            }
         } catch (error) {
             console.error("CRITICAL ERROR in createUserDocument:", error);
             throw error; // Re-throw so signUp catch block sees it

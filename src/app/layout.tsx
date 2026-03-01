@@ -52,7 +52,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log("ClubPlay App Version: %cBuild 2026-02-24 11:13 (v2.0.1)", "color: #00ff00; font-weight: bold;");
+  console.log("ClubPlay App Version: %cBuild 2026-03-01 14:15 (v2.0.22)", "color: #00ff00; font-weight: bold;");
 
   return (
     <html lang="en" className="dark">

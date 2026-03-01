@@ -2002,37 +2002,39 @@ export const respondToFriendRequest = async (requestId: string, status: 'accepte
     if (status === 'rejected') {
         await deleteDoc(requestRef);
     } else {
-        await runTransaction(db, async (transaction) => {
-            transaction.update(requestRef, { status: 'accepted' });
+        const batch = writeBatch(db);
 
-            // Add to both users' friendship lists
-            const senderFriendRef = doc(db, "users", data.senderId, "friends", data.receiverId);
-            const receiverFriendRef = doc(db, "users", data.receiverId, "friends", data.senderId);
+        batch.update(requestRef, { status: 'accepted' });
 
-            transaction.set(senderFriendRef, {
-                friendId: data.receiverId,
-                addedAt: serverTimestamp()
-            });
-            transaction.set(receiverFriendRef, {
-                friendId: data.senderId,
-                addedAt: serverTimestamp()
-            });
+        // Add to both users' friendship lists
+        const senderFriendRef = doc(db, "users", data.senderId, "friends", data.receiverId);
+        const receiverFriendRef = doc(db, "users", data.receiverId, "friends", data.senderId);
 
-            // XP Rewards: 25 XP for both
-            const sRef = doc(db, "users", data.senderId);
-            const rRef = doc(db, "users", data.receiverId);
-
-            // Use set with merge instead of update to handle legacy accounts without a user document
-            transaction.set(sRef, {
-                xp: increment(25),
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
-
-            transaction.set(rRef, {
-                xp: increment(25),
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
+        batch.set(senderFriendRef, {
+            friendId: data.receiverId,
+            addedAt: serverTimestamp()
         });
+        batch.set(receiverFriendRef, {
+            friendId: data.senderId,
+            addedAt: serverTimestamp()
+        });
+
+        // XP Rewards: 25 XP for both
+        const sRef = doc(db, "users", data.senderId);
+        const rRef = doc(db, "users", data.receiverId);
+
+        // Use set with merge instead of update to handle legacy accounts without a user document
+        batch.set(sRef, {
+            xp: increment(25),
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        batch.set(rRef, {
+            xp: increment(25),
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        await batch.commit();
     }
 };
 

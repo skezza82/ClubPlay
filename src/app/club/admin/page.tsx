@@ -551,14 +551,12 @@ function ClubAdminContent() {
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-white/5 pb-6">
-                <div className="flex flex-wrap bg-surface/50 p-1 rounded-xl border border-white/5 max-w-full gap-1 w-full md:w-auto">
-                    <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")}>Settings</TabButton>
-                    <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")} badge={requests.length}>Requests</TabButton>
-                    <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")}>Members</TabButton>
-                    <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")}>Game</TabButton>
-                    <div className="flex-grow flex justify-center md:justify-start">
-                        <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")}>Game of the Month</TabButton>
-                    </div>
+                <div className="flex flex-wrap bg-surface/50 p-1 rounded-xl border border-white/5 max-w-full gap-1 w-full justify-between items-center">
+                    <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={<Settings className="w-4 h-4" />}>Settings</TabButton>
+                    <TabButton active={activeTab === "requests"} onClick={() => setActiveTab("requests")} icon={<Users className="w-4 h-4" />} badge={requests.length}>Requests</TabButton>
+                    <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")} icon={<Users className="w-4 h-4" />}>Members</TabButton>
+                    <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")} icon={<Gamepad2 className="w-4 h-4" />}>Game</TabButton>
+                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")} icon={<Trophy className="w-4 h-4" />}>GOTM</TabButton>
                 </div>
             </div>
 
@@ -1661,15 +1659,17 @@ function ClubAdminContent() {
     );
 }
 
-function TabButton({ children, active, onClick, badge }: { children: React.ReactNode, active: boolean, onClick: () => void, badge?: number }) {
+function TabButton({ children, active, onClick, icon, badge }: { children: React.ReactNode, active: boolean, onClick: () => void, icon?: React.ReactNode, badge?: number }) {
     return (
         <button
             onClick={onClick}
-            className={`px-6 py-2 rounded-lg font-bold text-sm transition-all duration-300 whitespace-nowrap flex items-center gap-2 ${active ? 'bg-primary text-black shadow-[0_0_15px_rgba(102,252,241,0.5)]' : 'text-muted-foreground hover:text-white hover:bg-white/5'}`}
+            className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1.5 px-3 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-lg transition-all relative ${active ? 'bg-primary text-black shadow-[0_0_15px_rgba(var(--primary-rgb),0.4)]' : 'text-muted-foreground hover:text-white hover:bg-white/5'}`}
         >
-            {children}
+            {icon && <span>{icon}</span>}
+            <span className="hidden md:inline">{children}</span>
+            <span className="md:hidden">{active ? children : null}</span>
             {badge !== undefined && badge > 0 && (
-                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black ${active ? 'bg-black text-primary' : 'bg-primary text-black'}`}>
+                <span className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-black ${active ? 'bg-black text-primary border border-primary' : 'bg-primary text-black'}`}>
                     {badge}
                 </span>
             )}

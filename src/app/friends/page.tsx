@@ -102,12 +102,22 @@ export default function FriendsPage() {
     const handleResponse = async (requestId: string, status: 'accepted' | 'rejected') => {
         if (!user) return;
         setActionLoading(requestId);
+
+        // Optimistic UI Update: remove from pending requests list instantly
+        setRequests(prev => prev.filter(req => req.id !== requestId));
+
         try {
             await respondToFriendRequest(requestId, status);
-            // Refresh data
-            await fetchData();
+
+            // Allow Firestore indices to sync before re-fetching
+            setTimeout(async () => {
+                await fetchData();
+            }, 1000);
+
         } catch (error) {
             console.error(`Error ${status} request:`, error);
+            // Revert on failure (could flash if failed, but normally succeeds)
+            await fetchData();
         } finally {
             setActionLoading(null);
         }
