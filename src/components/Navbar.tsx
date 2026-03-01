@@ -44,7 +44,7 @@ export function Navbar() {
                 className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 shadow-xl"
                 style={{ paddingTop: topPadding }}
             >
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+                <div className="container mx-auto px-4 h-14 flex items-center justify-between">
                     <PremiumLogo />
                     <UserProfile />
                 </div>
@@ -52,7 +52,7 @@ export function Navbar() {
 
             {/* Spacer for the fixed header */}
             <div style={{ paddingTop: topPadding }}>
-                <div className="h-16" />
+                <div className="h-14" />
             </div>
 
             {/* Scrolling Navigation Row: Moves with the page */}
