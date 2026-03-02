@@ -111,59 +111,78 @@ export default function ArcadePage() {
     }, [user]);
 
     return (
-        <main className="min-h-screen pt-24 pb-20 px-4 container mx-auto">
-            {/* Header */}
-            <div className="mb-12 text-center relative">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary/20 blur-[100px] rounded-full -z-10" />
-                <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter mb-4 flex items-center justify-center gap-4">
-                    <Gamepad2 className="w-12 h-12 md:w-20 md:h-20 text-primary animate-pulse" />
-                    The Arcade
-                </h1>
-                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                    Classic games, high scores, and eternal glory. Play for fun or compete for the club leaderboard.
-                </p>
+        <main className="min-h-screen pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto relative overflow-hidden">
+            {/* Header Area */}
+            <div className="mb-16 text-center lg:text-left relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                <div className="relative group">
+                    <div className="absolute -top-12 -left-12 w-64 h-64 bg-primary/20 blur-[120px] rounded-full -z-10 group-hover:bg-primary/30 transition-colors duration-700" />
+                    <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter mb-4 flex items-center lg:justify-start justify-center gap-6">
+                        <Gamepad2 className="w-16 h-16 md:w-24 md:h-24 text-primary drop-shadow-[0_0_15px_rgba(102,252,241,0.5)]" />
+                        Arcade
+                    </h1>
+                    <p className="text-xl text-slate-400 max-w-xl mx-auto lg:mx-0 font-medium tracking-wide">
+                        Classic gaming. High score glory. Independent challenges built for the club.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-4 premium-glass p-2 rounded-[2rem] border-white/10">
+                    <div className="px-6 py-4">
+                        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Global Player Activity</div>
+                        <div className="text-white font-black italic flex items-center gap-2 text-2xl">
+                            <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse shadow-[0_0_10px_#4ade80]" />
+                            1,248 ACTIVE
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Section Divider Style from Mockup */}
+            <div className="flex items-center gap-4 mb-8">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <span className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Available Challenges</span>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             </div>
 
             {/* Game Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                 {ARCADE_GAMES.map((game) => (
-                    <Card key={game.id} className="group relative overflow-hidden border-white/5 bg-surface/40 hover:border-primary/50 transition-all duration-500 hover:-translate-y-1">
+                    <Card key={game.id} className="group border-none relative bg-slate-900/40 hover:bg-slate-900/60 transition-all duration-500">
                         {/* Game Image */}
-                        <div className="relative h-48 w-full overflow-hidden">
+                        <div className="relative h-56 w-full">
                             <Image
                                 src={game.image}
                                 alt={game.title}
                                 fill
-                                className="object-cover transition-transform duration-700 group-hover:scale-110"
+                                className="object-cover transition-transform duration-1000 group-hover:scale-105"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent opacity-60" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
                             {/* Difficulty Badge */}
-                            <div className="absolute top-4 right-4 flex items-center gap-1 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                                <Zap className={`w-3 h-3 ${game.difficulty === 'Hard' ? 'text-red-400' : game.difficulty === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`} />
-                                <span className="text-[10px] font-bold text-white uppercase">{game.difficulty}</span>
+                            <div className="absolute top-6 right-6 flex items-center gap-1 bg-black/80 backdrop-blur-xl px-4 py-1.5 rounded-full border border-white/10 shadow-xl">
+                                <Zap className={`w-3.5 h-3.5 ${game.difficulty === 'Hard' ? 'text-rose-400' : game.difficulty === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}`} />
+                                <span className="text-[11px] font-bold text-white uppercase tracking-wider">{game.difficulty}</span>
                             </div>
                         </div>
 
                         {/* Game Info */}
-                        <div className="p-6">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-2xl font-black text-white tracking-tight italic uppercase">{game.title}</h3>
-                                <span className="text-xs font-bold text-primary/80 bg-primary/10 px-2 py-0.5 rounded border border-primary/20">{game.platform}</span>
+                        <div className="p-8 pt-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-3xl font-black text-white tracking-tight italic uppercase group-hover:text-primary transition-colors">{game.title}</h3>
+                                <span className="text-[10px] font-black text-primary/80 bg-primary/5 px-3 py-1 rounded-full border border-primary/20 uppercase tracking-widest">{game.platform}</span>
                             </div>
-                            <p className="text-muted-foreground text-sm mb-6 line-clamp-2">
+                            <p className="text-slate-400 text-sm mb-8 leading-relaxed line-clamp-2">
                                 {game.description}
                             </p>
 
-                            <div className="flex items-center justify-between">
-                                <div className="flex gap-2">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex gap-3">
                                     {game.tags.map(tag => (
-                                        <span key={tag} className="text-[10px] uppercase font-bold text-white/40">{tag}</span>
+                                        <span key={tag} className="text-[10px] uppercase font-black text-slate-600 tracking-tighter">{tag}</span>
                                     ))}
                                 </div>
                                 <Button
                                     onClick={() => setActiveGame(game)}
-                                    className="bg-primary hover:bg-white text-black font-black italic transition-all group-hover:px-8"
+                                    className="glass-button bg-primary/10 hover:bg-primary text-primary hover:text-black font-black italic px-8 transition-all duration-300"
                                 >
                                     PLAY NOW
                                 </Button>
@@ -175,41 +194,44 @@ export default function ArcadePage() {
 
             {/* Game Modal */}
             {activeGame && (
-                <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex flex-col animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-2xl flex flex-col animate-in fade-in zoom-in-95 duration-500">
                     {/* Modal Header */}
-                    <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/10 bg-surface/50">
-                        <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between p-4 md:px-8 md:py-6 border-b border-white/5 premium-glass">
+                        <div className="flex items-center gap-6">
                             <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setActiveGame(null)}
-                                className="text-white hover:bg-white/10 rounded-full"
+                                className="text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl w-12 h-12"
                             >
                                 <ChevronLeft className="w-8 h-8" />
                             </Button>
                             <div>
-                                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">{activeGame.title}</h2>
-                                <p className="text-xs text-primary font-bold uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                    Live Session
-                                </p>
+                                <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none mb-1">{activeGame.title}</h2>
+                                <div className="flex items-center gap-3">
+                                    <span className="flex items-center gap-2 text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                        Secure Session Active
+                                    </span>
+                                    <span className="w-1 h-1 rounded-full bg-white/10" />
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Global Competition enabled</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-4">
                             {isSubmittingScore && (
-                                <div className="flex items-center gap-2 text-primary font-bold animate-pulse text-sm">
+                                <div className="flex items-center gap-3 bg-primary/10 px-4 py-2 rounded-2xl border border-primary/20 text-primary font-black italic text-xs animate-pulse">
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    SYNCING SCORE...
+                                    SYNCING DATA...
                                 </div>
                             )}
                             <Button
                                 variant="outline"
-                                size="sm"
                                 onClick={() => setActiveGame(null)}
-                                className="border-white/10 text-white hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50"
+                                className="border-white/10 text-slate-400 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/50 rounded-2xl h-12 px-6 font-bold"
                             >
-                                EXIT ARCADE
+                                CLOSE SESSION
                             </Button>
                         </div>
                     </div>

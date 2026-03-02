@@ -335,6 +335,43 @@ export const DynamicBackground: React.FC = () => {
             ctx.fillRect(0, horizon - 2, canvas.width, 25);
         };
 
+        const drawNebula = () => {
+            const colors = getThemeColors();
+            const accent = colors[0];
+            const secondary = colors[1];
+
+            ctx.globalCompositeOperation = 'screen';
+            ctx.filter = 'blur(100px)';
+
+            // Draw 3-4 large, slow-moving blobs of color
+            const time = Date.now() * 0.0001;
+
+            const blobs = [
+                { x: 0.2, y: 0.2, color: accent, size: 0.4 },
+                { x: 0.8, y: 0.3, color: secondary, size: 0.3 },
+                { x: 0.4, y: 0.7, color: colors[2] || accent, size: 0.35 }
+            ];
+
+            blobs.forEach((blob, i) => {
+                const moveX = Math.cos(time + i) * 100;
+                const moveY = Math.sin(time * 0.8 + i) * 100;
+
+                const grad = ctx.createRadialGradient(
+                    canvas.width * blob.x + moveX, canvas.height * blob.y + moveY, 0,
+                    canvas.width * blob.x + moveX, canvas.height * blob.y + moveY, canvas.width * blob.size
+                );
+
+                grad.addColorStop(0, `${blob.color}15`);
+                grad.addColorStop(1, 'transparent');
+
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            });
+
+            ctx.filter = 'none';
+            ctx.globalCompositeOperation = 'source-over';
+        };
+
         const draw = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -352,6 +389,8 @@ export const DynamicBackground: React.FC = () => {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Execute specific bg type draw
+            drawNebula();
+
             switch (bgType) {
                 case 'connectivity': drawConnectivity(); break;
                 case 'galaxy': drawGalaxy(); break;
@@ -409,7 +448,7 @@ export const DynamicBackground: React.FC = () => {
     return (
         <canvas
             ref={canvasRef}
-            className="fixed top-0 left-0 w-full h-full -z-[100] pointer-events-none opacity-30"
+            className="fixed top-0 left-0 w-full h-full -z-[100] pointer-events-none opacity-40"
         />
     );
 };

@@ -27,25 +27,47 @@ export function Navbar() {
     if (!user) return null;
 
     return (
-        <div className="relative z-[100] w-full">
+        <div className="relative z-[150] w-full pt-[env(safe-area-inset-top,0px)]">
             {/* fixed Header Row: Anchored to the very top, using safe area for padding */}
-            <div
-                className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 shadow-xl pt-[env(safe-area-inset-top,0px)]"
+            <header
+                className="fixed top-0 left-0 right-0 z-[120] premium-glass border-b-0 m-2 md:m-4 rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden mt-[env(safe-area-inset-top,8px)]"
             >
-                <div className="container mx-auto px-4 h-10 md:h-12 flex items-center justify-between">
-                    <PremiumLogo />
-                    <UserProfile />
+                <div className="container mx-auto px-6 h-14 md:h-16 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-8">
+                        <PremiumLogo />
+
+                        {/* Desktop Navigation Links - Integrated like mockup */}
+                        <div className="hidden lg:flex items-center gap-6">
+                            <Link href="/clubs" className="flex items-center gap-2 group">
+                                <Search className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-white transition-colors">Find Clubs</span>
+                            </Link>
+                            <Link href="/arcade" className="flex items-center gap-2 group">
+                                <Gamepad2 className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-white transition-colors">Arcade</span>
+                            </Link>
+                            <Link href="/friends" className="flex items-center gap-2 group relative">
+                                <Users className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
+                                {pendingCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+                                )}
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-white transition-colors">Friends</span>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <UserProfile />
+                    </div>
                 </div>
-            </div>
+            </header>
 
             {/* Spacer for the fixed header */}
-            <div className="pt-[env(safe-area-inset-top,0px)]">
-                <div className="h-10 md:h-12" />
-            </div>
+            <div className="h-16 md:h-20" />
 
-            {/* Scrolling Navigation Row: Moves with the page */}
-            <nav className="bg-background/20 border-b border-white/5 overflow-x-auto scrollbar-hide">
-                <div className="container mx-auto px-4 flex items-center justify-center lg:justify-start gap-8 py-3 md:py-4">
+            {/* Mobile Navigation Row: Only visible on smaller screens */}
+            <nav className="lg:hidden m-2 md:m-4 mt-0 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[1.5rem] overflow-x-auto scrollbar-hide py-3">
+                <div className="flex items-center justify-center gap-8 px-4">
                     <Link href="/clubs" className="flex items-center gap-2 group whitespace-nowrap">
                         <div className="bg-white/5 p-2 rounded-xl group-hover:bg-primary/20 transition-colors">
                             <Compass className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
