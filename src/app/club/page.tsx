@@ -33,7 +33,8 @@ import {
     checkAndActivateUpcomingSession,
     checkAndEndActiveSessions,
     updateClubLastAccessed,
-    uploadVerificationImage
+    uploadVerificationImage,
+    removeMember
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -826,6 +827,20 @@ function ClubContent() {
             alert("Failed to upload proof.");
         } finally {
             setIsUploadingProof(false);
+        }
+    };
+
+    const handleRemoveMember = async (memberUserId: string, memberName: string) => {
+        if (!user || !clubId) return;
+        if (!confirm(`Are you sure you want to remove ${memberName} from this club?`)) return;
+
+        try {
+            await removeMember(user.uid, memberUserId, clubId);
+            setMembers(prev => prev.filter(m => m.userId !== memberUserId));
+            alert(`${memberName} has been removed from the club.`);
+        } catch (e: any) {
+            console.error(e);
+            alert(e.message || "Failed to remove member.");
         }
     };
 
@@ -1807,6 +1822,30 @@ function ClubContent() {
                                                     ) : (
                                                         <span className="flex items-center gap-1"><UserPlus className="w-3 h-3" /> Add Friend</span>
                                                     )}
+                                                </Button>
+                                            )}
+
+                                            {/* Admin/Dev Remove Button */}
+                                            {isAdmin && !isMe && member.role !== 'owner' && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 text-[9px] font-bold uppercase tracking-wider mb-4 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                                                    onClick={() => handleRemoveMember(member.userId, member.displayName || "Unknown Member")}
+                                                >
+                                                    <UserX className="w-3 h-3 mr-1" /> Kick Member
+                                                </Button>
+                                            )}
+
+                                            {/* skezza82 fallback if not admin */}
+                                            {!isAdmin && !isMe && user?.displayName?.toLowerCase() === 'skezza82' && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 text-[9px] font-bold uppercase tracking-wider mb-4 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                                                    onClick={() => handleRemoveMember(member.userId, member.displayName || "Unknown Member")}
+                                                >
+                                                    <Shield className="w-3 h-3 mr-1" /> Dev Kick
                                                 </Button>
                                             )}
 

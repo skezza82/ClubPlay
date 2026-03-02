@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { Gamepad2, Trophy, Loader2, Play, ChevronLeft, Star, ExternalLink, Zap } from 'lucide-react';
 import Image from 'next/image';
-import { addXp, markArcadeVisited } from '@/lib/firestore-service';
+import { addXp, markArcadeVisited, submitScore } from '@/lib/firestore-service';
 
 // Mock Game Data
 const ARCADE_GAMES = [
@@ -79,27 +79,17 @@ export default function ArcadePage() {
                 if (user && !isNaN(score) && score > 0) {
                     setIsSubmittingScore(true);
                     try {
-                        const { doc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                        const { db } = await import("@/lib/firebase");
-
                         const FEEDER_SESSION_ID = "feeder-club-6-month-pacman";
-                        const scoreId = `${user.uid}_${FEEDER_SESSION_ID}`;
-                        const scoreRef = doc(db, "scores", scoreId);
+                        // Use the shared submitScore logic which handles improved scores and outliers
+                        const result = await submitScore(
+                            FEEDER_SESSION_ID,
+                            user.uid,
+                            score,
+                            user.displayName || "Unknown Rookie"
+                        );
 
-                        // Check if we already have a higher score
-                        const existingScore = await getDoc(scoreRef);
-                        if (!existingScore.exists() || existingScore.data().scoreValue < score) {
-                            await setDoc(scoreRef, {
-                                sessionId: FEEDER_SESSION_ID,
-                                userId: user.uid,
-                                scoreValue: score,
-                                proofUrl: "arcade_auto_submission",
-                                status: "verified",
-                                submittedAt: serverTimestamp(),
-                                displayName: user.displayName || "Unknown Rookie",
-                                photoURL: user.photoURL
-                            }, { merge: true });
-                            console.log("✅ Pacman score submitted successfully!");
+                        if (result.improved) {
+                            console.log("✅ Pacman score submitted successfully!", score);
                         } else {
                             console.log("📉 Score not higher than current best, skipping submission.");
                         }

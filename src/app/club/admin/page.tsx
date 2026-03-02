@@ -27,7 +27,8 @@ import {
     getCurrentGOTM,
     getUpcomingGOTM,
     type GOTM,
-    verifyScore
+    verifyScore,
+    removeMember
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -428,6 +429,23 @@ function ClubAdminContent() {
         }
     };
 
+    const handleRemoveMember = async (memberUserId: string, memberName: string) => {
+        if (!user || !clubId) return;
+        if (!confirm(`Are you sure you want to remove ${memberName} from this club?`)) return;
+
+        setIsUpdating(true);
+        try {
+            await removeMember(user.uid, memberUserId, clubId);
+            setMembers(prev => prev.filter(m => m.userId !== memberUserId));
+            alert(`${memberName} has been removed from the club.`);
+        } catch (e: any) {
+            console.error(e);
+            alert(e.message || "Failed to remove member.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     const handleUpdateSettings = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsUpdating(true);
@@ -681,9 +699,8 @@ function ClubAdminContent() {
                                                     size="sm"
                                                     variant="ghost"
                                                     className={`w-full sm:w-auto text-muted-foreground hover:text-red-400 text-xs font-bold uppercase tracking-widest ${userRole === 'owner' && member.userId !== user?.uid ? 'col-span-2 sm:col-span-1' : ''}`}
-                                                    onClick={() => {
-                                                        alert("Remove member feature coming soon");
-                                                    }}
+                                                    onClick={() => handleRemoveMember(member.userId, member.displayName || "Unknown")}
+                                                    disabled={isUpdating}
                                                 >
                                                     Remove
                                                 </Button>

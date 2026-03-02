@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
       presentationOptions: ["badge", "sound", "alert"],
     },
     StatusBar: {
-      overlaysWebView: false,
+      overlaysWebView: true,
     }
   }
 };

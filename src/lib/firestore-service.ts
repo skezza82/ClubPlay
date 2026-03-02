@@ -419,21 +419,56 @@ export const getClub = async (clubId: string) => {
 };
 
 export const getSessionScores = async (sessionId: string) => {
+    // Fetch session to determine challenge type
+    let isSpeed = false;
+    try {
+        const sessionDoc = await getDoc(doc(db, "sessions", sessionId));
+        if (sessionDoc.exists()) {
+            isSpeed = sessionDoc.data().challengeType === 'speed';
+        }
+    } catch (e) {
+        console.error("Error fetching session for scores:", e);
+    }
+
     const scoresRef = collection(db, "scores");
-    // We remove the default sorting to allow flexible client-side sorting based on challengeType
     const q = query(
         scoresRef,
         where("sessionId", "==", sessionId),
-        limit(100)
+        limit(500) // Increased limit to ensure we get all records for deduplication
     );
 
     const snapshot = await getDocs(q);
 
-    // Enrich with user data
-    const scores = await Promise.all(snapshot.docs.map(async (docSnap) => {
-        const data = docSnap.data();
+    // Group and pick best score per user
+    const bestScoresMap = new Map<string, any>();
 
-        // Use cached user profile
+    snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const userId = data.userId;
+        const currentScore = data.scoreValue || 0;
+
+        if (!bestScoresMap.has(userId)) {
+            bestScoresMap.set(userId, { id: docSnap.id, ...data });
+        } else {
+            const best = bestScoresMap.get(userId);
+            const bestScore = best.scoreValue || 0;
+
+            const improved = isSpeed ? currentScore < bestScore : currentScore > bestScore;
+
+            // If current is better, or current is verified and best is not, prefer the better/verified one
+            // Special case: if one is 'verified' and other is not, we might want to show the verified one 
+            // but for simple leaderboard, best score wins.
+            if (improved) {
+                bestScoresMap.set(userId, { id: docSnap.id, ...data });
+            } else if (currentScore === bestScore && data.status === 'verified' && best.status !== 'verified') {
+                // If scores are equal, prefer verified
+                bestScoresMap.set(userId, { id: docSnap.id, ...data });
+            }
+        }
+    });
+
+    // Convert map to array and enrich with user data
+    const scores = await Promise.all(Array.from(bestScoresMap.values()).map(async (data) => {
         const userData = await getCachedUser(data.userId);
         let displayName = data.displayName;
         let photoURL = data.photoURL;
@@ -446,7 +481,7 @@ export const getSessionScores = async (sessionId: string) => {
         }
 
         return {
-            id: docSnap.id,
+            id: data.id,
             scoreValue: data.scoreValue || 0,
             userId: data.userId,
             displayName: displayName || "Unknown",
@@ -1212,9 +1247,64 @@ export const disbandClub = async (clubId: string) => {
 };
 
 export const submitScore = async (sessionId: string, userId: string, scoreValue: number, displayName: string) => {
-    // 1. Determine outlier
-    const sessionDoc = await getDoc(doc(db, "weekly_sessions", sessionId));
+    // Fetch session to determine challenge type
+    const sessionDoc = await getDoc(doc(db, "sessions", sessionId));
     const sessionType = sessionDoc.exists() ? sessionDoc.data().challengeType : 'score';
+    const isSpeed = sessionType === 'speed';
+
+    // We use a composite ID to ensure one score per user per session: userId_sessionId
+    const scoreId = `${userId}_${sessionId}`;
+    const scoreRef = doc(db, "scores", scoreId);
+
+    // LEGACY ID CHECK: Also check for sessionId_userId pattern
+    const legacyScoreId = `${sessionId}_${userId}`;
+    const legacyScoreRef = doc(db, "scores", legacyScoreId);
+
+    // FETCH BOTH
+    const [scoreSnap, legacySnap] = await Promise.all([
+        getDoc(scoreRef),
+        getDoc(legacyScoreRef)
+    ]);
+
+    let existingData = scoreSnap.exists() ? scoreSnap.data() : null;
+    const legacyData = legacySnap.exists() ? legacySnap.data() : null;
+
+    // Identify the best one we currently have in DB
+    let currentBestData = existingData;
+    if (legacyData) {
+        if (!currentBestData) {
+            currentBestData = legacyData;
+        } else {
+            const legacyVal = legacyData.scoreValue || 0;
+            const existingVal = currentBestData.scoreValue || (isSpeed ? Infinity : -Infinity);
+            const legacyIsBetter = isSpeed ? legacyVal < existingVal : legacyVal > existingVal;
+            if (legacyIsBetter) {
+                currentBestData = legacyData;
+            }
+        }
+    }
+
+    // Determine if the NEW score is an improvement over the best we have
+    const currentBestVal = currentBestData?.scoreValue || (isSpeed ? Infinity : -Infinity);
+    const isNewScoreBetter = isSpeed ? scoreValue < currentBestVal : scoreValue > currentBestVal;
+
+    // If there's legacy data, we want to migrate it or replace it anyway
+    if (legacyData) {
+        // If the new score is NOT better than the current best (which might be the legacy one), 
+        // and the current best is the legacy one, we should migrate the legacy one to the new ID format.
+        if (!isNewScoreBetter && currentBestData === legacyData) {
+            await setDoc(scoreRef, { ...legacyData, userId, sessionId }, { merge: true });
+        }
+        // Always cleanup legacy record after we've processed it
+        await deleteDoc(legacyScoreRef);
+    }
+
+    if (!isNewScoreBetter && existingData) {
+        // New score is worse than what we already have in the new ID format (or migrated)
+        return { isOutlier: false, status: existingData.status, improved: false };
+    }
+
+    // Now proceed with submitting the NEW score because it's better than anything we have
 
     // Fetch current scores to check for outliers
     const scoresRef = collection(db, "scores");
@@ -1225,31 +1315,19 @@ export const submitScore = async (sessionId: string, userId: string, scoreValue:
     if (snapScores.size >= 3) {
         const values = snapScores.docs.map(d => d.data().scoreValue || 0);
         const mean = values.reduce((a, b) => a + b, 0) / values.length;
-
         const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
         const stdDev = Math.sqrt(variance);
 
-        if (sessionType === 'speed') {
-            // Lower is "better" for speedruns. Average might be 60. New score 10 is suspicious.
-            // Meaning if their time is less than half the average time, it's flagged.
+        if (isSpeed) {
             if (scoreValue < mean - (stdDev * 2) || scoreValue < mean * 0.5) {
                 isOutlier = true;
             }
         } else {
-            // Higher is "better" for standard score checks.
             if (scoreValue > mean + (stdDev * 2) || scoreValue > mean * 1.5) {
                 isOutlier = true;
             }
         }
     }
-
-    // We use a composite ID to ensure one score per user per session
-    const scoreId = `${userId}_${sessionId}`;
-    const scoreRef = doc(db, "scores", scoreId);
-
-    // FETCH EXISTING to see if we have a verified fallback
-    const existingSnap = await getDoc(scoreRef);
-    const existingData = existingSnap.exists() ? existingSnap.data() : null;
 
     const status = isOutlier ? 'pending_verification' : 'verified';
 
@@ -1262,22 +1340,20 @@ export const submitScore = async (sessionId: string, userId: string, scoreValue:
         submittedAt: Timestamp.now()
     };
 
-    // If new score is outlier and we have an old verified one, preserve the old one as fallback
-    if (isOutlier && existingData?.status === 'verified') {
-        updateData.verifiedScoreValue = existingData.scoreValue;
+    // Keep the verified fallback if moving to pending_verification
+    if (isOutlier && currentBestData?.status === 'verified') {
+        updateData.verifiedScoreValue = currentBestData.scoreValue;
     } else if (!isOutlier) {
-        // Not an outlier? Clear any existing fallbacks
         updateData.verifiedScoreValue = deleteField();
     }
 
     await setDoc(scoreRef, updateData, { merge: true });
 
-    // Check if this is the FIRST score for this session to award bonus XP
     if (snapScores.size === 0) {
         await addXp(userId, 20, "First Score Posted");
     }
 
-    return { isOutlier, status };
+    return { isOutlier, status, improved: true };
 };
 
 export const uploadVerificationImage = async (sessionId: string, userId: string, file: File) => {
@@ -1328,6 +1404,54 @@ export const verifyScore = async (scoreId: string, isApproved: boolean) => {
             }
         }
     }
+};
+
+
+export const removeMember = async (adminId: string, memberUserId: string, clubId: string) => {
+    const membershipId = `${memberUserId}_${clubId}`;
+    const membershipRef = doc(db, "memberships", membershipId);
+
+    // Check if the actor is admin/owner
+    const adminMembershipId = `${adminId}_${clubId}`;
+    const adminMembershipRef = doc(db, "memberships", adminMembershipId);
+    const adminSnap = await getDoc(adminMembershipRef);
+    const isAdmin = adminSnap.exists() && (adminSnap.data().role === 'admin' || adminSnap.data().role === 'owner');
+
+    // Also check if actor is a developer (skezza82 fallback)
+    const actorDoc = await getDoc(doc(db, "users", adminId));
+    const isDev = actorDoc.exists() && (actorDoc.data().role === 'developer' || actorDoc.data().displayName?.toLowerCase() === 'skezza82');
+
+    if (!isAdmin && !isDev) {
+        throw new Error("Unauthorized. Only admins or owners can remove members.");
+    }
+
+    await runTransaction(db, async (transaction) => {
+        const memDoc = await transaction.get(membershipRef);
+        const clubRef = doc(db, "clubs", clubId);
+        const clubDoc = await transaction.get(clubRef);
+        const userRef = doc(db, "users", memberUserId);
+
+        if (!memDoc.exists()) throw new Error("Membership not found");
+
+        // Don't let non-owners remove owners (unless it's a dev)
+        if (memDoc.data().role === 'owner' && !isDev) {
+            throw new Error("Owner cannot be removed.");
+        }
+
+        transaction.delete(membershipRef);
+
+        if (clubDoc.exists()) {
+            const currentCount = clubDoc.data().memberCount || 1;
+            transaction.update(clubRef, { memberCount: Math.max(0, currentCount - 1) });
+        }
+
+        // Dedicated Feeder Club flag cleanup
+        if (clubId === 'feeder-club-global-v1') {
+            transaction.update(userRef, { hasJoinedFeederClub: false });
+        }
+    });
+
+    return true;
 };
 
 export const updateMemberRole = async (clubId: string, userId: string, newRole: 'admin' | 'member') => {

@@ -13,20 +13,9 @@ export function Navbar() {
     const { user } = useAuth();
     const { hasGamepadAccess } = useGamepad();
     const [pendingCount, setPendingCount] = useState(0);
-    const [topPadding, setTopPadding] = useState("env(safe-area-inset-top)");
 
     useEffect(() => {
         if (!user) return;
-
-        // Android WebViews and standalone PWAs sometimes fail to report safe-area-inset-top correctly.
-        // Fallback to 32px (Standard Android Status Bar height) just for them.
-        const isCapacitor = (window as any).Capacitor !== undefined;
-        const isAndroidWebView = /wv/.test(navigator.userAgent) && /Android/.test(navigator.userAgent);
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches && /Android/.test(navigator.userAgent);
-
-        if (isCapacitor || isAndroidWebView || isStandalone) {
-            setTopPadding("max(env(safe-area-inset-top), 32px)");
-        }
 
         const unsubscribe = listenToFriendRequests(user.uid, (requests) => {
             setPendingCount(requests.length);
@@ -39,20 +28,19 @@ export function Navbar() {
 
     return (
         <div className="relative z-[100] w-full">
-            {/* fixed Header Row: Anchored to the very top of the viewport */}
+            {/* fixed Header Row: Anchored to the very top, using safe area for padding */}
             <div
-                className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 shadow-xl"
-                style={{ paddingTop: topPadding }}
+                className="fixed top-0 left-0 right-0 z-[120] bg-background/90 backdrop-blur-xl border-b border-white/5 shadow-xl pt-[env(safe-area-inset-top,0px)]"
             >
-                <div className="container mx-auto px-4 h-12 flex items-center justify-between">
+                <div className="container mx-auto px-4 h-10 md:h-12 flex items-center justify-between">
                     <PremiumLogo />
                     <UserProfile />
                 </div>
             </div>
 
             {/* Spacer for the fixed header */}
-            <div style={{ paddingTop: topPadding }}>
-                <div className="h-12" />
+            <div className="pt-[env(safe-area-inset-top,0px)]">
+                <div className="h-10 md:h-12" />
             </div>
 
             {/* Scrolling Navigation Row: Moves with the page */}

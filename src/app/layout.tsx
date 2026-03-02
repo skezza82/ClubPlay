@@ -81,7 +81,7 @@ export default function RootLayout({
               <AndroidBackHandler />
               <Navbar />
               <InstallPrompt />
-              <main className="pb-16 min-h-screen relative z-10">
+              <main className="pb-[max(4rem,env(safe-area-inset-bottom,0px))] min-h-screen relative z-10">
                 {children}
               </main>
             </PWAProvider>
