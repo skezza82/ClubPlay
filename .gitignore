@@ -1,2 +1,14 @@
 apktool_framework/
 apktool_out/
+.env
+.env.*
+node_modules/
+.next/
+out/
+tsconfig.tsbuildinfo
+next-env.d.ts
+.firebase/
+functions/.env
+android/app/google-services.json
+android/app/release.jks
+android/keystore.properties
