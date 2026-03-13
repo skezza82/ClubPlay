@@ -34,6 +34,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            resValue "string", "app_name", "ClubPlay Debug"
+        }
         release {
             signingConfig signingConfigs.release
             minifyEnabled false
@@ -76,9 +81,12 @@ apply from: 'capacitor.build.gradle'
 
 try {
     def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
+    def isDebugBuild = gradle.startParameter.taskNames.any { it.toLowerCase().contains("debug") }
+    if (!isDebugBuild && servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
+    } else if (isDebugBuild) {
+        logger.info("Debug build detected; skipping google-services plugin for com.clubplaygaming.app.debug")
     }
 } catch(Exception) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    logger.info("google-services.json not found or unreadable, google-services plugin not applied. Push Notifications won't work")
 }
