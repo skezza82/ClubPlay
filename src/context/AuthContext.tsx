@@ -127,13 +127,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const normalizedName = name ? name.toLowerCase() : "";
 
         let needsFeederClub = false;
+        let isNewUser = false;
         try {
             const userSnap = await getDoc(userRef);
-            if (!userSnap.exists() || !userSnap.data()?.hasJoinedFeederClub) {
+            if (!userSnap.exists()) {
+                isNewUser = true;
+                needsFeederClub = true;
+            } else if (!userSnap.data()?.hasJoinedFeederClub) {
                 needsFeederClub = true;
             }
         } catch (e) {
-            console.error("Error checking user feeder club status", e);
+            console.error("Error checking user status", e);
         }
 
         try {
@@ -145,9 +149,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 photoURL: user.photoURL,
                 searchKeywords: generateKeywords(user.displayName),
                 lastLogin: serverTimestamp(),
+                ...(isNewUser ? { createdAt: serverTimestamp() } : {}),
                 role: "user"
             }, { merge: true });
             console.log("User document successfully created/updated");
+
+            if (isNewUser) {
+                const { getTotalUsersCount, awardBadge } = await import("@/lib/firestore-service");
+                const count = await getTotalUsersCount();
+                if (count <= 100) {
+                    await awardBadge(user.uid, 'og_member');
+                }
+            }
 
             if (needsFeederClub) {
                 const { ensureFeederClubMembership } = await import("@/lib/feeder-club-service");

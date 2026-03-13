@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { buildAuthorization, getUserRecentAchievements, getLeaderboardEntries } = require("@retroachievements/api");
 
 admin.initializeApp();
 
@@ -170,6 +171,55 @@ exports.onJoinRequestCreated = functions.firestore
     });
 
 /**
+ * Reusable helper to send a notification to all members of a club
+ */
+async function sendClubNotification(clubId, title, body, data) {
+    try {
+        // 1. Get All Members
+        const membershipsSnap = await admin.firestore()
+            .collection("memberships")
+            .where("clubId", "==", clubId)
+            .get();
+
+        const memberUserIds = membershipsSnap.docs.map(d => d.data().userId);
+        if (memberUserIds.length === 0) return null;
+
+        // 2. Get FCM Tokens for all members
+        const tokens = [];
+        const chunkSize = 10;
+        for (let i = 0; i < memberUserIds.length; i += chunkSize) {
+            const chunk = memberUserIds.slice(i, i + chunkSize);
+            const usersSnap = await admin.firestore().collection("users")
+                .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                .get();
+
+            usersSnap.docs.forEach(doc => {
+                const userData = doc.data();
+                if (userData.fcmToken) {
+                    tokens.push(userData.fcmToken);
+                }
+            });
+        }
+
+        if (tokens.length === 0) return null;
+
+        // 3. Send Multicast
+        const message = {
+            notification: { title, body },
+            tokens: tokens,
+            data: data
+        };
+
+        const response = await admin.messaging().sendMulticast(message);
+        console.log(`Club ${clubId}: Sent ${response.successCount} notifications. Failed: ${response.failureCount}`);
+        return response;
+    } catch (error) {
+        console.error("Error in sendClubNotification:", error);
+        return null;
+    }
+}
+
+/**
  * Notifies club members when a weekly session starts or ends.
  */
 exports.onWeeklySessionUpdated = functions.firestore
@@ -185,100 +235,32 @@ exports.onWeeklySessionUpdated = functions.firestore
         const isNewStart = (!before || !before.isActive) && after.isActive === true;
 
         // scenario 2: Session Ended (Active changed to false AND has winner)
-        // We check for winnerId to ensure it was processed successfully
         const isJustEnded = (before && before.isActive === true) && after.isActive === false && after.winnerId;
 
-        if (!isNewStart && !isJustEnded) {
-            return null;
+        if (!isNewStart && !isJustEnded) return null;
+
+        const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
+        const clubName = clubDoc.exists ? clubDoc.data().name : "Club";
+
+        let title = "";
+        let body = "";
+        let type = "";
+
+        if (isNewStart) {
+            title = `New Challenge Started! 🎮`;
+            body = `The challenge for ${after.gameTitle} has begun in ${clubName}!`;
+            type = "CHALLENGE_START";
+        } else if (isJustEnded) {
+            title = `Challenge Winner! 🏆`;
+            body = `${after.winnerName || "Someone"} won the ${after.gameTitle} challenge in ${clubName}!`;
+            type = "CHALLENGE_END";
         }
 
-        try {
-            // 1. Get Club Info
-            const clubDoc = await admin.firestore().collection("clubs").doc(clubId).get();
-            const clubName = clubDoc.exists ? clubDoc.data().name : "Club";
-
-            // 2. Get All Members
-            const membershipsSnap = await admin.firestore()
-                .collection("memberships")
-                .where("clubId", "==", clubId)
-                .get();
-
-            const memberUserIds = membershipsSnap.docs.map(d => d.data().userId);
-            if (memberUserIds.length === 0) {
-                console.log(`No members found for club ${clubId}`);
-                return null;
-            }
-
-            // 3. Get FCM Tokens for all members
-            // Firestore 'in' query supports max 10 items. We must batch or loop.
-            // For simplicity/scale, let's fetch users individually or in batches of 10.
-            // Or better yet, since we have the IDs, let's just fetch all users who have tokens?
-            // Actually, querying users by ID is best.
-
-            const tokens = [];
-
-            // Batch fetch user docs (max 10 for 'in' queries, but we might have hundreds)
-            // Strategy: Iterate through IDs and fetch. Parallelise with Promise.all
-            // Limit concurrency to avoid blowing up.
-            const chunks = [];
-            const chunkSize = 10;
-            for (let i = 0; i < memberUserIds.length; i += chunkSize) {
-                chunks.push(memberUserIds.slice(i, i + chunkSize));
-            }
-
-            for (const chunk of chunks) {
-                const usersSnap = await admin.firestore().collection("users")
-                    .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-                    .get();
-
-                usersSnap.docs.forEach(doc => {
-                    const data = doc.data();
-                    if (data.fcmToken) {
-                        tokens.push(data.fcmToken);
-                    }
-                });
-            }
-
-            if (tokens.length === 0) {
-                console.log("No FCM tokens found for members.");
-                return null;
-            }
-
-            // 4. Construct Message
-            let title = "";
-            let body = "";
-            let type = "";
-
-            if (isNewStart) {
-                title = `New Challenge Started! 🎮`;
-                body = `The challenge for ${after.gameTitle} has begun in ${clubName}!`;
-                type = "CHALLENGE_START";
-            } else if (isJustEnded) {
-                title = `Challenge Winner! 🏆`;
-                body = `${after.winnerName || "Someone"} won the ${after.gameTitle} challenge in ${clubName}!`;
-                type = "CHALLENGE_END";
-            }
-
-            // 5. Send Multicast
-            const message = {
-                notification: { title, body },
-                tokens: tokens,
-                data: {
-                    clubId: clubId,
-                    sessionId: context.params.sessionId,
-                    type: type
-                }
-            };
-
-            const response = await admin.messaging().sendMulticast(message);
-            console.log(`Sent ${response.successCount} notifications for session update. Failed: ${response.failureCount}`);
-
-            return response;
-
-        } catch (error) {
-            console.error("Error sending session notification:", error);
-            return null;
-        }
+        return sendClubNotification(clubId, title, body, {
+            clubId: clubId,
+            sessionId: context.params.sessionId,
+            type: type
+        });
     });
 
 /**
@@ -556,6 +538,10 @@ Do not include markdown formatting or backticks, just raw JSON.`;
  * Automatically processes expired challenges every 10 minutes.
  * Requires Blaze plan for scheduled functions.
  */
+/**
+ * Automatically processes expired challenges every 10 minutes.
+ * Also sends reminders for challenges ending in 2 hours.
+ */
 exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").onRun(async (context) => {
     const db = admin.firestore();
     const now = new Date();
@@ -563,28 +549,22 @@ exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").on
     console.log("Running auto-process-challenges at", now.toISOString());
 
     try {
-        // Find active sessions that have passed their end date
+        // 1. Process Expired Sessions
         const expiredSessions = await db.collection("weekly_sessions")
             .where("isActive", "==", true)
             .where("isProcessed", "==", false)
             .get();
 
-        if (expiredSessions.empty) {
-            console.log("No expired challenges found.");
-            return null;
-        }
-
         const processPromises = [];
 
-        for (const doc of expiredSessions.docs) {
-            const data = doc.data();
+        for (const docSnap of expiredSessions.docs) {
+            const data = docSnap.data();
             const endDate = new Date(data.endDate);
 
             if (endDate <= now) {
-                console.log(`Challenge ${doc.id} (${data.gameTitle}) has expired. Processing...`);
-                // We'll wrap the processing logic similar to processSessionResults but using admin SDK
+                console.log(`Challenge ${docSnap.id} (${data.gameTitle}) has expired. Processing...`);
                 processPromises.push((async () => {
-                    const sessionId = doc.id;
+                    const sessionId = docSnap.id;
                     const clubId = data.clubId;
 
                     // Fetch scores
@@ -595,7 +575,7 @@ exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").on
                     const scores = scoresSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
                     if (scores.length === 0) {
-                        await doc.ref.update({ isProcessed: true, isActive: false });
+                        await docSnap.ref.update({ isProcessed: true, isActive: false });
                         return;
                     }
 
@@ -636,7 +616,7 @@ exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").on
                         }
 
                         // Session
-                        t.update(doc.ref, {
+                        t.update(docSnap.ref, {
                             isProcessed: true,
                             isActive: false,
                             winnerId: winner.userId,
@@ -650,13 +630,219 @@ exports.autoProcessChallenges = functions.pubsub.schedule("every 10 minutes").on
                         });
                     });
                 })());
+            } else {
+                // 2. CHECK FOR REMINDER (Ending in < 2 hours)
+                const timeDiff = endDate.getTime() - now.getTime();
+                const hoursLeft = timeDiff / (1000 * 60 * 60);
+
+                if (hoursLeft > 0 && hoursLeft <= 2 && !data.reminderSent) {
+                    processPromises.push((async () => {
+                        console.log(`Sending reminder for challenge ${docSnap.id} ending soon...`);
+                        await docSnap.ref.update({ reminderSent: true });
+
+                        const clubDoc = await db.collection("clubs").doc(data.clubId).get();
+                        const clubName = clubDoc.exists ? clubDoc.data().name : "Club";
+
+                        await sendClubNotification(
+                            data.clubId,
+                            "Challenge Ending Soon! ⏳",
+                            `Only 2 hours left to get your scores in for ${data.gameTitle}! Don't miss out!`,
+                            {
+                                clubId: data.clubId,
+                                sessionId: docSnap.id,
+                                type: "CHALLENGE_REMINDER"
+                            }
+                        );
+                    })());
+                }
             }
         }
 
         await Promise.all(processPromises);
-        console.log(`Finished processing ${processPromises.length} challenges.`);
     } catch (err) {
         console.error("Auto-process failed:", err);
     }
     return null;
+});
+
+/**
+ * Fetches recent achievements for a user from RetroAchievements.
+ */
+exports.getRecentAchievements = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const username = req.query.username;
+        if (!username) {
+            res.status(400).send({ error: "Missing username" });
+            return;
+        }
+
+        const RA_USERNAME = process.env.RA_USERNAME || "Skezza30"; // Fallback to provided defaults if needed
+        const RA_API_KEY = process.env.RA_API_KEY || "JNeVzGSOnpLrW709sgK2lFG2vUnfO6NZ";
+
+        const auth = buildAuthorization({
+            username: RA_USERNAME,
+            webApiKey: RA_API_KEY
+        });
+
+        const recentAchievements = await getUserRecentAchievements(auth, {
+            username,
+            recentMinutes: 43200 // 30 days
+        });
+
+        res.status(200).send(recentAchievements);
+    } catch (error) {
+        console.error("Error in getRecentAchievements:", error);
+        res.status(500).send({ error: error.message });
+    }
+});
+
+/**
+ * Syncs scores from a RetroAchievements leaderboard to a club challenge.
+ */
+exports.syncRALeaderboard = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId) {
+            res.status(400).send({ error: "Missing sessionId" });
+            return;
+        }
+
+        const RA_USERNAME = process.env.RA_USERNAME || "Skezza30";
+        const RA_API_KEY = process.env.RA_API_KEY || "JNeVzGSOnpLrW709sgK2lFG2vUnfO6NZ";
+
+        const auth = buildAuthorization({
+            username: RA_USERNAME,
+            webApiKey: RA_API_KEY
+        });
+
+        const db = admin.firestore();
+
+        // 1. Get session
+        const sessionDoc = await db.collection("weekly_sessions").doc(sessionId).get();
+        if (!sessionDoc.exists) {
+            res.status(404).send({ error: "Session not found" });
+            return;
+        }
+
+        const session = sessionDoc.data();
+        if (!session.raLeaderboardId) {
+            res.status(400).send({ error: "Session has no RA Leaderboard ID" });
+            return;
+        }
+
+        const clubId = session.clubId;
+        const isSpeed = session.challengeType === "speed";
+
+        // 2. Get club members
+        const membersSnap = await db.collection("memberships").where("clubId", "==", clubId).get();
+        const memberIds = membersSnap.docs.map(doc => doc.data().userId);
+
+        if (memberIds.length === 0) {
+            res.send({ success: true, syncedCount: 0, message: "No members in club" });
+            return;
+        }
+
+        // 3. Map RA usernames to ClubPlay user IDs
+        const userMap = new Map();
+        const chunks = [];
+        for (let i = 0; i < memberIds.length; i += 10) {
+            chunks.push(memberIds.slice(i, i + 10));
+        }
+
+        for (const chunk of chunks) {
+            const usersSnap = await db.collection("users")
+                .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                .get();
+
+            usersSnap.forEach(doc => {
+                const data = doc.data();
+                if (data.raUsername) {
+                    userMap.set(data.raUsername.toLowerCase(), {
+                        userId: doc.id,
+                        displayName: data.displayName,
+                        photoURL: data.photoURL
+                    });
+                }
+            });
+        }
+
+        if (userMap.size === 0) {
+            res.send({ success: true, syncedCount: 0, message: "No members have linked RA accounts" });
+            return;
+        }
+
+        // 4. Fetch RA leaderboard
+        const raEntries = await getLeaderboardEntries(auth, {
+            leaderboardId: session.raLeaderboardId,
+            count: 500
+        });
+
+        const entries = raEntries.results || [];
+        let syncedCount = 0;
+        const batch = db.batch();
+
+        for (const entry of entries) {
+            const raUser = entry.user?.toLowerCase();
+            if (raUser && userMap.has(raUser)) {
+                const userInfo = userMap.get(raUser);
+                const scoreValue = entry.score;
+
+                const scoreId = `${userInfo.userId}_${sessionId}`;
+                const scoreRef = db.collection("scores").doc(scoreId);
+                const existingDoc = await scoreRef.get();
+
+                let shouldUpdate = false;
+                if (existingDoc.exists) {
+                    const existingData = existingDoc.data();
+                    const existingVal = existingData.scoreValue;
+                    const isBetter = isSpeed ? scoreValue < existingVal : scoreValue > existingVal;
+                    if (isBetter) shouldUpdate = true;
+                } else {
+                    shouldUpdate = true;
+                }
+
+                if (shouldUpdate) {
+                    batch.set(scoreRef, {
+                        userId: userInfo.userId,
+                        sessionId: sessionId,
+                        scoreValue: scoreValue,
+                        displayName: userInfo.displayName,
+                        photoURL: userInfo.photoURL,
+                        submittedAt: admin.firestore.Timestamp.now(),
+                        status: "verified",
+                        proofUrl: `https://retroachievements.org/leaderboardinfo.php?i=${session.raLeaderboardId}`,
+                        isRetroAchievements: true
+                    }, { merge: true });
+                    syncedCount++;
+                }
+            }
+        }
+
+        if (syncedCount > 0) {
+            await batch.commit();
+        }
+
+        res.send({ success: true, syncedCount, totalProcessed: entries.length });
+    } catch (error) {
+        console.error("Error in syncRALeaderboard:", error);
+        res.status(500).send({ error: error.message });
+    }
 });

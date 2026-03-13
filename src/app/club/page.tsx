@@ -14,6 +14,7 @@ import {
     getClubMessages,
     sendClubMessage,
     getGameOfTheMonth,
+    deleteGOTM,
     submitGOTMReview,
     getUserGOTMReview,
     getSeasonStandings,
@@ -34,7 +35,13 @@ import {
     checkAndEndActiveSessions,
     updateClubLastAccessed,
     uploadVerificationImage,
-    removeMember
+    removeMember,
+    awardBadge,
+    getActiveChallengePoll,
+    castPollVote,
+    getWeeklyBonusStatus,
+    claimWeeklyBonus,
+    type ChallengePoll
 } from "@/lib/firestore-service";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -61,6 +68,7 @@ import {
     UserX,
     Info,
     Star,
+    Sparkles,
     Settings,
     Share2,
     LayoutDashboard
@@ -68,8 +76,10 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { GOTMHistoryModal } from "@/components/GOTMHistoryModal";
+import RetroAchievementsWidget from "@/components/badges/RetroAchievementsWidget";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
+import { doc, getDoc } from "firebase/firestore";
 
 
 // Add the missing getLibretroBoxartUrl helper
@@ -468,6 +478,10 @@ function ClubContent() {
     const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
     const [bannerError, setBannerError] = useState(false);
 
+    // Poll functionality
+    const [activePoll, setActivePoll] = useState<ChallengePoll | null>(null);
+    const [isVoting, setIsVoting] = useState(false);
+
     // Chat functionality
     const [messages, setMessages] = useState<any[]>([]);
     const [chatInput, setChatInput] = useState("");
@@ -486,6 +500,26 @@ function ClubContent() {
     });
     const [pastGOTMs, setPastGOTMs] = useState<any[]>([]);
     const [selectedPastGOTM, setSelectedPastGOTM] = useState<any>(null);
+    const [raUsername, setRaUsername] = useState("");
+    const [weeklyBonusClaimed, setWeeklyBonusClaimed] = useState(false);
+    const [weeklyBonusLoading, setWeeklyBonusLoading] = useState(false);
+
+    const showChallenges = club?.challengesEnabled !== false;
+    const showGotm = club?.gotmEnabled !== false;
+    const showLeaderboard = club?.leaderboardEnabled !== false;
+    const showMemberSpotlight = showChallenges && club?.memberSpotlightEnabled !== false;
+    const showRaWidget = club?.raWidgetEnabled !== false;
+    const showWeeklyBonus = club?.weeklyBonusEnabled !== false;
+    const weeklyBonusXp = typeof club?.weeklyBonusXp === "number" ? club.weeklyBonusXp : 25;
+
+    useEffect(() => {
+        if ((!showChallenges || !showLeaderboard) && activeTab === "season") {
+            setActiveTab("overview");
+        }
+        if (!showGotm && activeTab === "gotm") {
+            setActiveTab("overview");
+        }
+    }, [showChallenges, showGotm, activeTab]);
 
     const [isRequesting, setIsRequesting] = useState(false);
     const [sentRequests, setSentRequests] = useState<string[]>([]);
@@ -579,6 +613,14 @@ function ClubContent() {
                 setGotm(gotmData);
                 setPastGOTMs(pastG);
 
+                // Fetch poll separately so a missing index doesn't crash the entire club page load
+                try {
+                    const pollData = await getActiveChallengePoll(clubId);
+                    setActivePoll(pollData);
+                } catch (pollErr) {
+                    console.error("Error fetching active poll. Check for missing firestore index:", pollErr);
+                }
+
                 const now = new Date();
                 setSessionsState(sessions, now);
 
@@ -620,6 +662,37 @@ function ClubContent() {
 
         fetchData();
     }, [clubId, user]);
+
+    useEffect(() => {
+        const loadRaUsername = async () => {
+            if (!user) return;
+            try {
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (userDoc.exists()) {
+                    setRaUsername(userDoc.data().raUsername || "");
+                }
+            } catch (e) {
+                console.error("Failed to load RA username:", e);
+            }
+        };
+        loadRaUsername();
+    }, [user]);
+
+    useEffect(() => {
+        const loadWeeklyBonusStatus = async () => {
+            if (!user || !clubId || !showWeeklyBonus) return;
+            setWeeklyBonusLoading(true);
+            try {
+                const status = await getWeeklyBonusStatus(user.uid, clubId);
+                setWeeklyBonusClaimed(status.claimed);
+            } catch (e) {
+                console.error("Failed to fetch weekly bonus status:", e);
+            } finally {
+                setWeeklyBonusLoading(false);
+            }
+        };
+        loadWeeklyBonusStatus();
+    }, [user, clubId, showWeeklyBonus]);
 
     useEffect(() => {
         if (selectedSession && members.length > 0) {
@@ -717,6 +790,9 @@ function ClubContent() {
     const isMember = user && members.some(m => m.userId === user.uid);
     const isAdmin = user && members.some(m => m.userId === user.uid && (m.role === 'admin' || m.role === 'owner'));
     const isPending = isPendingJoin;
+    const spotlightMember = club?.latestWinnerId
+        ? members.find((m: any) => m.userId === club.latestWinnerId)
+        : null;
 
     useEffect(() => {
         if (clubId && isAdmin) {
@@ -741,6 +817,18 @@ function ClubContent() {
             alert("Failed to send request");
         } finally {
             setIsRequesting(false);
+        }
+    };
+
+    const handleDeleteGotM = async (gotmId: string) => {
+        if (!isAdmin) return;
+        if (!confirm("Are you sure you want to remove this game from the Vault?")) return;
+        try {
+            await deleteGOTM(gotmId);
+            setPastGOTMs(prev => prev.filter(g => g.id !== gotmId));
+        } catch (error) {
+            console.error("Failed to delete GOTM:", error);
+            alert("Failed to delete GOTM.");
         }
     };
 
@@ -805,12 +893,13 @@ function ClubContent() {
                     // Refresh scores to show the new one immediately
                     if (selectedSession) {
                         const updated = await getClubSessionScores(selectedSession.id);
-                        setWeekScores(updated.filter(s => s.status === 'verified'));
+                        setWeekScores(updated.filter(s => s.status === 'verified' || !s.status));
                     }
                 } else if (data.status === 'rejected') {
-                    alert(`AI Review Result: Rejected. ❌ ${data.aiResult?.reasoning || "Please try again with a clearer photo."}`);
+                    alert(`AI Review Result: Rejected. ❌\n\nReason: ${data.aiResult?.reasoning || "Please try again with a clearer photo."}`);
                 } else {
-                    alert("Proof uploaded! 📤 AI analysis complete but needs human review. Your score is pending Admin Review.");
+                    const confidence = data.aiResult?.confidence ? ` (${(data.aiResult.confidence * 100).toFixed(0)}% confidence)` : "";
+                    alert(`Proof uploaded! 📤\n\nAI analysis complete${confidence} but needs human review. Your score is pending Admin Review.\n\nAI Observations: ${data.aiResult?.reasoning || "Not specified"}`);
                 }
             } catch (aiErr) {
                 console.warn("AI Verification call failed:", aiErr);
@@ -859,6 +948,20 @@ function ClubContent() {
             console.error(error);
         } finally {
             setIsSending(false);
+        }
+    };
+
+    const handleClaimWeeklyBonus = async () => {
+        if (!user || !clubId || weeklyBonusClaimed) return;
+        setWeeklyBonusLoading(true);
+        try {
+            await claimWeeklyBonus(user.uid, clubId, weeklyBonusXp);
+            setWeeklyBonusClaimed(true);
+            alert(`Weekly bonus claimed! +${weeklyBonusXp} XP`);
+        } catch (e: any) {
+            alert(e.message || "Failed to claim weekly bonus.");
+        } finally {
+            setWeeklyBonusLoading(false);
         }
     };
 
@@ -943,6 +1046,19 @@ function ClubContent() {
             }
             // Fallback if NotAllowedError or any other error
             await fallbackCopy();
+        }
+
+        // Award badge and XP for sharing
+        if (user) {
+            try {
+                const awarded = await awardBadge(user.uid, 'sharing_is_caring');
+                if (awarded) {
+                    await addXp(user.uid, 100, "Sharing is Caring");
+                    // Add a small delay to let the badge animation play if needed
+                }
+            } catch (err) {
+                console.error("Error awarding sharing badge:", err);
+            }
         }
     };
 
@@ -1228,9 +1344,13 @@ function ClubContent() {
             <div className="container mx-auto max-w-3xl px-6 mt-2 mb-4">
                 <div className="flex justify-between items-center border-b border-white/10 pb-1">
                     <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")} icon={<LayoutDashboard className="w-4 h-4" />}>Overview</TabButton>
-                    <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")} icon={<Trophy className="w-4 h-4" />}>Leaderboard</TabButton>
+                    {showChallenges && showLeaderboard && (
+                        <TabButton active={activeTab === "season"} onClick={() => setActiveTab("season")} icon={<Trophy className="w-4 h-4" />}>Leaderboard</TabButton>
+                    )}
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")} icon={<Users className="w-4 h-4" />}>Members</TabButton>
-                    <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")} icon={<Star className="w-4 h-4" />}>GOTM</TabButton>
+                    {showGotm && (
+                        <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")} icon={<Star className="w-4 h-4" />}>GOTM</TabButton>
+                    )}
                 </div>
             </div>
 
@@ -1240,6 +1360,92 @@ function ClubContent() {
                 {/* OVERVIEW TAB */}
                 {activeTab === "overview" && (
                     <>
+                        {(showMemberSpotlight || showWeeklyBonus || showRaWidget) && (
+                            <div className="grid md:grid-cols-3 gap-6 mb-8">
+                                {showMemberSpotlight && (
+                                    <Card className="border-white/10 bg-surface/40 backdrop-blur-md">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest">
+                                                <Crown className="w-4 h-4 text-yellow-500" />
+                                                Member Spotlight
+                                            </CardTitle>
+                                            <CardDescription>Last week’s champion</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex items-center gap-4">
+                                            {spotlightMember ? (
+                                                <>
+                                                    <UserAvatar
+                                                        uid={spotlightMember.userId}
+                                                        photoURL={spotlightMember.photoURL}
+                                                        displayName={spotlightMember.displayName}
+                                                        xp={spotlightMember.xp || 0}
+                                                        size="lg"
+                                                        isWinner
+                                                    />
+                                                    <div>
+                                                        <div className="text-lg font-black text-white">
+                                                            {spotlightMember.displayName}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground uppercase tracking-widest">
+                                                            Weekly Winner
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-sm text-muted-foreground italic">
+                                                    No winner recorded yet.
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {showWeeklyBonus && (
+                                    <Card className="border-white/10 bg-surface/40 backdrop-blur-md">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest">
+                                                <Sparkles className="w-4 h-4 text-primary" />
+                                                Weekly Bonus XP
+                                            </CardTitle>
+                                            <CardDescription>Claim your weekly reward</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex items-center justify-between gap-4">
+                                            <div className="text-sm text-white font-bold">+{weeklyBonusXp} XP</div>
+                                            <Button
+                                                size="sm"
+                                                className="h-8 text-[10px] font-black uppercase tracking-widest"
+                                                disabled={!isMember || weeklyBonusClaimed || weeklyBonusLoading}
+                                                onClick={handleClaimWeeklyBonus}
+                                            >
+                                                {weeklyBonusLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : weeklyBonusClaimed ? "Claimed" : "Claim"}
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {showRaWidget && (
+                                    <Card className="border-white/10 bg-surface/40 backdrop-blur-md overflow-hidden">
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-widest">
+                                                <Gamepad2 className="w-4 h-4 text-primary" />
+                                                RetroAchievements
+                                            </CardTitle>
+                                            <CardDescription>Linked account stats</CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            {raUsername ? (
+                                                <RetroAchievementsWidget raUsername={raUsername} />
+                                            ) : (
+                                                <div className="text-xs text-muted-foreground">
+                                                    Link your RetroAchievements username in profile settings to show your stats here.
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </div>
+                        )}
+
                         <div className="grid md:grid-cols-3 gap-8">
                             {/* Main Column: Current Game & Scoreboard */}
                             <div className="md:col-span-2 space-y-6">
@@ -1295,14 +1501,15 @@ function ClubContent() {
                                         </div>
                                     </CardHeader>
                                     <CardContent>
-                                        <div
-                                            className="aspect-video bg-black/50 rounded-lg mb-4 border border-white/10 flex items-center justify-center text-muted-foreground relative overflow-hidden cursor-pointer group-hover:border-primary/50 transition-colors"
-                                            onClick={() => {
-                                                if (game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') {
-                                                    router.push('/arcade');
-                                                }
-                                            }}
-                                        >
+                                        <div className="rgb-neon-border rgb-radius-2xl mb-4">
+                                            <div
+                                            className="aspect-video bg-black/50 rgb-neon-inner flex items-center justify-center text-muted-foreground relative cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    if (game?.title?.toLowerCase() === 'pac-man' || game?.title?.toLowerCase() === 'pacman') {
+                                                        router.push('/arcade');
+                                                    }
+                                                }}
+                                            >
                                             {game?.cover_image_url || (game?.title && game?.platform) ? (
                                                 <>
                                                     <Image
@@ -1329,6 +1536,7 @@ function ClubContent() {
                                                     <span className="text-[10px] uppercase font-bold tracking-widest opacity-20">No Banner Available</span>
                                                 </div>
                                             )}
+                                            </div>
                                         </div>
                                         {selectedSession && (
                                             <p className="text-gray-300 mb-6 font-medium italic">
@@ -1412,6 +1620,107 @@ function ClubContent() {
                                         )}
                                     </CardContent>
                                 </Card>
+
+                                {activePoll && (
+                                    <Card className="border-primary/20 bg-surface/40 backdrop-blur-md mb-6">
+                                        <CardHeader>
+                                            <CardTitle className="text-primary flex items-center gap-2">
+                                                <MessageSquare className="w-5 h-5" /> Next Challenge Poll
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Vote on the next club challenge!
+                                                {activePoll.status === 'completed' || new Date(activePoll.votingEndTime).getTime() <= Date.now()
+                                                    ? " Voting has ended."
+                                                    : " You will earn 10 XP for participating."}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            {(() => {
+                                                const isPollCompleted = activePoll.status === 'completed' || new Date(activePoll.votingEndTime).getTime() <= Date.now();
+                                                const userVotedFor = user ? activePoll.votes?.[user.uid] : null;
+                                                const showResults = Boolean(isPollCompleted || userVotedFor);
+
+                                                const totalVotes = Object.keys(activePoll.votes || {}).length;
+
+                                                // Calculate votes and identify winner
+                                                const voteCounts = activePoll.options.map(opt => ({
+                                                    ...opt,
+                                                    votes: Object.values(activePoll.votes || {}).filter(v => v === opt.igdbId).length
+                                                }));
+                                                voteCounts.sort((a, b) => b.votes - a.votes);
+                                                const winnerId = voteCounts.length > 0 && voteCounts[0].votes > 0 ? voteCounts[0].igdbId : null;
+
+                                                return (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                        {activePoll.options.map((opt, i) => {
+                                                            const optionVotes = Object.values(activePoll.votes || {}).filter(v => v === opt.igdbId).length;
+                                                            const pct = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                                                            const isWinner = isPollCompleted && opt.igdbId === winnerId;
+
+                                                            return (
+                                                                <div key={i} className={`bg-black/40 border ${isWinner ? 'border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'border-white/10'} rounded-lg p-4 flex flex-col items-center gap-3 relative overflow-hidden`}>
+                                                                    {isWinner && (
+                                                                        <div className="absolute top-2 right-2 text-yellow-500 z-10 bg-black/50 p-1 rounded-full backdrop-blur-sm">
+                                                                            <Trophy className="w-4 h-4" />
+                                                                        </div>
+                                                                    )}
+                                                                    {opt.coverUrl ? (
+                                                                        <Image width={80} height={112} src={opt.coverUrl} className="w-20 h-28 object-cover rounded shadow-lg" alt={opt.title} />
+                                                                    ) : (
+                                                                        <div className="w-20 h-28 bg-white/5 flex items-center justify-center rounded"><Gamepad2 className="w-8 h-8 opacity-20" /></div>
+                                                                    )}
+                                                                    <div className="text-center w-full z-10 relative">
+                                                                        <p className="font-bold text-sm truncate w-full" title={opt.title}>{opt.title}</p>
+                                                                        <p className="text-[10px] text-muted-foreground uppercase">{opt.platform}</p>
+                                                                    </div>
+
+                                                                    {!showResults && isMember ? (
+                                                                        <Button
+                                                                            className="w-full mt-2 bg-primary/20 text-primary hover:bg-primary hover:text-black font-bold uppercase text-xs"
+                                                                            onClick={async () => {
+                                                                                if (!user) return;
+                                                                                setIsVoting(true);
+                                                                                try {
+                                                                                    await castPollVote(activePoll.id, clubId as string, user.uid, opt.igdbId);
+                                                                                    // Refresh poll directly
+                                                                                    const updated = await getActiveChallengePoll(clubId as string);
+                                                                                    setActivePoll(updated);
+                                                                                    alert("Vote cast successfully! You earned 10 XP.");
+                                                                                } catch (e: any) {
+                                                                                    alert(e.message || "Failed to cast vote.");
+                                                                                } finally {
+                                                                                    setIsVoting(false);
+                                                                                }
+                                                                            }}
+                                                                            disabled={isVoting}
+                                                                        >
+                                                                            {isVoting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Vote"}
+                                                                        </Button>
+                                                                    ) : showResults ? (
+                                                                        <div className="w-full mt-2 relative z-10">
+                                                                            <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden mb-1">
+                                                                                <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                                                                <span>{optionVotes} Votes</span>
+                                                                                <span className="text-primary">{pct}%</span>
+                                                                            </div>
+                                                                            {userVotedFor === opt.igdbId && (
+                                                                                <div className="w-full text-center mt-2 text-[10px] font-bold text-primary flex items-center justify-center gap-1 uppercase">
+                                                                                    <Check className="w-3 h-3" /> You Voted
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : null}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </CardContent>
+                                    </Card>
+                                )}
 
                                 {isMember ? (
                                     <Card className="border-white/10 bg-gradient-to-b from-surface to-background overflow-hidden mb-6">
@@ -1693,7 +2002,7 @@ function ClubContent() {
                 )}
 
                 {/* SEASON TAB */}
-                {activeTab === "season" && (
+                {showChallenges && showLeaderboard && activeTab === "season" && (
                     <div className="space-y-12">
                         <Card className="border-white/10 bg-surface/40">
                             <CardHeader>
@@ -1861,12 +2170,13 @@ function ClubContent() {
                 )}
 
                 {/* GOTM TAB */}
-                {activeTab === "gotm" && (
+                {showGotm && activeTab === "gotm" && (
                     <div className="space-y-12 animate-fade-in-up">
                         {/* Current GOTM Card */}
                         {gotm ? (
                             <div className="mb-8">
-                                <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
+                                <div className="rgb-neon-border rgb-radius-2xl">
+                                    <Card className="border-primary/30 bg-surface/50 backdrop-blur-md overflow-hidden relative group">
                                     <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <CardHeader>
                                         <div className="flex justify-between items-start">
@@ -2083,7 +2393,8 @@ function ClubContent() {
                                             </div>
                                         </div>
                                     </CardContent>
-                                </Card>
+                                    </Card>
+                                </div>
                             </div>
                         ) : (
                             <div className="text-center py-20 text-muted-foreground border border-dashed border-white/10 rounded-xl">
@@ -2112,11 +2423,21 @@ function ClubContent() {
                                     </div>
                                 ) : (
                                     pastGOTMs.map((g) => (
-                                        <div
-                                            key={g.id}
-                                            className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 group cursor-pointer hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all"
-                                            onClick={() => setSelectedPastGOTM(g)}
-                                        >
+                                        <div className="rgb-neon-border rgb-radius-xl">
+                                            <div
+                                                key={g.id}
+                                                className="relative aspect-[3/4] rounded-xl overflow-hidden border border-white/10 group cursor-pointer hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all"
+                                                onClick={() => setSelectedPastGOTM(g)}
+                                            >
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteGotM(g.id); }}
+                                                    className="absolute top-2 right-2 z-10 w-7 h-7 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+                                                    title="Delete from Vault"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
                                             {g.coverUrl ? (
                                                 <Image
                                                     src={g.coverUrl}
@@ -2139,6 +2460,7 @@ function ClubContent() {
                                                     {new Date(g.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                                                 </p>
                                             </div>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -2154,7 +2476,7 @@ function ClubContent() {
                     </div>
                 )}
             </div>
-        </main>
+        </main >
     );
 }
 

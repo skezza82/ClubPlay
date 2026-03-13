@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Pac-Man",
+    "platform": "Arcade",
+    "challengeType": "score"
+  },
+  {
+    "name": "Galaga",
+    "platform": "Arcade",
+    "challengeType": "score"
+  },
+  {
+    "name": "Space Invaders",
+    "platform": "Arcade",
+    "challengeType": "score"
+  },
+  {
+    "name": "Donkey Kong",
+    "platform": "Arcade",
+    "challengeType": "score"
+  },
+  {
+    "name": "Street Fighter II",
+    "platform": "Arcade",
+    "challengeType": "score"
+  },
+  {
+    "name": "Tetris",
+    "platform": "NES",
+    "challengeType": "score"
+  },
+  {
+    "name": "Sonic the Hedgehog",
+    "platform": "Genesis",
+    "challengeType": "score"
+  },
+  {
+    "name": "The Legend of Zelda",
+    "platform": "NES",
+    "challengeType": "custom"
+  },
+  {
+    "name": "Super Mario Bros.",
+    "platform": "NES",
+    "challengeType": "speed"
+  },
+  {
+    "name": "Doom",
+    "platform": "PC",
+    "challengeType": "score"
+  }
+]

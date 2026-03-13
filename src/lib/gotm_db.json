@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Super Mario Bros.",
+    "platform": "NES"
+  },
+  {
+    "name": "The Legend of Zelda",
+    "platform": "NES"
+  },
+  {
+    "name": "Sonic the Hedgehog",
+    "platform": "Genesis"
+  },
+  {
+    "name": "Metroid",
+    "platform": "NES"
+  },
+  {
+    "name": "Mega Man 2",
+    "platform": "NES"
+  },
+  {
+    "name": "Castlevania",
+    "platform": "NES"
+  },
+  {
+    "name": "Street Fighter II",
+    "platform": "Arcade"
+  },
+  {
+    "name": "Chrono Trigger",
+    "platform": "SNES"
+  },
+  {
+    "name": "Final Fantasy VII",
+    "platform": "PlayStation"
+  },
+  {
+    "name": "Donkey Kong",
+    "platform": "Arcade"
+  }
+]

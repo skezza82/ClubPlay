@@ -3,6 +3,7 @@ import {
     query,
     where,
     getDocs,
+    getCountFromServer,
     orderBy,
     limit,
     doc,
@@ -29,6 +30,8 @@ const userCache = new Map<string, any>();
 const userWaiters = new Map<string, Promise<any>>();
 const clubCache = new Map<string, any>();
 const clubWaiters = new Map<string, Promise<any>>();
+
+const STACKABLE_BADGES = new Set(["gotm_reviewer", "clutch_player", "challenge_win"]);
 
 export const getCachedUser = async (userId: string) => {
     if (userCache.has(userId)) return userCache.get(userId);
@@ -88,6 +91,13 @@ export interface Club {
     createdAt: string;
     isHidden?: boolean;
     chatEnabled?: boolean;
+    challengesEnabled?: boolean;
+    gotmEnabled?: boolean;
+    leaderboardEnabled?: boolean;
+    memberSpotlightEnabled?: boolean;
+    raWidgetEnabled?: boolean;
+    weeklyBonusEnabled?: boolean;
+    weeklyBonusXp?: number;
 }
 
 export interface Membership {
@@ -98,6 +108,8 @@ export interface Membership {
     displayName?: string;
     photoURL?: string | null;
     xp?: number;
+    weeklyBonusWeek?: string;
+    weeklyBonusClaimedAt?: any;
 }
 
 export interface ClubMember extends Membership {
@@ -169,10 +181,32 @@ export interface ClubInvite {
     createdAt: string;
 }
 
+export interface ChallengePollOption {
+    igdbId: string;
+    title: string;
+    coverUrl?: string;
+    platform?: string;
+}
+
+export interface ChallengePoll {
+    id: string;
+    clubId: string;
+    options: ChallengePollOption[];
+    votes?: Record<string, string>; // userId -> igdbId
+    votingEndTime: string;
+    challengeStartDate: string;
+    challengeEndDate: string;
+    status: 'active' | 'completed';
+    winnerAdded?: boolean;
+    createdAt?: any;
+}
+
 export interface UserPublicProfile {
     uid: string;
     displayName: string;
     photoURL?: string | null;
+    raUsername?: string | null;
+    badges?: Record<string, any>;
     clubsJoined: number;
     challengesCount: number;
     wins: number;
@@ -337,6 +371,101 @@ export const getPastSessions = async (clubId: string, limitCount: number = 3) =>
 
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WeeklySession[];
+};
+
+// Challenge Polls
+export const createChallengePoll = async (
+    clubId: string,
+    options: ChallengePollOption[],
+    votingEndTime: string,
+    challengeStartDate: string,
+    challengeEndDate: string
+) => {
+    if (!clubId) throw new Error("Missing clubId");
+    if (!options || options.length !== 3) throw new Error("Poll requires exactly 3 options.");
+
+    const pollsRef = collection(db, "challenge_polls");
+    const docRef = doc(pollsRef);
+    const payload: Omit<ChallengePoll, "id"> = {
+        clubId,
+        options,
+        votes: {},
+        votingEndTime,
+        challengeStartDate,
+        challengeEndDate,
+        status: "active",
+        winnerAdded: false,
+        createdAt: serverTimestamp()
+    };
+
+    await setDoc(docRef, { id: docRef.id, ...payload });
+    return docRef.id;
+};
+
+export const getActiveChallengePoll = async (clubId: string) => {
+    if (!clubId) return null;
+
+    const pollsRef = collection(db, "challenge_polls");
+    const q = query(
+        pollsRef,
+        where("clubId", "==", clubId),
+        where("status", "==", "active"),
+        orderBy("createdAt", "desc"),
+        limit(1)
+    );
+
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+
+    const docSnap = snap.docs[0];
+    return { id: docSnap.id, ...docSnap.data() } as ChallengePoll;
+};
+
+export const castPollVote = async (pollId: string, clubId: string, userId: string, optionId: string) => {
+    if (!pollId || !clubId || !userId || !optionId) {
+        throw new Error("Missing vote data.");
+    }
+
+    const pollRef = doc(db, "challenge_polls", pollId);
+    await runTransaction(db, async (transaction) => {
+        const pollSnap = await transaction.get(pollRef);
+        if (!pollSnap.exists()) throw new Error("Poll not found.");
+
+        const poll = pollSnap.data() as ChallengePoll;
+        if (poll.clubId !== clubId) throw new Error("Poll mismatch.");
+
+        const isCompleted = poll.status === "completed";
+        const isExpired = poll.votingEndTime && new Date(poll.votingEndTime).getTime() <= Date.now();
+        if (isCompleted || isExpired) throw new Error("Voting has ended.");
+
+        const existingVote = poll.votes?.[userId];
+        if (existingVote) throw new Error("You have already voted.");
+
+        const validOption = (poll.options || []).some(o => o.igdbId === optionId);
+        if (!validOption) throw new Error("Invalid option.");
+
+        transaction.set(pollRef, {
+            votes: {
+                ...(poll.votes || {}),
+                [userId]: optionId
+            }
+        }, { merge: true });
+    });
+
+    // Award XP for participating
+    await addXp(userId, 10, "Challenge Poll Vote");
+};
+
+export const completeChallengePoll = async (pollId: string) => {
+    if (!pollId) return;
+    const pollRef = doc(db, "challenge_polls", pollId);
+    await setDoc(pollRef, { status: "completed" }, { merge: true });
+};
+
+export const markPollWinnerAdded = async (pollId: string) => {
+    if (!pollId) return;
+    const pollRef = doc(db, "challenge_polls", pollId);
+    await setDoc(pollRef, { winnerAdded: true }, { merge: true });
 };
 
 export const checkInviteCodeUnique = async (code: string) => {
@@ -862,6 +991,101 @@ export const getXpProgress = (xp: number) => {
         needed: neededForNext,
         percentage: Math.min(100, (progressInLevel / neededForNext) * 100)
     };
+};
+
+export const getTotalUsersCount = async () => {
+    const snap = await getCountFromServer(collection(db, "users"));
+    return snap.data().count;
+};
+
+export const awardBadge = async (userId: string, badgeId: string) => {
+    if (!userId || !badgeId) return false;
+
+    const userRef = doc(db, "users", userId);
+    let awarded = false;
+    let newCount = 1;
+
+    await runTransaction(db, async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        const data = userSnap.exists() ? userSnap.data() : {};
+        const existing = (data as any)?.badges?.[badgeId];
+
+        if (existing) {
+            if (!STACKABLE_BADGES.has(badgeId)) {
+                awarded = false;
+                return;
+            }
+
+            const count = typeof existing.count === "number" ? existing.count + 1 : 2;
+            newCount = count;
+            transaction.set(userRef, {
+                [`badges.${badgeId}`]: { count, unlockedAt: serverTimestamp() }
+            }, { merge: true });
+            awarded = true;
+            return;
+        }
+
+        transaction.set(userRef, {
+            [`badges.${badgeId}`]: { count: 1, unlockedAt: serverTimestamp() }
+        }, { merge: true });
+        awarded = true;
+    });
+
+    if (awarded && typeof window !== "undefined") {
+        try {
+            window.dispatchEvent(new CustomEvent("badge-unlocked", {
+                detail: { badgeId, count: newCount }
+            }));
+        } catch {
+            // ignore event errors in non-browser contexts
+        }
+    }
+
+    return awarded;
+};
+
+const getIsoWeekKey = (date: Date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`;
+};
+
+export const getWeeklyBonusStatus = async (userId: string, clubId: string) => {
+    if (!userId || !clubId) return { claimed: false, weekKey: getIsoWeekKey(new Date()) };
+    const membershipId = `${userId}_${clubId}`;
+    const membershipRef = doc(db, "memberships", membershipId);
+    const snap = await getDoc(membershipRef);
+    const weekKey = getIsoWeekKey(new Date());
+    const storedWeek = snap.exists() ? (snap.data() as any).weeklyBonusWeek : null;
+    return { claimed: storedWeek === weekKey, weekKey };
+};
+
+export const claimWeeklyBonus = async (userId: string, clubId: string, amount: number) => {
+    if (!userId || !clubId) throw new Error("Missing user or club.");
+    if (!amount || amount <= 0) throw new Error("Invalid bonus amount.");
+
+    const weekKey = getIsoWeekKey(new Date());
+    const membershipId = `${userId}_${clubId}`;
+    const membershipRef = doc(db, "memberships", membershipId);
+
+    await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(membershipRef);
+        const storedWeek = snap.exists() ? (snap.data() as any).weeklyBonusWeek : null;
+        if (storedWeek === weekKey) {
+            throw new Error("Weekly bonus already claimed.");
+        }
+
+        transaction.set(membershipRef, {
+            weeklyBonusWeek: weekKey,
+            weeklyBonusClaimedAt: serverTimestamp()
+        }, { merge: true });
+    });
+
+    await addXp(userId, amount, "Weekly Club Bonus");
+    return { weekKey };
 };
 
 export const addXp = async (userId: string, amount: number, source: string) => {
@@ -2358,6 +2582,8 @@ export const getUserPublicProfile = async (userId: string) => {
         uid: userId,
         displayName: userData.displayName || "Unknown User",
         photoURL: userData.photoURL || null,
+        raUsername: userData.raUsername || null,
+        badges: userData.badges || {},
         clubsJoined: clubs.length,
         challengesCount: standingsSnap.size, // Number of clubs they've participated in
         wins: totalWins,
@@ -2478,6 +2704,11 @@ export const submitGOTMReview = async (clubId: string, gotmId: string, userId: s
 
     // Award XP
     await addXp(userId, 50, "Reviewed GOTM");
+};
+
+export const deleteGOTM = async (gotmId: string) => {
+    if (!gotmId) return;
+    await deleteDoc(doc(db, "gotm", gotmId));
 };
 
 export const getGOTMReviews = async (gotmId: string) => {

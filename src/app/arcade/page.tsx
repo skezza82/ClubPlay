@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { Gamepad2, Trophy, Loader2, Play, ChevronLeft, Star, ExternalLink, Zap } from 'lucide-react';
 import Image from 'next/image';
-import { addXp, markArcadeVisited, submitScore } from '@/lib/firestore-service';
+import { addXp, markArcadeVisited, submitScore, getTotalUsersCount } from '@/lib/firestore-service';
 
 // Mock Game Data
 const ARCADE_GAMES = [
@@ -56,6 +56,7 @@ export default function ArcadePage() {
     const { user } = useAuth();
     const [activeGame, setActiveGame] = useState<typeof ARCADE_GAMES[0] | null>(null);
     const [isSubmittingScore, setIsSubmittingScore] = useState(false);
+    const [activeLegends, setActiveLegends] = useState<number | null>(null);
 
     useEffect(() => {
         // Mark arcade as visited for the Rookie Quest
@@ -110,6 +111,18 @@ export default function ArcadePage() {
         };
     }, [user]);
 
+    useEffect(() => {
+        const loadActiveLegends = async () => {
+            try {
+                const count = await getTotalUsersCount();
+                setActiveLegends(count);
+            } catch (e) {
+                console.error("Failed to load active legends count:", e);
+            }
+        };
+        loadActiveLegends();
+    }, []);
+
     return (
         <main className="min-h-screen pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto relative overflow-hidden">
             {/* Header Area */}
@@ -127,10 +140,10 @@ export default function ArcadePage() {
 
                 <div className="flex items-center gap-4 premium-glass p-2 rounded-[2rem] border-white/10">
                     <div className="px-6 py-4">
-                        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Global Player Activity</div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Global Legends Active</div>
                         <div className="text-white font-black italic flex items-center gap-2 text-2xl">
                             <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse shadow-[0_0_10px_#4ade80]" />
-                            1,248 ACTIVE
+                            {activeLegends !== null ? `${activeLegends.toLocaleString()} ACTIVE` : "—"}
                         </div>
                     </div>
                 </div>

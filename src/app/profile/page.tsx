@@ -18,7 +18,9 @@ import { getXpLevel, getXpProgress, addXp, setXp } from "@/lib/firestore-service
 import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import { useTheme, ThemeType, BgType } from "@/context/ThemeContext";
-import { Palette, Zap, ZapOff, Sparkles, Binary, Gamepad2, Layers, Move } from "lucide-react";
+import { Palette, Zap, ZapOff, Sparkles, Binary, Gamepad2, Layers, Move, Rocket } from "lucide-react";
+import TrophyCabinet from "@/components/badges/TrophyCabinet";
+import RetroAchievementsWidget from "@/components/badges/RetroAchievementsWidget";
 
 export default function ProfilePage() {
     const { user } = useAuth();
@@ -46,6 +48,8 @@ export default function ProfilePage() {
     const [isUpdatingXp, setIsUpdatingXp] = useState(false);
     const [isXpLoaded, setIsXpLoaded] = useState(false);
     const [isNative, setIsNative] = useState(false);
+    const [userBadges, setUserBadges] = useState<Record<string, any>>({});
+    const [raUsername, setRaUsername] = useState("");
 
     const XP_TASKS = [
         { id: "review", name: "Post GOTM Review", xp: 50 },
@@ -68,10 +72,13 @@ export default function ProfilePage() {
                     const data = userDoc.data();
                     if (!nickname && data.displayName) setNickname(data.displayName);
                     if (!avatarUrl && data.photoURL) setAvatarUrl(data.photoURL);
+                    if (!raUsername && data.raUsername) setRaUsername(data.raUsername);
 
                     // Secure Developer Check
                     const isDev = data.role === 'developer' || data.displayName?.toLowerCase() === 'skezza82';
                     setIsDeveloper(isDev);
+
+                    setUserBadges(data.badges || {});
                 }
 
                 // Fetch User Clubs
@@ -104,6 +111,7 @@ export default function ProfilePage() {
                     const data = snapshot.data();
                     const currentXp = data.xp || 0;
                     setXpAmount(currentXp);
+                    setUserBadges(data.badges || {});
 
                     const currentLevel = getXpLevel(currentXp);
                     setLastLevel(prev => {
@@ -146,7 +154,8 @@ export default function ProfilePage() {
             // Update both avatar and nickname
             await updateUserProfile(user.uid, {
                 displayName: nickname,
-                photoURL: avatarUrl
+                photoURL: avatarUrl,
+                raUsername: raUsername
             });
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
@@ -441,6 +450,19 @@ export default function ProfilePage() {
                                         />
                                     </div>
 
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-emerald-400 tracking-widest uppercase flex items-center gap-2">
+                                            <Gamepad2 className="w-4 h-4" /> RetroAchievements Link
+                                        </label>
+                                        <p className="text-[10px] text-slate-400 font-medium">Link your retroachievements.org username to sync your hardcore records.</p>
+                                        <Input
+                                            value={raUsername}
+                                            onChange={(e) => setRaUsername(e.target.value)}
+                                            placeholder="RetroAchievements Username"
+                                            className="bg-background/30 border-white/10"
+                                        />
+                                    </div>
+
                                     <Button className="w-full neon-border font-black text-lg h-12" disabled={isSaving || isUploading}>
                                         {isSaving ? "Saving..." : saved ? (
                                             <span className="flex items-center gap-2 text-green-400">
@@ -467,6 +489,18 @@ export default function ProfilePage() {
                         </Card>
 
 
+
+                        <Card className="border-white/5 bg-surface/40 backdrop-blur-md overflow-visible relative z-20">
+                            <CardContent className="p-0">
+                                <TrophyCabinet badges={userBadges} />
+                            </CardContent>
+                        </Card>
+
+                        {raUsername && (
+                            <div className="relative z-10">
+                                <RetroAchievementsWidget raUsername={raUsername} />
+                            </div>
+                        )}
 
                         <Card className="border-white/5 bg-surface/40 backdrop-blur-md">
                             <CardHeader>
@@ -513,13 +547,14 @@ export default function ProfilePage() {
                                     <label className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
                                         <Move className="w-3 h-3" /> Select Motion Style
                                     </label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                                         {[
                                             { id: 'connectivity', name: 'Nodes', icon: <Binary className="w-4 h-4" /> },
                                             { id: 'galaxy', name: 'Galaxy', icon: <Sparkles className="w-4 h-4" /> },
                                             { id: 'pacman', name: 'Arcade', icon: <Gamepad2 className="w-4 h-4" /> },
                                             { id: 'aurora', name: 'Aurora', icon: <Layers className="w-4 h-4" /> },
-                                            { id: 'retrogrid', name: '80s Grid', icon: <Move className="w-4 h-4" /> }
+                                            { id: 'retrogrid', name: '80s Grid', icon: <Move className="w-4 h-4" /> },
+                                            { id: 'deepspace', name: 'Deep Space', icon: <Rocket className="w-4 h-4" /> }
                                         ].map((b) => (
                                             <button
                                                 key={b.id}
@@ -577,21 +612,23 @@ export default function ProfilePage() {
                                         <div className="grid gap-3">
                                             {userClubs.map(club => (
                                                 <Link key={club.id} href={`/club/admin?id=${club.id}`}>
-                                                    <div className="flex items-center p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all cursor-pointer group">
-                                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3 overflow-hidden">
-                                                            {club.logoUrl ? (
-                                                                <img src={club.logoUrl} alt={club.name} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <Shield className="w-5 h-5 text-primary" />
-                                                            )}
+                                                    <div className="rgb-neon-border rgb-radius-xl">
+                                                        <div className="flex items-center p-3 rounded-xl bg-white/5 border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all cursor-pointer group">
+                                                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3 overflow-hidden">
+                                                              {club.logoUrl ? (
+                                                                  <img src={club.logoUrl} alt={club.name} className="w-full h-full object-cover" />
+                                                              ) : (
+                                                                  <Shield className="w-5 h-5 text-primary" />
+                                                              )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="font-bold text-white group-hover:text-primary transition-colors">{club.name}</h4>
+                                                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-white/10 px-1.5 py-0.5 rounded-full">
+                                                                    {club.role}
+                                                                </span>
+                                                            </div>
+                                                            <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180 group-hover:translate-x-1 transition-transform" />
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <h4 className="font-bold text-white group-hover:text-primary transition-colors">{club.name}</h4>
-                                                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground border border-white/10 px-1.5 py-0.5 rounded-full">
-                                                                {club.role}
-                                                            </span>
-                                                        </div>
-                                                        <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180 group-hover:translate-x-1 transition-transform" />
                                                     </div>
                                                 </Link>
                                             ))}
@@ -616,7 +653,15 @@ export default function ProfilePage() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-4 space-y-3">
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-2">XP Injection (Testing Only)</p>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">XP Injection (Testing Only)</p>
+                                        <Link href="/developer">
+                                            <Button variant="ghost" size="sm" className="h-6 text-[8px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 gap-1 border border-primary/20">
+                                                <Sparkles className="w-2.5 h-2.5" />
+                                                AI Sandbox
+                                            </Button>
+                                        </Link>
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         <Button
                                             variant="outline"

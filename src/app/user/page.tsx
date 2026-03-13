@@ -5,9 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { getUserPublicProfile, UserPublicProfile, sendFriendRequest, unfriend, checkFriendshipStatus, getXpLevel, getXpProgress } from "@/lib/firestore-service";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, Users, Trophy, Target, Award, UserPlus, UserX, Check, ExternalLink, Heart, Loader2, AlertCircle, Shield } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
+import TrophyCabinet from "@/components/badges/TrophyCabinet";
+import RetroAchievementsWidget from "@/components/badges/RetroAchievementsWidget";
 
 function UserProfileContent() {
     const searchParams = useSearchParams();
@@ -218,6 +219,18 @@ function UserProfileContent() {
                     </div>
                 </div>
             </div>
+
+            {/* Trophy Cabinet */}
+            <div className="pt-4 relative z-20">
+                <TrophyCabinet badges={profile.badges || {}} title={`${profile.displayName}'s Trophy Cabinet`} />
+            </div>
+
+            {/* RetroAchievements */}
+            {profile.raUsername && (
+                <div className="pt-4 relative z-10">
+                    <RetroAchievementsWidget raUsername={profile.raUsername} />
+                </div>
+            )}
 
             {/* Clubs Joined */}
             <div className="space-y-4">

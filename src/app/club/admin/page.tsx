@@ -28,7 +28,13 @@ import {
     getUpcomingGOTM,
     type GOTM,
     verifyScore,
-    removeMember
+    removeMember,
+    createChallengePoll,
+    getActiveChallengePoll,
+    completeChallengePoll,
+    type ChallengePollOption,
+    type ChallengePoll,
+    markPollWinnerAdded
 } from "@/lib/firestore-service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -36,9 +42,9 @@ import { Input } from "@/components/ui/Input";
 import { PremiumLogo } from "@/components/PremiumLogo";
 import { UserAvatar } from "@/components/UserAvatar";
 import {
-    Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck,
+    Users, Settings, Gamepad2, Check, X, Trophy, ShieldCheck, Star, Crown, Sparkles,
     Loader2, AlertTriangle, Calendar, ArrowLeft, Home, Camera,
-    Trash2, Edit, Search, Upload, MessageSquare, RefreshCw, Wrench
+    Trash2, Edit, Search, Upload, MessageSquare, RefreshCw
 } from "lucide-react";
 
 import { GameSearch } from "@/components/GameSearch";
@@ -49,6 +55,8 @@ import Image from "next/image";
 import { uploadClubBanner, uploadClubLogo, uploadSessionBoxart, DEFAULT_BANNERS } from "@/lib/avatar-service";
 import { getLibretroBoxartUrl, PLACEHOLDER_BOXART_URL } from "@/lib/libretro-utils";
 import { useRef, Suspense } from "react";
+import GAMES_DB from "@/lib/games_db.json";
+import GOTM_DB from "@/lib/gotm_db.json";
 
 
 function ClubAdminContent() {
@@ -57,10 +65,12 @@ function ClubAdminContent() {
     const [club, setClub] = useState<any>(null);
     const [members, setMembers] = useState<ClubMember[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm" | "maintenance">("settings");
+    const [activeTab, setActiveTab] = useState<"requests" | "game" | "members" | "settings" | "gotm" | "poll">("settings");
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [userRole, setUserRole] = useState<string | null>(null);
+    const [isDev, setIsDev] = useState(false);
 
     // Settings State
     const [clubName, setClubName] = useState("");
@@ -68,6 +78,13 @@ function ClubAdminContent() {
     const [logoUrl, setLogoUrl] = useState("");
     const [bannerUrl, setBannerUrl] = useState("");
     const [chatEnabled, setChatEnabled] = useState(true);
+    const [challengesEnabled, setChallengesEnabled] = useState(true);
+    const [gotmEnabled, setGotmEnabled] = useState(true);
+    const [leaderboardEnabled, setLeaderboardEnabled] = useState(true);
+    const [memberSpotlightEnabled, setMemberSpotlightEnabled] = useState(true);
+    const [raWidgetEnabled, setRaWidgetEnabled] = useState(true);
+    const [weeklyBonusEnabled, setWeeklyBonusEnabled] = useState(true);
+    const [weeklyBonusXp, setWeeklyBonusXp] = useState(25);
     const bannerInputRef = useRef<HTMLInputElement>(null);
     const boxartInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +101,9 @@ function ClubAdminContent() {
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
         challengeType: 'score' as 'score' | 'speed' | 'custom',
         customUnit: "",
-        cover_image_url: ""
+        cover_image_url: "",
+        raGameId: "",
+        raLeaderboardId: ""
     });
     const [activeSessions, setActiveSessions] = useState<any[]>([]); // Array of sessions
     const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]); // Array of scheduled sessions
@@ -97,7 +116,9 @@ function ClubAdminContent() {
         endDate: "",
         challengeType: 'score' as 'score' | 'speed' | 'custom',
         customUnit: "",
-        cover_image_url: ""
+        cover_image_url: "",
+        raGameId: "",
+        raLeaderboardId: ""
     });
     const [boxartFile, setBoxartFile] = useState<File | null>(null);
 
@@ -116,6 +137,15 @@ function ClubAdminContent() {
         coverUrl: "",
         igdbId: ""
     });
+
+    // Poll State
+    const [pollForm, setPollForm] = useState({
+        options: [] as ChallengePollOption[],
+        votingEndTime: "",
+        challengeStartDate: "",
+        challengeEndDate: ""
+    });
+    const [activePoll, setActivePoll] = useState<ChallengePoll | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { user } = useAuth();
@@ -159,7 +189,9 @@ function ClubAdminContent() {
                 endDate: editedSession.endDate,
                 challengeType: editedSession.challengeType,
                 customUnit: editedSession.customUnit,
-                cover_image_url: editedSession.cover_image_url
+                cover_image_url: editedSession.cover_image_url,
+                raGameId: editedSession.raGameId ? parseInt(editedSession.raGameId) : null,
+                raLeaderboardId: editedSession.raLeaderboardId ? parseInt(editedSession.raLeaderboardId) : null
             });
             alert("Session updated successfully! 🎮");
 
@@ -208,7 +240,9 @@ function ClubAdminContent() {
 
             await createManualSession(clubId as string, {
                 ...manualGame,
-                cover_image_url: finalCoverUrl
+                cover_image_url: finalCoverUrl,
+                raGameId: manualGame.raGameId ? parseInt(manualGame.raGameId) : undefined,
+                raLeaderboardId: manualGame.raLeaderboardId ? parseInt(manualGame.raLeaderboardId) : undefined
             });
 
             alert("Manual game challenge started successfully! 🎮");
@@ -219,7 +253,9 @@ function ClubAdminContent() {
                 endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
                 challengeType: 'score',
                 customUnit: "",
-                cover_image_url: ""
+                cover_image_url: "",
+                raGameId: "",
+                raLeaderboardId: ""
             });
             setBoxartFile(null);
 
@@ -227,6 +263,145 @@ function ClubAdminContent() {
         } catch (error) {
             console.error("Error creating manual session:", error);
             alert("Failed to start challenge: " + (error as any).message); // Show limit error
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleCreateChallengeFromPoll = async (pollId: string, winningOptionId: string) => {
+        if (!activePoll) return;
+        const winningOpt = activePoll.options.find(o => o.igdbId === winningOptionId);
+        if (!winningOpt) return;
+
+        setIsUpdating(true);
+        try {
+            const newChallenge = {
+                title: winningOpt.title,
+                platform: winningOpt.platform,
+                rules: "Winner of the club poll! Set a high score.",
+                endDate: activePoll.challengeEndDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+                challengeType: 'score' as 'score',
+                customUnit: "",
+                cover_image_url: winningOpt.coverUrl
+            };
+
+            await createManualSession(clubId as string, newChallenge);
+            await markPollWinnerAdded(pollId);
+
+            // Refresh active poll to reflect winner added
+            const pollData = await getActiveChallengePoll(clubId as string);
+            setActivePoll(pollData);
+
+            alert("Challenge created from poll winner! 🎮");
+            await refreshSessions();
+        } catch (e: any) {
+            console.error(e);
+            alert("Failed to create challenge: " + e.message);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleRandomChallenge = async () => {
+        const randomGame = GAMES_DB[Math.floor(Math.random() * GAMES_DB.length)];
+
+        setIsUpdating(true);
+        try {
+            // 1. Search IGDB for this specific game
+            const response = await fetch('/api/games/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: randomGame.name })
+            });
+
+            let igdbGame = null;
+            if (response.ok) {
+                const data = await response.json();
+                // Find a good match (exact or first)
+                igdbGame = data.games.find((g: any) => g.name.toLowerCase() === randomGame.name.toLowerCase()) || data.games[0];
+            }
+
+            // 2. Calculate Sunday 8pm
+            const now = new Date();
+            const endDate = new Date(now);
+            let daysUntilSunday = (7 - now.getDay()) % 7;
+            if (daysUntilSunday === 0 && now.getHours() >= 20) {
+                daysUntilSunday = 7;
+            }
+            endDate.setDate(now.getDate() + daysUntilSunday);
+            endDate.setHours(20, 0, 0, 0);
+
+            // 3. Update state
+            setManualGame({
+                title: igdbGame?.name || randomGame.name,
+                platform: igdbGame?.platforms || randomGame.platform,
+                rules: "Set a high score! Default settings, 1 credit only.",
+                endDate: endDate.toISOString().slice(0, 16),
+                challengeType: randomGame.challengeType as any,
+                customUnit: "",
+                cover_image_url: igdbGame?.coverUrl || "",
+                raGameId: "",
+                raLeaderboardId: ""
+            });
+            setBoxartFile(null);
+
+            alert(`Random Challenge Selected: ${randomGame.name}! 🎲\nReview the details and hit Start to begin.`);
+        } catch (error) {
+            console.error("Error picking random game:", error);
+            alert("Failed to fetch random game details.");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleRandomGOTM = async () => {
+        const randomGame = GOTM_DB[Math.floor(Math.random() * GOTM_DB.length)];
+
+        setIsUpdating(true);
+        try {
+            // 1. Search IGDB for this specific game
+            const response = await fetch('/api/games/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: randomGame.name })
+            });
+
+            let igdbGame = null;
+            if (response.ok) {
+                const data = await response.json();
+                igdbGame = data.games.find((g: any) => g.name.toLowerCase() === randomGame.name.toLowerCase()) || data.games[0];
+            }
+
+            // 2. Calculate Dates (Default to next month if active exists, else current)
+            const now = new Date();
+            const start = new Date(now.getFullYear(), now.getMonth(), 1);
+            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+            if (currentGOTM) {
+                start.setMonth(start.getMonth() + 1);
+                end.setMonth(end.getMonth() + 2, 0);
+            }
+
+            const toInputDate = (d: Date) => d.toISOString().split('T')[0];
+
+            // 3. Update form
+            setGotmForm({
+                title: igdbGame?.name || randomGame.name,
+                platform: igdbGame?.platforms || randomGame.platform,
+                coverUrl: igdbGame?.coverUrl || "",
+                year: igdbGame?.releaseDate ? new Date(igdbGame.releaseDate * 1000).getFullYear().toString() : "",
+                description: "",
+                igdbId: igdbGame?.id?.toString() || "",
+                startDate: toInputDate(start),
+                endDate: toInputDate(end),
+                developer: "Unknown",
+                publisher: "Unknown"
+            });
+
+            alert(`Random GOTM Selected: ${randomGame.name}! 🏆\nReview the details and confirm the schedule.`);
+        } catch (error) {
+            console.error("Error picking random GOTM:", error);
+            alert("Failed to fetch random game details.");
         } finally {
             setIsUpdating(false);
         }
@@ -241,8 +416,41 @@ function ClubAdminContent() {
             endDate: session.endDate || "",
             challengeType: session.challengeType || 'score',
             customUnit: session.customUnit || "",
-            cover_image_url: session.cover_image_url || ""
+            cover_image_url: session.cover_image_url || "",
+            raGameId: session.raGameId || "",
+            raLeaderboardId: session.raLeaderboardId || ""
         });
+    };
+
+    const handleSyncRAScores = async (sessionId: string) => {
+        if (!confirm("This will fetch the latest scores from RetroAchievements and update the scoreboard. Continue?")) return;
+        setIsSyncing(true);
+        try {
+            const baseUrl = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace('/searchGames', '') ||
+                'https://us-central1-club-play-app.cloudfunctions.net';
+
+            const res = await fetch(`${baseUrl}/syncRALeaderboard`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || "Failed to sync scores");
+            }
+            const data = await res.json();
+            alert(`Successfully synced ${data.syncedCount} scores from RetroAchievements!`);
+
+            // Refresh scores
+            const scores = await getSessionScores(sessionId);
+            setWeekScores(scores);
+        } catch (error: any) {
+            console.error("Error syncing RA scores:", error);
+            alert("Error syncing scores: " + error.message);
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
     // Score Management Handlers
@@ -335,11 +543,27 @@ function ClubAdminContent() {
                 const currentMembership = await getMembership(clubId as string, user.uid);
 
                 if (!currentMembership || (currentMembership.role !== 'owner' && currentMembership.role !== 'admin')) {
-                    alert("Access Denied: You do not have permission to manage this club.");
-                    router.push("/clubs");
-                    return;
+                    // Check if user is a global developer
+                    const { doc, getDoc } = await import("firebase/firestore");
+                    const { db } = await import("@/lib/firebase");
+                    const userSnap = await getDoc(doc(db, "users", user.uid));
+                    const isGlobalDev = userSnap.exists() && (userSnap.data().role === 'developer' || userSnap.data().displayName?.toLowerCase() === 'skezza82');
+
+                    if (!isGlobalDev) {
+                        alert("Access Denied: You do not have permission to manage this club.");
+                        router.push("/clubs");
+                        return;
+                    }
+                    setIsDev(true);
+                    setUserRole('admin'); // Treat as admin for UI
+                } else {
+                    setUserRole(currentMembership.role);
+                    const { doc, getDoc } = await import("firebase/firestore");
+                    const { db } = await import("@/lib/firebase");
+                    const userSnap = await getDoc(doc(db, "users", user.uid));
+                    const isGlobalDev = userSnap.exists() && (userSnap.data().role === 'developer' || userSnap.data().displayName?.toLowerCase() === 'skezza82');
+                    setIsDev(isGlobalDev);
                 }
-                setUserRole(currentMembership.role);
 
                 setClub(clubData);
                 setClubName(clubData.name);
@@ -347,6 +571,13 @@ function ClubAdminContent() {
                 setLogoUrl(clubData.logoUrl || "");
                 setBannerUrl(clubData.bannerUrl || "");
                 setChatEnabled(clubData.chatEnabled !== false);
+                setChallengesEnabled(clubData.challengesEnabled !== false);
+                setGotmEnabled(clubData.gotmEnabled !== false);
+                setLeaderboardEnabled(clubData.leaderboardEnabled !== false);
+                setMemberSpotlightEnabled(clubData.memberSpotlightEnabled !== false);
+                setRaWidgetEnabled(clubData.raWidgetEnabled !== false);
+                setWeeklyBonusEnabled(clubData.weeklyBonusEnabled !== false);
+                setWeeklyBonusXp(typeof clubData.weeklyBonusXp === "number" ? clubData.weeklyBonusXp : 25);
 
                 // 2. Fetch Requests
                 const reqData = await getJoinRequests(clubId as string);
@@ -375,6 +606,14 @@ function ClubAdminContent() {
                 setCurrentGOTM(activeGotm);
                 const nextGotm = await getUpcomingGOTM(clubId as string);
                 setUpcomingGOTM(nextGotm);
+
+                // Fetch Active Poll separately to avoid crashing the page
+                try {
+                    const pollData = await getActiveChallengePoll(clubId as string);
+                    setActivePoll(pollData);
+                } catch (pollErr) {
+                    console.error("Failed to load active poll, may need Firestore index:", pollErr);
+                }
 
             } catch (error) {
                 console.error("Error fetching admin data:", error);
@@ -454,7 +693,14 @@ function ClubAdminContent() {
                 name: clubName,
                 bio: clubBio,
                 bannerUrl: bannerUrl,
-                chatEnabled: chatEnabled
+                chatEnabled: chatEnabled,
+                challengesEnabled: challengesEnabled,
+                gotmEnabled: gotmEnabled,
+                leaderboardEnabled: leaderboardEnabled,
+                memberSpotlightEnabled: memberSpotlightEnabled,
+                raWidgetEnabled: raWidgetEnabled,
+                weeklyBonusEnabled: weeklyBonusEnabled,
+                weeklyBonusXp: weeklyBonusXp
             });
             alert("Club settings updated!");
             setClub({ ...club, name: clubName, bio: clubBio });
@@ -576,6 +822,7 @@ function ClubAdminContent() {
                     <TabButton active={activeTab === "members"} onClick={() => setActiveTab("members")} icon={<Users className="w-4 h-4" />}>Members</TabButton>
                     <TabButton active={activeTab === "game"} onClick={() => setActiveTab("game")} icon={<Gamepad2 className="w-4 h-4" />}>Game</TabButton>
                     <TabButton active={activeTab === "gotm"} onClick={() => setActiveTab("gotm")} icon={<Trophy className="w-4 h-4" />}>GOTM</TabButton>
+                    <TabButton active={activeTab === "poll"} onClick={() => setActiveTab("poll")} icon={<MessageSquare className="w-4 h-4" />}>Poll</TabButton>
                 </div>
             </div>
 
@@ -873,6 +1120,129 @@ function ClubAdminContent() {
                                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${chatEnabled ? 'left-7' : 'left-1'}`} />
                                             </button>
                                         </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${challengesEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Trophy className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Weekly Challenges</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Show weekly challenge leaderboards and sessions</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setChallengesEnabled(!challengesEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${challengesEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${challengesEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${leaderboardEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Trophy className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Leaderboard</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Show the weekly wins leaderboard tab</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLeaderboardEnabled(!leaderboardEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${leaderboardEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${leaderboardEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${memberSpotlightEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Crown className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Member Spotlight</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Show last week’s winner on the overview</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMemberSpotlightEnabled(!memberSpotlightEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${memberSpotlightEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${memberSpotlightEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${weeklyBonusEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Sparkles className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Weekly Bonus XP</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Let members claim a weekly XP reward</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Input
+                                                    type="number"
+                                                    min={0}
+                                                    value={weeklyBonusXp}
+                                                    onChange={(e) => setWeeklyBonusXp(Math.max(0, parseInt(e.target.value || "0")))}
+                                                    className="w-20 bg-black/40 border-white/10 text-xs text-white h-7"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWeeklyBonusEnabled(!weeklyBonusEnabled)}
+                                                    className={`w-12 h-6 rounded-full transition-colors relative ${weeklyBonusEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                                >
+                                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${weeklyBonusEnabled ? 'left-7' : 'left-1'}`} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${raWidgetEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Gamepad2 className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Show RetroAchievements Widget</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Display RA stats for members who linked accounts</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRaWidgetEnabled(!raWidgetEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${raWidgetEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${raWidgetEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${gotmEnabled ? 'bg-primary/20 text-primary' : 'bg-gray-500/20 text-gray-400'}`}>
+                                                    <Star className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Enable Game of the Month</h4>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Show GOTM tab, reviews, and vault</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setGotmEnabled(!gotmEnabled)}
+                                                className={`w-12 h-6 rounded-full transition-colors relative ${gotmEnabled ? 'bg-primary' : 'bg-white/10'}`}
+                                            >
+                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${gotmEnabled ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="pt-8">
@@ -933,9 +1303,21 @@ function ClubAdminContent() {
                                 <CardContent>
                                     <form onSubmit={handleManualSession} className="space-y-6">
                                         <div className="space-y-2 mb-6 p-4 bg-black/20 rounded-lg border border-white/5">
-                                            <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
-                                                <Search className="w-3 h-3" /> Auto-Fill from IGDB
-                                            </label>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                    <Search className="w-3 h-3" /> Auto-Fill from IGDB
+                                                </label>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleRandomChallenge}
+                                                    className="h-7 text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary/10"
+                                                    disabled={isUpdating}
+                                                >
+                                                    <RefreshCw className={`w-3 h-3 mr-1 ${isUpdating ? 'animate-spin' : ''}`} /> Random Game
+                                                </Button>
+                                            </div>
                                             <GameSearch
                                                 onSelect={(game) => {
                                                     setManualGame(prev => ({
@@ -1058,6 +1440,26 @@ function ClubAdminContent() {
                                                     />
                                                 </div>
                                             )}
+                                            <div className="space-y-2 animate-fade-in-up">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest flex justify-between"><span>RA Game ID</span> <span className="opacity-50">Optional</span></label>
+                                                <Input
+                                                    value={manualGame.raGameId}
+                                                    onChange={(e) => setManualGame({ ...manualGame, raGameId: e.target.value })}
+                                                    placeholder="e.g. 1441"
+                                                    type="number"
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 animate-fade-in-up md:col-span-2">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest flex justify-between"><span>RA Leaderboard ID</span> <span className="opacity-50">Optional</span></label>
+                                                <Input
+                                                    value={manualGame.raLeaderboardId}
+                                                    onChange={(e) => setManualGame({ ...manualGame, raLeaderboardId: e.target.value })}
+                                                    placeholder="e.g. 153"
+                                                    type="number"
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
@@ -1162,6 +1564,26 @@ function ClubAdminContent() {
                                                     />
                                                 </div>
                                             )}
+                                            <div className="space-y-2 animate-fade-in-up">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest flex justify-between"><span>RA Game ID</span> <span className="opacity-50">Optional</span></label>
+                                                <Input
+                                                    value={editedSession.raGameId}
+                                                    onChange={(e) => setEditedSession({ ...editedSession, raGameId: e.target.value })}
+                                                    placeholder="e.g. 1441"
+                                                    type="number"
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 animate-fade-in-up">
+                                                <label className="text-xs font-bold text-white uppercase tracking-widest flex justify-between"><span>RA Leaderboard ID</span> <span className="opacity-50">Optional</span></label>
+                                                <Input
+                                                    value={editedSession.raLeaderboardId}
+                                                    onChange={(e) => setEditedSession({ ...editedSession, raLeaderboardId: e.target.value })}
+                                                    placeholder="e.g. 153"
+                                                    type="number"
+                                                    className="bg-background/50 border-white/10 text-white"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="space-y-2">
@@ -1388,13 +1810,39 @@ function ClubAdminContent() {
                         {/* Scoreboard Management */}
                         {viewingScoresSessionId && activeSessions.find(s => s.id === viewingScoresSessionId) && (
                             <Card className="border-blue-500/20 bg-surface/40 backdrop-blur-md">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Trophy className="w-5 h-5 text-blue-400" />
-                                        Scoreboard: {activeSessions.find(s => s.id === viewingScoresSessionId)?.gameTitle}
-                                    </CardTitle>
-                                    <CardDescription>Edit or remove invalid scores from the leaderboard.</CardDescription>
+                                <CardHeader className="flex flex-row items-center justify-between">
+                                    <div className="space-y-1.5">
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Trophy className="w-5 h-5 text-blue-400" />
+                                            Scoreboard: {activeSessions.find(s => s.id === viewingScoresSessionId)?.gameTitle}
+                                        </CardTitle>
+                                        <CardDescription>Edit or remove invalid scores from the leaderboard.</CardDescription>
+                                    </div>
+                                    {activeSessions.find(s => s.id === viewingScoresSessionId)?.raLeaderboardId && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSyncRAScores(viewingScoresSessionId as string)}
+                                            disabled={isSyncing}
+                                            className="bg-indigo-500 text-white font-bold tracking-widest uppercase hover:bg-indigo-600 shadow-[0_0_15px_rgba(99,102,241,0.5)] hidden sm:flex"
+                                        >
+                                            {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                            Sync RA Scores
+                                        </Button>
+                                    )}
                                 </CardHeader>
+                                {activeSessions.find(s => s.id === viewingScoresSessionId)?.raLeaderboardId && (
+                                    <div className="px-6 mb-4 sm:hidden">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSyncRAScores(viewingScoresSessionId as string)}
+                                            disabled={isSyncing}
+                                            className="w-full bg-indigo-500 text-white font-bold tracking-widest uppercase hover:bg-indigo-600 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                                        >
+                                            {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                                            Sync RA Scores
+                                        </Button>
+                                    </div>
+                                )}
                                 <CardContent>
                                     {(weekScores || []).length === 0 ? (
                                         <div className="text-center py-8 text-muted-foreground italic border border-dashed border-white/10 rounded-lg">
@@ -1564,9 +2012,21 @@ function ClubAdminContent() {
                             <CardContent>
                                 <div className="space-y-6">
                                     <div className="p-4 bg-black/20 rounded-lg border border-white/5">
-                                        <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2 mb-2">
-                                            <Search className="w-3 h-3" /> Search IGDB
-                                        </label>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                <Search className="w-3 h-3" /> Search IGDB
+                                            </label>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleRandomGOTM}
+                                                className="h-7 text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary/10"
+                                                disabled={isUpdating}
+                                            >
+                                                <RefreshCw className={`w-3 h-3 mr-1 ${isUpdating ? 'animate-spin' : ''}`} /> Random GOTM
+                                            </Button>
+                                        </div>
                                         <GameSearch
                                             onSelect={(game) => {
                                                 // Calculate default dates (Next month if active exists, else current month)
@@ -1671,8 +2131,210 @@ function ClubAdminContent() {
                     </div>
                 )
             }
+            {
+                activeTab === "poll" && (
+                    <div className="space-y-8 animate-fade-in-up">
+                        {activePoll ? (
+                            <Card className="border-primary/20 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle className="text-primary flex items-center gap-2">
+                                        <MessageSquare className="w-5 h-5" /> Active Match Poll
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Voting ends: {new Date(activePoll.votingEndTime).toLocaleString()}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        {activePoll.options.map((opt, i) => {
+                                            const totalVotes = Object.keys(activePoll.votes || {}).length;
+                                            const optionVotes = Object.values(activePoll.votes || {}).filter(v => v === opt.igdbId).length;
+                                            const pct = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                                            return (
+                                                <div key={i} className="bg-black/40 border border-white/10 rounded-lg p-4 flex flex-col items-center gap-3">
+                                                    {opt.coverUrl ? (
+                                                        <img src={opt.coverUrl} className="w-20 h-28 object-cover rounded shadow-lg" alt={opt.title} />
+                                                    ) : (
+                                                        <div className="w-20 h-28 bg-white/5 flex items-center justify-center rounded"><Gamepad2 className="w-8 h-8 opacity-20" /></div>
+                                                    )}
+                                                    <div className="text-center w-full">
+                                                        <p className="font-bold text-sm truncate w-full" title={opt.title}>{opt.title}</p>
+                                                        <p className="text-xs text-muted-foreground">{opt.platform}</p>
+                                                    </div>
+                                                    <div className="w-full mt-2 text-center text-xs font-bold text-primary">
+                                                        {optionVotes} Votes ({pct}%)
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="mt-8 flex justify-end gap-3">
+                                        {(() => {
+                                            const isPollCompleted = activePoll.status === 'completed' || new Date(activePoll.votingEndTime).getTime() <= Date.now();
 
+                                            // Determine Winner
+                                            const voteCounts = activePoll.options.map(opt => ({
+                                                ...opt,
+                                                votes: Object.values(activePoll.votes || {}).filter(v => v === opt.igdbId).length
+                                            }));
+                                            voteCounts.sort((a, b) => b.votes - a.votes);
+                                            const winner = voteCounts[0];
 
+                                            if (isPollCompleted && !activePoll.winnerAdded) {
+                                                return (
+                                                    <Button
+                                                        className="bg-primary text-black font-bold uppercase tracking-widest hover:bg-primary/90"
+                                                        onClick={() => handleCreateChallengeFromPoll(activePoll.id, winner.igdbId)}
+                                                        disabled={isUpdating}
+                                                    >
+                                                        {isUpdating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Trophy className="w-4 h-4 mr-2" />}
+                                                        Create Challenge: {winner.title}
+                                                    </Button>
+                                                );
+                                            }
+
+                                            if (!isPollCompleted) {
+                                                return (
+                                                    <Button variant="destructive" onClick={async () => {
+                                                        if (confirm("Force end poll early?")) {
+                                                            setIsUpdating(true);
+                                                            try {
+                                                                await completeChallengePoll(activePoll.id);
+                                                                const newPoll = await getActiveChallengePoll(clubId as string);
+                                                                setActivePoll(newPoll);
+                                                                alert("Poll ended.");
+                                                            } catch (e: any) {
+                                                                alert("Failed: " + e.message);
+                                                            } finally {
+                                                                setIsUpdating(false);
+                                                            }
+                                                        }
+                                                    }}>
+                                                        End Poll Early
+                                                    </Button>
+                                                );
+                                            }
+
+                                            return null;
+                                        })()}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card className="border-white/10 bg-surface/40 backdrop-blur-md">
+                                <CardHeader>
+                                    <CardTitle>Create Next Challenge Poll</CardTitle>
+                                    <CardDescription>Select exactly 3 games for club members to vote on. Voting rewards 10 XP.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-6">
+                                        <div className="p-4 bg-black/20 rounded-lg border border-white/5">
+                                            <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2 mb-2">
+                                                <Search className="w-3 h-3" /> Select Games ({pollForm.options.length}/3)
+                                            </label>
+                                            <GameSearch
+                                                onSelect={(game) => {
+                                                    if (pollForm.options.length >= 3) {
+                                                        alert("You have already selected 3 options.");
+                                                        return;
+                                                    }
+                                                    if (pollForm.options.find(o => o.igdbId === game.id.toString())) {
+                                                        alert("Game already selected.");
+                                                        return;
+                                                    }
+                                                    setPollForm(prev => ({
+                                                        ...prev,
+                                                        options: [...prev.options, {
+                                                            igdbId: game.id.toString(),
+                                                            title: game.name,
+                                                            coverUrl: game.coverUrl || "",
+                                                            platform: game.platforms || "Arcade"
+                                                        }]
+                                                    }));
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        {pollForm.options.length > 0 && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                {pollForm.options.map((opt, i) => (
+                                                    <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3 relative flex gap-3 items-center">
+                                                        <Button size="sm" variant="ghost" className="absolute top-1 right-1 h-6 w-6 p-0 text-red-500 hover:bg-red-500/20" onClick={() => {
+                                                            setPollForm(prev => ({
+                                                                ...prev,
+                                                                options: prev.options.filter((_, idx) => idx !== i)
+                                                            }));
+                                                        }}>
+                                                            <X className="w-3 h-3" />
+                                                        </Button>
+                                                        {opt.coverUrl && <img src={opt.coverUrl} className="w-10 h-14 object-cover rounded shadow" />}
+                                                        <div>
+                                                            <p className="font-bold text-sm text-white line-clamp-2 leading-tight">{opt.title}</p>
+                                                            <p className="text-[10px] text-muted-foreground uppercase">{opt.platform}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold uppercase tracking-widest">Voting Ends</label>
+                                                <Input type="datetime-local" value={pollForm.votingEndTime} onChange={e => setPollForm({ ...pollForm, votingEndTime: e.target.value })} className="bg-background/50" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold uppercase tracking-widest">Challenge Starts</label>
+                                                <Input type="datetime-local" value={pollForm.challengeStartDate} onChange={e => setPollForm({ ...pollForm, challengeStartDate: e.target.value })} className="bg-background/50" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-bold uppercase tracking-widest">Challenge Ends</label>
+                                                <Input type="datetime-local" value={pollForm.challengeEndDate} onChange={e => setPollForm({ ...pollForm, challengeEndDate: e.target.value })} className="bg-background/50" />
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            className="w-full bg-primary text-black font-bold uppercase tracking-widest hover:bg-primary/90 mt-4"
+                                            onClick={async () => {
+                                                if (pollForm.options.length !== 3) {
+                                                    alert("Please select exactly 3 games for the poll.");
+                                                    return;
+                                                }
+                                                if (!pollForm.votingEndTime || !pollForm.challengeStartDate || !pollForm.challengeEndDate) {
+                                                    alert("Please fill out all dates.");
+                                                    return;
+                                                }
+                                                setIsUpdating(true);
+                                                try {
+                                                    await createChallengePoll(
+                                                        clubId as string,
+                                                        pollForm.options,
+                                                        new Date(pollForm.votingEndTime).toISOString(),
+                                                        new Date(pollForm.challengeStartDate).toISOString(),
+                                                        new Date(pollForm.challengeEndDate).toISOString()
+                                                    );
+                                                    alert("Poll created successfully!");
+                                                    const newPoll = await getActiveChallengePoll(clubId as string);
+                                                    setActivePoll(newPoll);
+                                                    setPollForm({ options: [], votingEndTime: "", challengeStartDate: "", challengeEndDate: "" });
+                                                } catch (e: any) {
+                                                    alert("Failed to create poll: " + e.message);
+                                                } finally {
+                                                    setIsUpdating(false);
+                                                }
+                                            }}
+                                            disabled={isUpdating || pollForm.options.length !== 3}
+                                        >
+                                            {isUpdating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+                                            Start Poll
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                )
+            }
         </main >
     );
 }
